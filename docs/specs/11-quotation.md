@@ -1,6 +1,9 @@
 # Quotation Module — Implementation Details
 
+> **Multi-Company Support Added:** `company_id` column on `tbl_quotation_main`.
+
 ## Purpose
+
 Document the actual calculation formulas, state transitions, edge cases, and business logic for the quotation module.
 
 ---
@@ -16,6 +19,51 @@ Quotations are simpler than invoices — they don't affect customer balance or t
 | cr_dr field | Not used | Tracks receivable direction |
 | ad_due field | Not affected | May change after save |
 | Number sequence | `tbl_numbers.quo_no` | `tbl_numbers.invoice_no` |
+| **Multi-company** | `company_id` header | `company_id` header |
+
+---
+
+## Multi-Company Support
+
+### Company Selection
+
+A **company ComboBox** is added at the form header.
+
+**UI Placement:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Company: [X-Press Ironing Ltd ▼]     Customer: [________] │
+│                                    Quo No: [____]           │
+│  Checklist No: [____]   Date: [___]                          │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Data Source:**
+```sql
+SELECT id, company_name FROM tbl_company WHERE is_active = 1 ORDER BY id
+```
+
+**Load Logic:**
+```vb
+Private Sub LoadCompanyCombo()
+    Dim ds As DataSet = SQL_Query("SELECT id, company_name FROM tbl_company WHERE is_active = 1 ORDER BY id")
+    company_cmb.DataSource = ds.Tables(0)
+    company_cmb.DisplayMember = "company_name"
+    company_cmb.ValueMember = "id"
+    If ds.Tables(0).Rows.Count > 0 Then
+        company_cmb.SelectedIndex = 0
+    End If
+End Sub
+```
+
+**Save Logic:**
+```vb
+variable.Add("company_id", company_cmb.SelectedValue)
+```
+
+**Edit Mode:**
+- If quotation has line items, disable company change
+- If quotation has no line items, allow company change
 
 ---
 
@@ -101,6 +149,7 @@ Public Sub saved()
     variable.Add("customer_id", "'" & Val(customer_id) & "'")
     variable.Add("quo_no", "'" & quo_no.Text & "'")
     variable.Add("checklist_no", "'" & checklist_no.Text & "'")
+    variable.Add("company_id", "'" & Val(company_cmb.SelectedValue) & "'")  ' Multi-company
     variable.Add("sub_total", "'" & Val(sub_total.Text) & "'")
     variable.Add("amount_due", "'" & Val(amount_due.Text) & "'")   ' customer's current due
     variable.Add("discount", "'" & Val(discount.Text) & "'")
@@ -250,6 +299,8 @@ Public Sub load_data()
                   "INNER JOIN tbl_customer c ON qm.customer_id = c.id " &
                   "WHERE qm.id=@temp_id")
         ' Populate customer, checklist, dates
+        ' **Company**: Load company from quotation
+        company_cmb.SelectedValue = ds.Tables(0).Rows(0).Item("company_id")
         invoice_date.Value = Today  ' Override to current date
     End If
 
@@ -361,6 +412,7 @@ End Sub
 | customer_name | Must be selected | "Please Enter Customer Name" |
 | quo_no | Must not be empty | "Please Enter Invoice No" |
 | line items | At least 1 product row | "There Is No Data To Process" |
+| company_cmb | Must be selected | "Please select a company" |
 
 Note: No `checklist_no` validation, no `case_debit` validation (not applicable to quotation).
 
@@ -389,3 +441,26 @@ q = "UPDATE tbl_numbers SET quo_no='" & Val(quo_no.Text) + 1 & "' WHERE id='" &
 | CLEAR | Reset all fields to initial state |
 | ADD CUSTOMER | Open Add_Edit_Customer form |
 | ADD PRODUCT | Open Add_Edit_Product form (new_pro_key_quo=true) |
+
+---
+
+## Database Schema
+
+### tbl_quotation_main
+
+```sql
+CREATE TABLE tbl_quotation_main (
+    [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    customer_id BIGINT,
+    quo_no VARCHAR(200),
+    checklist_no VARCHAR(200),
+    company_id BIGINT DEFAULT 1,        -- Multi-company support
+    sub_total NUMERIC(18,2),
+    amount_due NUMERIC(18,2),
+    vat NUMERIC(18,2),
+    discount NUMERIC(18,2),
+    total NUMERIC(18,2),
+    per NUMERIC(18,0),
+    quo_date DATE
+)
+```

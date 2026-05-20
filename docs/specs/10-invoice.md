@@ -1,11 +1,68 @@
 # Invoice Module — Implementation Details
 
+> **Multi-Company Support Added:** `company_id` column on `tbl_invoice_main`.
+
 ## Purpose
+
 Document the actual calculation formulas, state transitions, edge cases, and business logic behind the invoice module for replication.
 
 ### Important: Two Save Functions Exist
 - **`saved()`** (lines 1232-1497): Primary save function used by all button handlers (Button1/Button4/Button6). Use this as the reference.
 - **`saved1()`** (lines 981-1229): Parallel legacy save function with broken delete logic (`contain_id` is Double, not String). **Do NOT use as reference.**
+
+---
+
+## Multi-Company Support
+
+### Company Selection
+
+A **company ComboBox** is added at the form header, next to or above the customer selection.
+
+**UI Placement:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Company: [X-Press Ironing Ltd ▼]     Customer: [________] │
+│                                    Invoice No: [____]       │
+│  Checklist No: [____]   Date: [___]   CASH ○  CREDIT ○      │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Data Source:**
+```sql
+SELECT id, company_name FROM tbl_company WHERE is_active = 1 ORDER BY id
+```
+
+**Load Logic:**
+```vb
+Private Sub LoadCompanyCombo()
+    Dim ds As DataSet = SQL_Query("SELECT id, company_name FROM tbl_company WHERE is_active = 1 ORDER BY id")
+    company_cmb.DataSource = ds.Tables(0)
+    company_cmb.DisplayMember = "company_name"
+    company_cmb.ValueMember = "id"
+    If ds.Tables(0).Rows.Count > 0 Then
+        company_cmb.SelectedIndex = 0
+    End If
+End Sub
+```
+
+**Save Logic:**
+```vb
+variable.Add("company_id", company_cmb.SelectedValue)
+```
+
+**Edit Mode:**
+- If invoice has line items, disable company change
+- If invoice has no line items, allow company change
+```vb
+Private Sub ValidateCompanyChange()
+    If DataGridView2.Rows.Count > 1 Then
+        MsgBox("Cannot change company when line items exist.", vbExclamation)
+        company_cmb.Enabled = False
+    Else
+        company_cmb.Enabled = True
+    End If
+End Sub
+```
 
 ---
 
@@ -148,7 +205,7 @@ End If
 | "Advance" | amount_due > sub_total | ad_due="Advance", cr_dr="Cr." |
 | "Due" | sub_total = amount_due | ad_due="Due", cr_dr="Dr." |
 | "Due" | sub_total > amount_due | ad_due="Due", cr_dr="Dr." |
-| "Due" | amount_due > sub_total | ad_due="Due", cr_dr="Dr." |
+| "Due" | amount_due > sub_total | ad_due="Due", cr_dr="Cr." |
 
 > **Note:** Spec previously said CREDIT always sets `cr_dr = "Cr."` — this was oversimplified. The actual code uses `sub_total` vs `amount_due` comparison (vs CASH which uses `total` vs `paid_amount`).
 
@@ -363,7 +420,7 @@ Directory.CreateDirectory(folder_path)
 Dim file_name = "INV" & get_single_value("invoice_no", "tbl_invoice_main", "id", tmp_invoice_id) & "-" & user_name  ' NOTE: looks up from DB after save, not local variable
 Dim pdf_path = folder_path & "\" & file_name & ".pdf"
 ```
-' e.g., "D:\Invoices\May\INV001-Mr John Smith.pdf"
+'e.g., "D:\Invoices\May\INV001-Mr John Smith.pdf"
 ```
 
 ### Path Structure
@@ -374,6 +431,13 @@ Dim pdf_path = folder_path & "\" & file_name & ".pdf"
     INV002-Ms Jane Doe.pdf
   June-2026/
     INV003-...
+```
+
+### Company-Specific Path (Optional Enhancement)
+```vb
+Dim companyCode = company_cmb.SelectedValue
+folder_path = quot_path1 & "\" & MonthName(iMonth) & "\" & companyCode
+' e.g., "D:\Invoices\May\XPI\"
 ```
 
 ### user_name Construction
@@ -471,6 +535,12 @@ ORDER BY product_id
 | case_debit | Must be selected (CASH or CREDIT) | "Please Select Case / Debit" |
 | line items | At least 1 product row | "There Is No Data To Process" |
 
+### Multi-Company Validation
+| Rule | Error Message |
+|------|---------------|
+| Company must be selected | "Please select a company" |
+| Cannot change company if line items exist | "Cannot change company when line items exist" |
+
 ---
 
 ## Print Due Amount Option
@@ -499,12 +569,44 @@ SELECT
     Format(im.invoice_date, 'dd-MM-yyyy') AS Invoice_Date,
     im.discount,
     im.total AS Bill_Amount,
-    im.checklist_no
+    im.checklist_no,
+    co.company_name
 FROM tbl_invoice_main im
 INNER JOIN tbl_customer c ON im.customer_id = c.id
+LEFT JOIN tbl_company co ON im.company_id = co.id
 WHERE im.invoice_date BETWEEN @fromdate AND @todate
   AND (c.customer_name LIKE '%{find}%' OR im.invoice_no LIKE '%{find}%')
 ORDER BY im.invoice_date DESC
 ```
 
 Date defaults: `fromdate = first day of current month`, `todate = today`
+
+---
+
+## Database Schema
+
+### tbl_invoice_main
+
+```sql
+CREATE TABLE tbl_invoice_main (
+    [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    customer_id BIGINT,
+    invoice_no VARCHAR(200),
+    checklist_no VARCHAR(200),
+    company_id BIGINT DEFAULT 1,        -- Multi-company support
+    sub_total NUMERIC(18,2),
+    amount_due NUMERIC(18,2),
+    vat NUMERIC(18,2),
+    discount NUMERIC(18,2),
+    total NUMERIC(18,2),
+    per NUMERIC(18,0),
+    invoice_date DATE,
+    case_debit VARCHAR(50),
+    paid_amount NUMERIC(18,2),
+    balance NUMERIC(18,2),
+    no VARCHAR(MAX),
+    cr_dr VARCHAR(50),
+    identify VARCHAR(50),
+    print_due VARCHAR(10)
+)
+```

@@ -1,6 +1,9 @@
-# Spec: Preview_Invoice_Report
+# Preview Invoice Report — Specification
+
+> **Multi-Company Support Added:** Company branding from `company_id` on `tbl_invoice_main`.
 
 ## Purpose
+
 `Preview_Invoice_Report` is a WinForms report-preview form that renders invoice data in `ReportViewer2` using RDLC templates and allows direct printing through a button action.
 
 Primary entry point:
@@ -19,7 +22,30 @@ The load routine:
 
 ---
 
+## Multi-Company Support
+
+### Company Branding
+
+Reports now filter company data by `company_id` from the invoice:
+
+```vb
+' Get company_id from current invoice
+Dim companyId As Long = get_single_value("company_id", "tbl_invoice_main", "id", invoice_id)
+
+' DataSet3: Company master data (filtered by company_id)
+q = "SELECT * FROM tbl_company WHERE id = " & companyId
+```
+
+### Why This Matters
+
+- Each company has its own logo, watermark, address, branding
+- The report header must show the correct company based on `company_id`
+- Historical invoices retain their `company_id` and show correct branding
+
+---
+
 ## Dataset loading pattern (3 datasets)
+
 The form follows a repeated 3-step pattern for each dataset:
 1. Create `DataSet` + `BindingSource`.
 2. Fill the dataset through `SqlDataAdapter` and named table (`DataSet1/2/3`).
@@ -34,7 +60,7 @@ Using cn1 As New SqlConnection(con111)
     cn1.Open()
     Dim q1 As String
     q1 = "..."
-    Dim sa As New SqlDataAdapter(q1, con111)
+    Dim sa As New SqlDataAdapter(q1, cn1)
     sa.Fill(ds, "DataSet1")
 End Using
 bs.DataSource = ds
@@ -71,6 +97,7 @@ Notes:
 - Loaded as report table name `DataSet1`.
 
 ### DataSet2: Invoice line items with product type join
+
 Source code query:
 
 ```vb
@@ -82,20 +109,24 @@ Notes:
 - Uses `main_id = invoice_id` to fetch only current invoice rows.
 - Loaded as report table name `DataSet2`.
 
-### DataSet3: Company master data
-Source code query:
+### DataSet3: Company master data (Multi-Company: Filtered)
 
 ```vb
-q = "select * from tbl_company"
+' Get company_id from invoice
+Dim companyId As Long = get_single_value("company_id", "tbl_invoice_main", "id", invoice_id)
+
+' Load company branding for this specific company
+q = "SELECT * FROM tbl_company WHERE id = " & companyId
 ```
 
-Notes:
-- Loads all company rows into `DataSet3`.
-- Used for company-level branding/details in report.
+**Previous:** `q = "select * from tbl_company"` (loaded ALL companies)
+
+**Now:** Filters to the specific company based on invoice's `company_id`.
 
 ---
 
 ## RDLC selection logic
+
 Report path is selected by global Boolean `print_due_amt_on_invoice`.
 
 Actual code:
@@ -115,6 +146,7 @@ Behavior:
 ---
 
 ## Report parameters
+
 Two runtime parameters are passed into the RDLC:
 
 ```vb
@@ -138,6 +170,7 @@ Parameter contract:
 ---
 
 ## Row height calculation (`tot_item_length`, `tot_desc_length`, `/38`)
+
 The form computes estimated row counts for item and description text wrapping by dividing each length by `38` and applying `Math.Ceiling`.
 
 Actual code:
@@ -178,6 +211,7 @@ Observed behavior:
 ---
 
 ## Print button behavior
+
 The print action is wired to `Button5_Click` and calls a shared print helper with the prepared local report.
 
 ```vb
@@ -193,6 +227,7 @@ Meaning:
 ---
 
 ## `print_due_amt_on_invoice` global flag
+
 `print_due_amt_on_invoice` controls two key behaviors:
 1. **Template selection**: `INVOICE.rdlc` vs `INVOICE_noadv.rdlc`.
 2. **Runtime parameter**: `due_amt = "1"` when true, `"0"` when false.
@@ -204,10 +239,73 @@ This flag is therefore both:
 ---
 
 ## End-to-end load/preview flow
+
 1. Form load fires `Preview_Invoice_Report_Load`.
 2. SQL connection string is read from `REPORT_CON_STRING`.
-3. `DataSet1`, `DataSet2`, `DataSet3` are loaded and bound to report data sources.
-4. RDLC path is chosen using `print_due_amt_on_invoice`.
-5. Parameters `final_amt` and `due_amt` are set.
-6. Viewer enters print-layout mode and executes `RefreshReport()`.
-7. User clicks Print (`Button5`) -> `print_microsoft_report(ReportViewer2.LocalReport, Me)`.
+3. **Get `company_id` from invoice** (new step).
+4. `DataSet1`, `DataSet2` are loaded for invoice data.
+5. `DataSet3` is loaded **filtered by `company_id`** for company branding.
+6. RDLC path is chosen using `print_due_amt_on_invoice`.
+7. Parameters `final_amt` and `due_amt` are set.
+8. Viewer enters print-layout mode and executes `RefreshReport()`.
+9. User clicks Print (`Button5`) -> `print_microsoft_report(ReportViewer2.LocalReport, Me)`.
+
+---
+
+## Other Reports (Quotation, Receipt, Statement)
+
+All transaction report forms follow the same pattern:
+
+1. **Get `company_id`** from the transaction record
+2. **Filter `DataSet3` (company data)** by `company_id`
+3. **Load company-specific** logo, address, branding
+
+### Quotation Report
+
+```vb
+Dim companyId As Long = get_single_value("company_id", "tbl_quotation_main", "id", quotation_id)
+q = "SELECT * FROM tbl_company WHERE id = " & companyId
+```
+
+### Receipt Report
+
+```vb
+Dim companyId As Long = get_single_value("company_id", "tbl_receipt", "id", receipt_id)
+q = "SELECT * FROM tbl_company WHERE id = " & companyId
+```
+
+### Statement Report
+
+```vb
+' Statement shows customer history — include company from first invoice or let user select
+Dim companyId As Long = 1  ' Default or user-selected
+```
+
+---
+
+## Database Schema Reference
+
+### tbl_company (Report Branding Source)
+
+```sql
+SELECT company_name,      -- Report header
+       company_short_name,
+       address,           -- Report address
+       city,
+       telephone,
+       email,
+       brn,               -- Business Registration Number
+       vat,               -- VAT Number
+       logo,              -- Company logo image
+       watermark          -- Report watermark
+FROM tbl_company
+WHERE id = @company_id
+```
+
+### tbl_invoice_main (Transaction + Company Link)
+
+```sql
+SELECT id, customer_id, company_id, invoice_no, ...
+FROM tbl_invoice_main
+WHERE id = @invoice_id
+```

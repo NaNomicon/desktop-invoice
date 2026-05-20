@@ -1,5 +1,7 @@
 # Sales Report — Implementation Details
 
+> **Multi-Company Support Added:** `company_id` filter and company branding in reports.
+
 ## Purpose
 
 Date-range filtered sales report displaying invoice transactions with customer details. Provides filtering, preview, PDF export, and Excel export functionality.
@@ -10,20 +12,41 @@ Date-range filtered sales report displaying invoice transactions with customer d
 
 ### Form Layout
 ```
-┌──────────────────────────────────────────────────────────┐
-│ [Left Panel]          │ [Top Filter Bar - LightSkyBlue]  │
-│                       │                                  │
-│  [PRINT]              │  From [DatePicker] To [DatePicker]│
-│  [VIEW PDF]           │                     [🔍 Filter] │
-│  [CANCEL]             │  [Export Excel ⬛]                │
-│                       ├──────────────────────────────────┤
-│  "Sales Report"       │                                  │
-│                       │         DataGridView1             │
-│                       │    (fills remaining space)       │
-│                       │                                  │
-│  [Logo PictureBox]    │                                  │
-└──────────────────────────────────────────────────────────┘
+┌────────────────────────────────────────────────────────────────┐
+│ [Left Panel]          │ [Top Filter Bar - LightSkyBlue]        │
+│                       │                                        │
+│  [PRINT]              │  From [DatePicker] To [DatePicker]     │
+│  [VIEW PDF]           │  Company: [All Companies ▼]           │
+│  [CANCEL]             │                     [🔍 Filter]         │
+│                       │  [Export Excel ⬛]                     │
+│  "Sales Report"       ├────────────────────────────────────────┤
+│                       │                                        │
+│  [Logo PictureBox]    │         DataGridView1                  │
+│                       │    (fills remaining space)             │
+└────────────────────────────────────────────────────────────────┘
 ```
+
+### New Company Filter
+
+A **company ComboBox** is added to filter sales by company:
+
+```vb
+' Load company filter
+Private Sub LoadCompanyFilter()
+    Dim ds As DataSet = SQL_Query("SELECT 0 AS ID, 'All Companies' AS company_name UNION SELECT id, company_name FROM tbl_company WHERE is_active = 1")
+    company_cmb.DataSource = ds.Tables(0)
+    company_cmb.DisplayMember = "company_name"
+    company_cmb.ValueMember = "id"
+End Sub
+
+' Add filter to query
+Dim companyFilter As String = ""
+If company_cmb.SelectedValue > 0 Then
+    companyFilter = " AND im.company_id = " & company_cmb.SelectedValue
+End If
+```
+
+---
 
 ### Controls
 
@@ -31,6 +54,7 @@ Date-range filtered sales report displaying invoice transactions with customer d
 |---------|------|---------|---------------|
 | `fromdate` | DateTimePicker | Start of date range | `first_date()` (first day of current month) |
 | `todate` | DateTimePicker | End of date range | Current date |
+| `company_cmb` | ComboBox | Filter by company | "All Companies" (0) |
 | `find` | TextBox | Search/filter across all columns | Empty |
 | `Button5` ("&PRINT") | Button | Open preview form | — |
 | `Button2` ("&VIEW PDF") | Button | Generate & open PDF | — |
@@ -43,27 +67,22 @@ Date-range filtered sales report displaying invoice transactions with customer d
 | Index | Header Text | Alignment | Format | Source | Display Order |
 |-------|-------------|-----------|--------|--------|---------------|
 | 0 | Sales ID | Left | — | `tbl_invoice_main.id` | 0 |
-| 4 | Invoice Date | Left | **dd-MM-yyyy** | `tbl_invoice_main.invoice_date` | **1** (moved via DisplayIndex=1) |
+| 4 | Invoice Date | Left | **dd-MM-yyyy** | `tbl_invoice_main.invoice_date` | **1** |
 | 1 | Customer Name | Left | — | `LTRIM(tbl_customer.customer_name)` | 2 |
 | 2 | Customer Type | Left | — | `tbl_customer.customer_type` | 3 |
 | 3 | Invoice NO | Left | — | `tbl_invoice_main.invoice_no` | 4 |
 | 5 | Discount | **Right** | — | `tbl_invoice_main.discount` | 5 |
 | 6 | Bill Amount | **Right** | — | `sub_total + vat - discount` | 6 |
 | 7 | Checklist NO | Left | — | `tbl_invoice_main.checklist_no` | 7 |
-
-**Note:** Column 4 (Invoice Date) has `.DisplayIndex = 1`, so it displays as the **second column** (position 1) after Sales ID. This reorders the visual layout from the query return order.
-
-**Grid Properties:**
-- `ReadOnly = True`
-- `AllowUserToAddRows = False`
-- `AllowUserToDeleteRows = False`
-- `CellBorderStyle = None`
+| 8 | Company | Left | — | `tbl_company.company_short_name` | 8 |
 
 ---
 
 ## Query Logic
 
 ### Grid Display Query (Lines 46-54)
+
+**Multi-Company:** Added `company_id` filter and company column.
 
 ```vb
 q = "SELECT tbl_invoice_main.id, LTRIM(tbl_customer.customer_name) AS Expr1, " &
@@ -72,20 +91,24 @@ q = "SELECT tbl_invoice_main.id, LTRIM(tbl_customer.customer_name) AS Expr1, " &
     "CAST(CONVERT(VARCHAR, CAST(tbl_invoice_main.discount AS MONEY), 1) AS VARCHAR), " &
     "CAST(CONVERT(VARCHAR, CAST(tbl_invoice_main.sub_total + tbl_invoice_main.vat - " &
     "tbl_invoice_main.discount AS MONEY), 1) AS VARCHAR), " &
-    "tbl_invoice_main.checklist_no " &
-    "FROM tbl_invoice_main INNER JOIN tbl_customer ON tbl_invoice_main.customer_id = tbl_customer.id " &
+    "tbl_invoice_main.checklist_no, " &
+    "ISNULL(tbl_company.company_short_name, 'XPI') AS company_name " &
+    "FROM tbl_invoice_main " &
+    "INNER JOIN tbl_customer ON tbl_invoice_main.customer_id = tbl_customer.id " &
+    "LEFT JOIN tbl_company ON tbl_invoice_main.company_id = tbl_company.id " &
     "WHERE (tbl_invoice_main.invoice_date BETWEEN '" & Format(fromdate.Value, "dd-MMM-yyyy") & "' AND '" & Format(todate.Value, "dd-MMM-yyyy") & "') " &
-    "AND (tbl_customer.customer_name LIKE '%" & find.Text & "%' " &
+    AND (tbl_customer.customer_name LIKE '%" & find.Text & "%' " &
     "OR tbl_customer.customer_type LIKE '%" & find.Text & "%' " &
     "OR tbl_invoice_main.invoice_no LIKE '%" & find.Text & "%' " &
     "OR tbl_invoice_main.discount LIKE '%" & find.Text & "%' " &
     "OR tbl_invoice_main.checklist_no LIKE '%" & find.Text & "%') " &
+    companyFilter &  ' Added for multi-company
     "ORDER BY tbl_invoice_main.invoice_date"
 ```
 
 ### sales_query Variable (Lines 66-72)
 
-Stored separately for report generation (used by Preview_Sales_Report):
+**Multi-Company:** Added company filter to report query.
 
 ```vb
 sales_query = "SELECT tbl_invoice_main.id, tbl_invoice_main.paid_amount, tbl_customer.title_name, " &
@@ -96,12 +119,14 @@ sales_query = "SELECT tbl_invoice_main.id, tbl_invoice_main.paid_amount, tbl_cus
     "tbl_invoice_main.sub_total + tbl_invoice_main.vat - tbl_invoice_main.discount AS Expr3, " &
     "tbl_invoice_main.checklist_no " &
     "FROM tbl_invoice_main INNER JOIN tbl_customer ON tbl_invoice_main.customer_id = tbl_customer.id " &
+    "LEFT JOIN tbl_company ON tbl_invoice_main.company_id = tbl_company.id " &
     "WHERE (tbl_invoice_main.invoice_date BETWEEN '" & Format(fromdate.Value, "dd-MMM-yyyy") & "' AND '" & Format(todate.Value, "dd-MMM-yyyy") & "') " &
-    "AND (tbl_customer.customer_name LIKE '%" & find.Text & "%' " &
+    AND (tbl_customer.customer_name LIKE '%" & find.Text & "%' " &
     "OR tbl_customer.customer_type LIKE '%" & find.Text & "%' " &
     "OR tbl_invoice_main.invoice_no LIKE '%" & find.Text & "%' " &
     "OR tbl_invoice_main.checklist_no LIKE '%" & find.Text & "%' " &
     "OR tbl_invoice_main.discount LIKE '%" & find.Text & "%') " &
+    companyFilter &  ' Added for multi-company
     "ORDER BY tbl_invoice_main.invoice_date"
 ```
 
@@ -127,11 +152,19 @@ Derived from invoice calculation: total after VAT and discount applied.
 | Event | Trigger |
 |-------|---------|
 | `Sales_Report_Load` | Form loads |
+| `company_cmb.SelectedIndexChanged` | Company filter changes |
 | `find.TextChanged` | User types in search box |
 | `fromdate.ValueChanged` | From date changes |
 | `todate.ValueChanged` | To date changes |
 
 ### Filter Logic
+
+Company filter (`company_cmb`) is applied as SQL condition:
+```vb
+If company_cmb.SelectedValue > 0 Then
+    companyFilter = " AND im.company_id = " & company_cmb.SelectedValue
+End If
+```
 
 Search (`find.Text`) is applied via LIKE with `%wildcards%` on multiple fields:
 - `tbl_customer.customer_name`
@@ -195,245 +228,4 @@ Private Sub Button2_Click(sender As Object, e As EventArgs) Handles Button2.Clic
     Dim quot_path1 = get_single_value("report_path", "tbl_setting", "id", get_max_number("id", "tbl_setting"))
     If quot_path1 = "" Then
         MsgBox("Please Set Report Path from Setting", vbCritical, "Warning")
-        Exit Sub
-    End If
-
-    Dim folder_path, pdf_path As String
-    Dim file_name = get_single_value("invoice_no", "tbl_invoice_main", "id", repo_path_id)
-    folder_path = quot_path1 & "\Sales Reports\"
-
-    If (Not System.IO.Directory.Exists(folder_path)) Then
-        System.IO.Directory.CreateDirectory(folder_path)
-    End If
-
-    Dim Bytes() = Preview_Sales_Report.ReportViewer2.LocalReport.Render("PDF", "", Nothing, Nothing, Nothing, Nothing, Nothing)
-    pdf_path = quot_path1 & "\Sales Reports\" & "Sales" & Format(Date.Now, "dd.MM.yyyyHH_mm_ss") & ".pdf"
-
-    Using Stream As New FileStream(pdf_path, FileMode.Create)
-        Stream.Write(Bytes, 0, Bytes.Length)
-    End Using
-
-    Preview_Sales_Report.ReportViewer2.RefreshReport()
-    Preview_Sales_Report.Dispose()
-    Preview_Sales_Report.Close()
-    Process.Start(pdf_path)
-
-    frmProgress.Dispose()
-    frmProgress.Close()
-End Sub
-```
-
-### PDF Path Structure
-
-```
-{report_path from tbl_setting}/
-  Sales Reports/
-    Sales20.05.202615_30_45.pdf    ← Format: dd.MM.yyyyHH_mm_ss
-```
-
-**Note:** Filename includes timestamp (seconds precision) to ensure uniqueness — no monthly subfolder structure like invoice reports.
-
-### PDF Export Validation
-
-| Check | Condition | Message |
-|-------|-----------|---------|
-| Grid empty | `DataGridView1.Rows.Count = 0` | "No Data Selected" |
-| No row selected | `Cells(1).Value = ""` | "No Data Selected" |
-| Report path not set | `report_path = ""` | "Please Set Report Path from Setting" |
-
----
-
-## Excel Export Flow
-
-### Button7 ("&Export") Click (Lines 216-296)
-
-```vb
-Private Sub Button7_Click(sender As Object, e As EventArgs) Handles Button7.Click
-    Dim saveFileDialog1 As New SaveFileDialog()
-    saveFileDialog1.Filter = "Excel |*.xlsx"
-    saveFileDialog1.Title = "Save Excle File"
-    saveFileDialog1.ShowDialog()
-
-    If saveFileDialog1.FileName <> "" Then
-        fnm = saveFileDialog1.FileName
-    Else
-        Exit Sub
-    End If
-
-    Dim xlWorkBook As Excel.Workbook
-    Dim xlWorkSheet As Excel.Worksheet
-    Dim misValue = System.Reflection.Missing.Value
-    Dim xlApp As Excel.Application = New Microsoft.Office.Interop.Excel.Application()
-
-    If xlApp Is Nothing Then
-        MessageBox.Show("Excel is not properly installed!!")
-        Return
-    End If
-
-    xlWorkBook = xlApp.Workbooks.Add(misValue)
-    xlWorkSheet = xlWorkBook.Sheets("sheet1")
-
-    ' Write headers
-    xlWorkSheet.Cells(1, 1) = "CUSTOMER NAME"
-    xlWorkSheet.Cells(1, 2) = "CUSTOMER TYPE"
-    xlWorkSheet.Cells(1, 3) = "INVOICE NO"
-    xlWorkSheet.Cells(1, 4) = "INVOICE DATE"
-    xlWorkSheet.Cells(1, 5) = "DISCOUNT"
-    xlWorkSheet.Cells(1, 6) = "SUB TOTAL"
-    xlWorkSheet.Cells(1, 7) = "CHECKLIST NO"
-
-    ' Write data rows
-    z = 2
-    With DataGridView1
-        For j = 0 To .Rows.Count - 1
-            xlWorkSheet.Cells(z, 1) = .Rows(j).Cells(1).Value   ' Customer Name
-            xlWorkSheet.Cells(z, 2) = .Rows(j).Cells(2).Value   ' Customer Type
-            xlWorkSheet.Cells(z, 3) = .Rows(j).Cells(3).Value   ' Invoice NO
-            xlWorkSheet.Cells(z, 4) = .Rows(j).Cells(4).Value   ' Invoice Date
-            xlWorkSheet.Cells(z, 5) = .Rows(j).Cells(5).Value   ' Discount
-            xlWorkSheet.Cells(z, 6) = .Rows(j).Cells(6).Value   ' Bill Amount (= SUB TOTAL)
-            xlWorkSheet.Cells(z, 7) = .Rows(j).Cells(7).Value  ' Checklist NO
-            z = z + 1
-        Next
-    End With
-    
-    xlWorkSheet.Columns.AutoFit()
-    xlWorkBook.SaveAs(excel_file_name)
-    xlWorkBook.Close(True, misValue, misValue)
-    xlApp.Quit()
-
-    releaseObject(xlWorkSheet)
-    releaseObject(xlWorkBook)
-    releaseObject(xlApp)
-
-    MsgBox("File Saved at : " & fnm)
-End Sub
-```
-
-### Excel Header Mapping
-
-| Excel Column | Header | DataGridView Cell Index | Notes |
-|--------------|--------|------------------------|-------|
-| A | CUSTOMER NAME | 1 | LTRIM(customer_name) |
-| B | CUSTOMER TYPE | 2 | customer_type |
-| C | INVOICE NO | 3 | invoice_no |
-| D | INVOICE DATE | 4 | Formatted dd-MM-yyyy |
-| E | DISCOUNT | 5 | discount (currency formatted) |
-| F | SUB TOTAL | 6 | Bill Amount = sub_total + vat - discount |
-| G | CHECKLIST NO | 7 | checklist_no |
-
-**Note:** "SUB TOTAL" column header actually contains Bill Amount (net after VAT and discount). This is a label inconsistency in the original code.
-
----
-
-## Form Lifecycle
-
-### Load (Lines 34-41)
-```vb
-Private Sub Sales_Report_Load(sender As Object, e As EventArgs) Handles MyBase.Load
-    fromdate.Value = first_date()
-    Call set_fonr(Me, Label2)
-    Call con_sql()
-    Me.KeyPreview = True
-    Call grids1(DataGridView1)
-    Call load_grid()
-End Sub
-```
-
-### Disposed (Lines 16-18)
-```vb
-Private Sub Sales_Report_Disposed(sender As Object, e As EventArgs) Handles Me.Disposed
-    last_form_close(Me)
-End Sub
-```
-
-### FormClosed (Lines 20-25)
-```vb
-Private Sub Sales_Report_FormClosed(sender As Object, e As FormClosedEventArgs) Handles Me.FormClosed
-    On Error Resume Next
-    workbook.Save()
-    workbook.Close()
-    APP.Quit()
-End Sub
-```
-
-### KeyDown — Escape to Close (Lines 27-32)
-```vb
-Private Sub Sales_Report_KeyDown(sender As Object, e As KeyEventArgs) Handles Me.KeyDown
-    If e.KeyCode = Keys.Escape Then
-        Me.Dispose()
-        Me.Close()
-    End If
-End Sub
-```
-
----
-
-## Module Integration
-
-### Part of Invoice Module
-Sales Report is accessed from the Invoice module to view historical invoice data. It reads from:
-- `tbl_invoice_main` — invoice headers
-- `tbl_customer` — customer details via JOIN
-- `tbl_setting` — report path for PDF export
-
-### Relationship to Invoice Form
-```
-Invoice Form (Add_Edit_Invoice)
-    ↓ creates
-tbl_invoice_main records
-    ↓ read by
-Sales_Report (filters & displays)
-    ↓ feeds
-Preview_Sales_Report (report preview/PDF)
-```
-
-### sales_query Global Variable
-The `sales_query` variable is stored globally for consumption by `Preview_Sales_Report`. This form reads `sales_query` to generate the actual report via ReportViewer RDLC.
-
----
-
-## Date Formatting
-
-| Context | Format | Example |
-|---------|--------|---------|
-| SQL Query | `dd-MMM-yyyy` | `20-May-2026` |
-| DataGridView Display | `dd-MM-yyyy` | `20-05-2026` |
-| PDF Filename | `dd.MM.yyyyHH_mm_ss` | `20.05.202615_30_45` |
-| Excel Export | DataGridView format | `20-05-2026` |
-
----
-
-## Form Cleanup / Resource Management
-
-### releaseObject() Helper (Lines 132-141)
-```vb
-Private Sub releaseObject(obj As Object)
-    Try
-        System.Runtime.InteropServices.Marshal.ReleaseComObject(obj)
-        obj = Nothing
-    Catch ex As Exception
-        obj = Nothing
-    Finally
-        GC.Collect()
-    End Try
-End Sub
-```
-
-Ensures Excel COM objects are properly released to prevent zombie processes.
-
----
-
-## Data Sources
-
-| Source | Usage |
-|--------|-------|
-| `tbl_invoice_main` | All invoice fields |
-| `tbl_customer` | customer_name, customer_type, title_name |
-| `tbl_setting` | report_path for PDF destination |
-
-### Schema Dependencies
-```
-tbl_invoice_main.customer_id → tbl_customer.id (INNER JOIN)
-tbl_setting.id = get_max_number("id", "tbl_setting") (singleton settings row)
 ```

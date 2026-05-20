@@ -1,38 +1,55 @@
 # Database Schema — Complete Reference
 
 ## Purpose
+
 Complete database schema documentation for replication.
+
+> **Multi-Company Support:** Tables `tbl_invoice_main`, `tbl_quotation_main`, `tbl_receipt`, and `tbl_company` now include `company_id` for multi-company transactions.
 
 ---
 
 ## Core Tables
 
 ### tbl_company
-Single-row company profile for invoices/reports.
+
+Multi-company support: Can have multiple rows, each representing a separate company entity.
 
 ```sql
 CREATE TABLE tbl_company (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    company_name VARCHAR(MAX),
+    company_name VARCHAR(MAX),           -- Full name: "X-Press Ironing Ltd"
+    company_short_name VARCHAR(100),     -- Short name: "X-Press Ironing"
+    company_code VARCHAR(50),            -- 'XPI', 'XPW' for identification
     address VARCHAR(MAX),
     city VARCHAR(500),
     telephone VARCHAR(100),
     email VARCHAR(200),
     facebook_url VARCHAR(MAX),
-    brn VARCHAR(150),           -- Business Registration Number
-    vat VARCHAR(150),           -- VAT Number
-    note1 VARCHAR(MAX),          -- Invoice footer line 1
-    note2 VARCHAR(MAX),          -- Invoice footer line 2
-    note3 VARCHAR(MAX),          -- Invoice footer line 3
-    thanks1 VARCHAR(MAX),        -- Thank you message 1
-    thanks2 VARCHAR(MAX),        -- Thank you message 2
-    currency VARCHAR(50),       -- Default currency
-    logo IMAGE,                  -- Company logo
-    watermark IMAGE              -- Report watermark
+    brn VARCHAR(150),
+    vat VARCHAR(150),
+    note1 VARCHAR(MAX),
+    note2 VARCHAR(MAX),
+    note3 VARCHAR(MAX),
+    thanks1 VARCHAR(MAX),
+    thanks2 VARCHAR(MAX),
+    currency VARCHAR(50),
+    logo IMAGE,
+    watermark IMAGE,
+    is_active BIT DEFAULT 1             -- Multi-company: soft disable
 )
 ```
 
-**Note:** Only ONE record exists. Use `get_max_number("id", "tbl_company")`.
+**Multi-Company Notes:**
+- No longer singleton — multiple companies can exist
+- Use `company_code` for quick identification (XPI, XPW)
+- Use `is_active` to soft-disable companies
+- Reports filter by `company_id` on transaction tables
+
+**Existing Companies:**
+| ID | company_name | company_code | Purpose |
+|----|--------------|--------------|---------|
+| 1 | X-Press Ironing Ltd | XPI | Ironing services (existing) |
+| 2 | X-Press Wash | XPW | Wash services (future) |
 
 ---
 
@@ -43,22 +60,23 @@ CREATE TABLE tbl_customer (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     customer_name VARCHAR(MAX),
     contact VARCHAR(MAX),
-    customer_type VARCHAR(100),  -- Individual/Corporate
+    customer_type VARCHAR(100),
     telephone VARCHAR(50),
     address VARCHAR(MAX),
     email VARCHAR(200),
     due_amount NUMERIC(18,2) DEFAULT 0,
-    title_name VARCHAR(50),       -- Mr/Mrs/Ms/Dr
+    title_name VARCHAR(50),
     reg_date DATE,
-    ad_due VARCHAR(100) DEFAULT 'Advance',  -- Due/Advance/""
+    ad_due VARCHAR(100) DEFAULT 'Advance',
     brn VARCHAR(100),
     vat VARCHAR(100)
 )
 ```
 
-**Calculated Fields:**
-- `due_amount`: Running balance (invoices - receipts)
-- `ad_due`: Status ("Due" = owes us, "Advance" = we owe them, "" = settled)
+**Notes:**
+- Customers are SHARED across companies
+- `due_amount` is company-agnostic (one balance per customer)
+- If company-specific balances are needed, add `company_id` and separate tracking
 
 ---
 
@@ -67,10 +85,10 @@ CREATE TABLE tbl_customer (
 ```sql
 CREATE TABLE tbl_product (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    product_id VARCHAR(200),      -- SKU/Code
+    product_id VARCHAR(200),
     product_name VARCHAR(MAX),
-    type_id BIGINT,              -- FK to tbl_product_type
-    price NUMERIC(18,2)          -- Default price
+    type_id BIGINT,
+    price NUMERIC(18,2)
 )
 ```
 
@@ -81,9 +99,11 @@ CREATE TABLE tbl_product (
 ```sql
 CREATE TABLE tbl_product_type (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    type_name VARCHAR(150)       -- e.g., "Ironing", "Dry Cleaning"
+    type_name VARCHAR(150)
 )
 ```
+
+**Note:** Product types are customer SEGMENTS (Resi, Dryclean, Ironing, Bank, Hotel, Corporate), NOT service types. All types are shared across companies.
 
 ---
 
@@ -92,15 +112,13 @@ CREATE TABLE tbl_product_type (
 ```sql
 CREATE TABLE tbl_user (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    user_id VARCHAR(500),        -- Login name
-    password VARCHAR(500),        -- Plain text ⚠️
-    des VARCHAR(500)              -- Role: "admin" or "USER"
+    user_id VARCHAR(500),
+    password VARCHAR(500),
+    des VARCHAR(500)
 )
 ```
 
 **Default user:** ADMIN / admin (des = NULL)
-
-**Note:** Default INSERT in auto_field() only sets user_id and password. The `des` column is NOT initialized (remains NULL).
 
 ---
 
@@ -108,33 +126,37 @@ CREATE TABLE tbl_user (
 
 ### tbl_invoice_main
 
+**Multi-Company:** `company_id` column added.
+
 ```sql
 CREATE TABLE tbl_invoice_main (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    customer_id BIGINT,            -- FK to tbl_customer
+    customer_id BIGINT,
     invoice_no VARCHAR(200),
     checklist_no VARCHAR(200),
+    company_id BIGINT DEFAULT 1,           -- Multi-company support
     sub_total NUMERIC(18,2),
     amount_due NUMERIC(18,2),
     vat NUMERIC(18,2),
     discount NUMERIC(18,2),
     total NUMERIC(18,2),
-    per NUMERIC(18,0),           -- Discount percentage
+    per NUMERIC(18,0),
     invoice_date DATE,
-    case_debit VARCHAR(50),     -- CASH/CREDIT
+    case_debit VARCHAR(50),
     paid_amount NUMERIC(18,2),
     balance NUMERIC(18,2),
-    no VARCHAR(MAX),              -- Timestamp for ordering
-    cr_dr VARCHAR(50),          -- Cr./Dr. (direction)
-    identify VARCHAR(50),         -- Due/Advance (status)
-    print_due VARCHAR(10)        -- True/False
+    no VARCHAR(MAX),
+    cr_dr VARCHAR(50),
+    identify VARCHAR(50),
+    print_due VARCHAR(10)
 )
 ```
 
 **Key fields:**
+- `company_id`: Links to `tbl_company.ID` for branding
 - `case_debit`: "CASH" (partial payment) or "CREDIT" (full amount)
 - `cr_dr`: "Cr." = added to receivable, "Dr." = subtracted
-- `identify`: Customer's prior status ("Due" or "Advance")
+- `identify`: Due/Advance (status)
 - `no`: Unix timestamp for chronological ordering
 
 ---
@@ -144,18 +166,22 @@ CREATE TABLE tbl_invoice_main (
 ```sql
 CREATE TABLE tbl_invoice_sub (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    main_id BIGINT,              -- FK to tbl_invoice_main
+    main_id BIGINT,
     qty NUMERIC(18,0),
-    product_id BIGINT,            -- FK to tbl_product
+    product_id BIGINT,
     unit_price NUMERIC(18,2),
     row_total NUMERIC(18,2),
-    s_no NUMERIC(18,0)           -- Line number for ordering
+    s_no NUMERIC(18,0)
 )
 ```
+
+**Note:** Line items inherit `company_id` from parent `tbl_invoice_main`.
 
 ---
 
 ### tbl_quotation_main
+
+**Multi-Company:** `company_id` column added.
 
 ```sql
 CREATE TABLE tbl_quotation_main (
@@ -163,6 +189,7 @@ CREATE TABLE tbl_quotation_main (
     customer_id BIGINT,
     quo_no VARCHAR(200),
     checklist_no VARCHAR(200),
+    company_id BIGINT DEFAULT 1,           -- Multi-company support
     sub_total NUMERIC(18,2),
     amount_due NUMERIC(18,2),
     vat NUMERIC(18,2),
@@ -170,7 +197,6 @@ CREATE TABLE tbl_quotation_main (
     total NUMERIC(18,2),
     per NUMERIC(18,0),
     quo_date DATE
-    -- No cr_dr, identify, case_debit, paid_amount, balance
 )
 ```
 
@@ -194,20 +220,23 @@ CREATE TABLE tbl_quotation_sub (
 
 ### tbl_receipt
 
+**Multi-Company:** `company_id` column added.
+
 ```sql
 CREATE TABLE tbl_receipt (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
     receipt_no VARCHAR(50),
     receipt_date DATE,
     customer_id BIGINT,
+    company_id BIGINT DEFAULT 1,           -- Multi-company support
     due_amount NUMERIC(18,2),
     amount_received NUMERIC(18,2),
     cheque_no VARCHAR(200),
-    no VARCHAR(MAX),            -- Timestamp
+    no VARCHAR(MAX),
     balance NUMERIC(18,2),
-    cr_dr VARCHAR(100),         -- Cr./Dr.
+    cr_dr VARCHAR(100),
     invoice_no VARCHAR(100),
-    pre_load VARCHAR(100),      -- Due/Advance (prior status)
+    pre_load VARCHAR(100),
     cash VARCHAR(100) DEFAULT '0',
     cheque VARCHAR(100) DEFAULT '0',
     other VARCHAR(100) DEFAULT '0'
@@ -229,7 +258,13 @@ CREATE TABLE tbl_numbers (
 )
 ```
 
-**Note:** Single row, all sequences in one table.
+**Numbering Strategy:** Shared across companies (single sequence per type).
+
+If separate numbering per company is needed:
+```sql
+ALTER TABLE tbl_numbers ADD invoice_no_xpi BIGINT DEFAULT 1
+ALTER TABLE tbl_numbers ADD invoice_no_xpw BIGINT DEFAULT 1
+```
 
 ---
 
@@ -238,12 +273,12 @@ CREATE TABLE tbl_numbers (
 ```sql
 CREATE TABLE tbl_setting (
     [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
-    isvat NUMERIC(18,0),            -- 0=No VAT, 1=VAT
-    vat_per NUMERIC(18,0),           -- e.g., 5 for 5%
+    isvat NUMERIC(18,0),
+    vat_per NUMERIC(18,0),
     invoice_path VARCHAR(MAX),
     quo_path VARCHAR(MAX),
     report_path VARCHAR(MAX),
-    invoice_days VARCHAR(100),       -- Edit lock days
+    invoice_days VARCHAR(100),
     back_path VARCHAR(MAX),
     backup_path VARCHAR(MAX),
     cash VARCHAR(MAX),
@@ -264,7 +299,7 @@ CREATE TABLE tbl_email (
     subject VARCHAR(500),
     body VARCHAR(MAX),
     sender_pass VARCHAR(100),
-    identify VARCHAR(100),            -- INVOICE/QUOTATION/STATEMENT/RECEIPT
+    identify VARCHAR(100),
     sub_subject VARCHAR(MAX)
 )
 ```
@@ -274,19 +309,26 @@ CREATE TABLE tbl_email (
 ## Relationships
 
 ```
-tbl_company (1) ───── (∞) Not used anywhere
-                    
+tbl_company (1) ────── (∞) tbl_invoice_main
+                      ────── (∞) tbl_quotation_main
+                      ────── (∞) tbl_receipt
+
 tbl_customer (1) ──┬── (∞) tbl_invoice_main
-                    ├── (∞) tbl_quotation_main  
-                    └── (∞) tbl_receipt
+                  ├── (∞) tbl_quotation_main
+                  └── (∞) tbl_receipt
 
 tbl_product_type (1) ─── (∞) tbl_product
-                             │
-                             └── (∞) tbl_invoice_sub
-                             └── (∞) tbl_quotation_sub
+                           │
+                           └── (∞) tbl_invoice_sub
+                           └── (∞) tbl_quotation_sub
 
 tbl_user (1) ───── Not referenced by other tables
 ```
+
+**Multi-Company Relationship Note:**
+- Each transaction (invoice/quotation/receipt) belongs to ONE company
+- Customers are shared across all companies
+- Products and product types are shared
 
 ---
 
@@ -294,13 +336,15 @@ tbl_user (1) ───── Not referenced by other tables
 
 No explicit indexes defined. Implicit indexes on:
 - `ID` (PK, clustered)
-- `invoice_no` (unique per table)
+- `invoice_no`, `quo_no`, `receipt_no` (unique per table)
 - `customer_id` (foreign keys)
+- `company_id` (new, for filtering)
 
 **For replication:** Add indexes on:
 - `tbl_customer.customer_name`
 - `tbl_product.product_name`
 - `tbl_invoice_main.invoice_date`
+- `tbl_invoice_main.company_id` (multi-company filtering)
 - `tbl_receipt.receipt_date`
 
 ---
@@ -318,6 +362,38 @@ SQL_Delete("tbl_customer", "id=" & customer_id)
 ```
 
 **For replication:** Consider adding FK constraints for data integrity.
+
+---
+
+## Multi-Company Migration Script
+
+```sql
+-- 1. Add new columns to tbl_company
+ALTER TABLE tbl_company ADD company_code VARCHAR(50)
+ALTER TABLE tbl_company ADD company_short_name VARCHAR(100)
+ALTER TABLE tbl_company ADD is_active BIT DEFAULT 1
+
+-- 2. Update existing company record
+UPDATE tbl_company SET 
+    company_code = 'XPI',
+    company_short_name = 'X-Press Ironing',
+    is_active = 1
+WHERE ID = 1
+
+-- 3. Add company_id to transaction tables
+ALTER TABLE tbl_invoice_main ADD company_id BIGINT DEFAULT 1
+ALTER TABLE tbl_quotation_main ADD company_id BIGINT DEFAULT 1
+ALTER TABLE tbl_receipt ADD company_id BIGINT DEFAULT 1
+
+-- 4. Set default company for existing records
+UPDATE tbl_invoice_main SET company_id = 1 WHERE company_id IS NULL
+UPDATE tbl_quotation_main SET company_id = 1 WHERE company_id IS NULL
+UPDATE tbl_receipt SET company_id = 1 WHERE company_id IS NULL
+
+-- 5. Insert new company (when ready)
+-- INSERT INTO tbl_company (company_name, company_short_name, company_code, is_active)
+-- VALUES ('X-Press Wash', 'X-Press Wash', 'XPW', 1)
+```
 
 ---
 
@@ -388,63 +464,48 @@ End Function
 
 **Purpose:** Called on every app startup. Creates tables if missing, adds columns for schema evolution, initializes default records.
 
-**Execution Flow:**
-1. Create each table `IF NOT EXISTS`
-2. Add each column `IF NOT EXISTS` (schema evolution)
-3. Insert default records if tables are empty
+**Multi-Company Additions:**
+```vb
+' Add company columns if missing
+IF COL_LENGTH('tbl_company', 'company_code') IS NULL
+    ALTER TABLE tbl_company ADD [company_code] VARCHAR(50)
+IF COL_LENGTH('tbl_company', 'company_short_name') IS NULL
+    ALTER TABLE tbl_company ADD [company_short_name] VARCHAR(100)
+IF COL_LENGTH('tbl_company', 'is_active') IS NULL
+    ALTER TABLE tbl_company ADD [is_active] BIT DEFAULT 1
+
+' Add company_id to transaction tables if missing
+IF COL_LENGTH('tbl_invoice_main', 'company_id') IS NULL
+    ALTER TABLE tbl_invoice_main ADD [company_id] BIGINT DEFAULT 1
+IF COL_LENGTH('tbl_quotation_main', 'company_id') IS NULL
+    ALTER TABLE tbl_quotation_main ADD [company_id] BIGINT DEFAULT 1
+IF COL_LENGTH('tbl_receipt', 'company_id') IS NULL
+    ALTER TABLE tbl_receipt ADD [company_id] BIGINT DEFAULT 1
+
+' Initialize existing company record
+UPDATE tbl_company SET 
+    company_code = 'XPI',
+    company_short_name = 'X-Press Ironing',
+    is_active = 1
+WHERE ID = (SELECT MAX(ID) FROM tbl_company) AND company_code IS NULL
+```
 
 **Tables Created:**
 | Order | Table | Key Columns Added |
 |-------|-------|------------------|
-| 1 | tbl_company | company_name, address, city, telephone, email, logo, watermark |
+| 1 | tbl_company | company_name, address, city, telephone, email, logo, watermark, company_code, company_short_name, is_active |
 | 2 | tbl_customer | customer_name, contact, due_amount, ad_due |
-| 3 | tbl_invoice_main | invoice_no, total, case_debit, cr_dr, identify |
+| 3 | tbl_invoice_main | invoice_no, total, case_debit, cr_dr, identify, company_id |
 | 4 | tbl_quotation_sub | main_id, qty, product_id, unit_price |
 | 5 | tbl_numbers | invoice_no, quo_no, receipt_no |
 | 6 | tbl_product | product_id, product_name, price |
 | 7 | tbl_product_type | type_name |
 | 8 | tbl_setting | isvat, vat_per, invoice_path, backup paths |
 | 9 | tbl_invoice_sub | main_id, qty, unit_price |
-| 10 | tbl_quotation_main | quo_no, total, quo_date |
-| 11 | tbl_receipt | receipt_no, amount_received, cheque_no, cash/cheque/other |
+| 10 | tbl_quotation_main | quo_no, total, quo_date, company_id |
+| 11 | tbl_receipt | receipt_no, amount_received, cheque_no, cash/cheque/other, company_id |
 | 12 | tbl_user | user_id, password, des |
 | 13 | tbl_email | identify (INVOICE/QUOTATION/STATEMENT/RECEIPT) |
-
-**Table Creation Pattern:**
-```sql
-IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'tbl_company')
-    CREATE TABLE tbl_company ([ID] BIGINT IDENTITY(1,1) NOT NULL, PRIMARY KEY (ID))
-```
-
-**Column Addition Pattern:**
-```sql
-IF COL_LENGTH('tbl_company', 'company_name') IS NULL
-    ALTER TABLE tbl_company ADD [company_name] VARCHAR(MAX)
-```
-
-**Default Records Initialized:**
-```vb
-' tbl_numbers
-INSERT INTO tbl_numbers (invoice_no, quo_no, receipt_no) VALUES (0, 0, 0)
-
-' tbl_setting  
-INSERT INTO tbl_setting (vat_per, isvat) VALUES (5, 1)
-
-' tbl_user
-INSERT INTO tbl_user (user_id, password) VALUES ('ADMIN', 'admin')
-
-' tbl_email — one row per type
-INSERT INTO tbl_email (identify) VALUES ('INVOICE')
-INSERT INTO tbl_email (identify) VALUES ('QUOTATION')
-INSERT INTO tbl_email (identify) VALUES ('STATEMENT')
-INSERT INTO tbl_email (identify) VALUES ('RECEIPT')
-```
-
-**Migration Strategy Notes:**
-- **Idempotent:** Safe to run multiple times — checks `IF NOT EXISTS`
-- **Additive only:** Never drops columns or tables
-- **Order matters:** Foreign key relationships assumed to exist in order
-- **For replication:** Replace with proper migration framework (EF Core, Flyway)
 
 ---
 
@@ -458,3 +519,4 @@ Created by `auto_field()` on first run:
 | tbl_setting | isvat=1, vat_per=5 |
 | tbl_numbers | invoice_no=1, quo_no=1, receipt_no=1 |
 | tbl_email | INVOICE, QUOTATION, STATEMENT, RECEIPT |
+| tbl_company | company_code='XPI', company_short_name='X-Press Ironing', is_active=1 |

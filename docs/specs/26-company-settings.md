@@ -4,23 +4,18 @@
 
 | Property | Value |
 |----------|-------|
-| **File** | `Master/Add_Edit_Company.vb` (202 lines) |
-| **Purpose** | Maintain single-company master data used in invoice/report headers and footer text |
+| **File** | `Master/Add_Edit_Company.vb` |
+| **Purpose** | Maintain multiple company profiles used in invoice/report headers and footer text |
 | **Table** | `tbl_company` |
-| **Pattern** | Single-record configuration (`company_id = get_max_number("id", "tbl_company")`) |
+| **Pattern** | Multi-row CRUD with `company_id` selection (changed from singleton) |
 
 ## Purpose
 
-This form stores one logical company profile (name, address/contact, statutory fields, notes, thanks text, currency, logo, watermark). Report and print modules consume this data for header branding and footer lines.
+This form manages multiple company profiles (name, address/contact, statutory fields, notes, thanks text, currency, logo, watermark). Report and print modules consume this data for header branding and footer lines based on the `company_id` of each transaction.
 
-The record-selection pattern is not list-based CRUD; it always resolves one active row by max id:
+Previously a **single-record configuration** (`company_id = get_max_number("id", "tbl_company")`), now supports **multiple companies** with a list/grid for selection.
 
-```vb
-company_id = get_max_number("id", "tbl_company")
-If company_id > 0 Then
-    Call load_data()
-End If
-```
+---
 
 ## Form Lifecycle and Load Logic
 
@@ -28,13 +23,15 @@ End If
 
 ```vb
 Public Class Add_Edit_Company
+    Dim company_id As Long = 0
+    Dim mode As String = "add"  ' or "edit"
 ```
 
 ### Key Events
 
 | Event | Behavior |
 |-------|----------|
-| `Add_Edit_Company_Load` | Initializes SQL connection, resets image flags, resolves current company row, loads data |
+| `Add_Edit_Company_Load` | Initializes SQL connection, loads company list grid |
 | `Disposed` | Calls `last_form_close(Me)` |
 | `KeyDown` | Escape closes form |
 | `Move` | Calls `moved(Me)` |
@@ -48,22 +45,55 @@ Private Sub Add_Edit_Company_Load(ByVal sender As System.Object, ByVal e As Syst
     IMG1 = False
     IMG2 = False
     Me.KeyPreview = True
-    company_id = get_max_number("id", "tbl_company")
-    If company_id > 0 Then
+    LoadCompanyList()      ' NEW: Load list of all companies
+    ClearForm()
+End Sub
+```
+
+### Company List Grid
+
+```vb
+Public Sub LoadCompanyList()
+    Dim query As String = "SELECT ID, company_name, company_code, company_short_name, is_active FROM tbl_company ORDER BY company_code"
+    Call SQL_Query(query)
+    DataGridView1.DataSource = ds.Tables(0)
+    
+    ' Format columns
+    DataGridView1.Columns("ID").Visible = False
+    DataGridView1.Columns("company_name").HeaderText = "Company Name"
+    DataGridView1.Columns("company_code").HeaderText = "Code"
+    DataGridView1.Columns("company_short_name").HeaderText = "Short Name"
+    DataGridView1.Columns("is_active").HeaderText = "Active"
+End Sub
+```
+
+### Grid Double-Click → Edit Mode
+
+```vb
+Private Sub DataGridView1_CellDoubleClick(ByVal sender As Object, ByVal e As DataGridViewCellEventArgs) Handles DataGridView1.CellDoubleClick
+    If e.RowIndex >= 0 Then
+        company_id = DataGridView1.Rows(e.RowIndex).Cells("ID").Value
+        mode = "edit"
         Call load_data()
+        Button1.Text = "Update"  ' Change save button text
     End If
 End Sub
 ```
 
-### Data Fetch (`load_data`)
+---
 
-`load_data()` uses `SQL_Select` with `id` filter and hydrates controls directly from `ds.Tables(0).Rows(0)`:
+## Data Fetch (`load_data`)
+
+`load_data()` uses `SQL_Select` with `id` filter and hydrates controls:
 
 ```vb
 Public Sub load_data()
     Call SQL_Select("tbl_company", "", "id='" & company_id & "'")
     If ds.Tables(0).Rows.Count > 0 Then
         company_name.Text = ds.Tables(0).Rows(0).Item("company_name").ToString
+        company_short_name.Text = ds.Tables(0).Rows(0).Item("company_short_name").ToString
+        company_code.Text = ds.Tables(0).Rows(0).Item("company_code").ToString
+        is_active.Checked = CBool(ds.Tables(0).Rows(0).Item("is_active"))
         address.Text = ds.Tables(0).Rows(0).Item("address").ToString
         city.Text = ds.Tables(0).Rows(0).Item("city").ToString
         telephone.Text = ds.Tables(0).Rows(0).Item("telephone").ToString
@@ -81,49 +111,45 @@ Public Sub load_data()
 End Sub
 ```
 
-## Field and DB Column Mapping (`tbl_company`)
+---
 
-The save logic builds a `Dictionary(Of String, String)` from all TextBox controls plus currency ComboBox; dictionary keys are expected to match DB column names.
+## Field and DB Column Mapping (`tbl_company`)
 
 | UI Control | Control Type | DB Column | Load assignment | Save source |
 |------------|--------------|-----------|-----------------|-------------|
-| `company_name` | TextBox | `company_name` | `.Item("company_name")` | auto via `GetAllControls(Me).OfType(Of TextBox)` |
-| `address` | TextBox | `address` | `.Item("address")` | auto TextBox loop |
-| `city` | TextBox | `city` | `.Item("city")` | auto TextBox loop |
-| `telephone` | TextBox | `telephone` | `.Item("telephone")` | auto TextBox loop |
-| `email` | TextBox | `email` | `.Item("email")` | auto TextBox loop |
-| `facebook_url` | TextBox | `facebook_url` | `.Item("facebook_url")` | auto TextBox loop |
-| `brn` | TextBox | `brn` | `.Item("brn")` | auto TextBox loop |
-| `vat` | TextBox | `vat` | `.Item("vat")` | auto TextBox loop |
-| `note1` | TextBox | `note1` | `.Item("note1")` | auto TextBox loop |
-| `note2` | TextBox | `note2` | `.Item("note2")` | auto TextBox loop |
-| `note3` | TextBox | `note3` | `.Item("note3")` | auto TextBox loop |
-| `thanks1` | TextBox | `thanks1` | `.Item("thanks1")` | auto TextBox loop |
-| `thanks2` | TextBox | `thanks2` | `.Item("thanks2")` | auto TextBox loop |
-| `currency` | ComboBox | `currency` | `.Item("currency")` | explicit `variable.Add(currency.Name, ...)` |
-| `pic_logo`/`bmp` | PictureBox/Image | `logo` (Byte[]) | `DirectCast(...Item("logo"), Byte())` | `@logo` parameter when `IMG1=True` |
-| `pic_water`/`bmp2` | PictureBox/Image | `watermark` (Byte[]) | `DirectCast(...Item("watermark"), Byte())` | `@logo1` parameter when `IMG2=True` |
+| `company_name` | TextBox | `company_name` | `.Item("company_name")` | auto via GetAllControls |
+| `company_short_name` | TextBox | `company_short_name` | `.Item("company_short_name")` | auto |
+| `company_code` | TextBox | `company_code` | `.Item("company_code")` | auto |
+| `address` | TextBox | `address` | `.Item("address")` | auto |
+| `city` | TextBox | `city` | `.Item("city")` | auto |
+| `telephone` | TextBox | `telephone` | `.Item("telephone")` | auto |
+| `email` | TextBox | `email` | `.Item("email")` | auto |
+| `facebook_url` | TextBox | `facebook_url` | `.Item("facebook_url")` | auto |
+| `brn` | TextBox | `brn` | `.Item("brn")` | auto |
+| `vat` | TextBox | `vat` | `.Item("vat")` | auto |
+| `note1` | TextBox | `note1` | `.Item("note1")` | auto |
+| `note2` | TextBox | `note2` | `.Item("note2")` | auto |
+| `note3` | TextBox | `note3` | `.Item("note3")` | auto |
+| `thanks1` | TextBox | `thanks1` | `.Item("thanks1")` | auto |
+| `thanks2` | TextBox | `thanks2` | `.Item("thanks2")` | auto |
+| `currency` | ComboBox | `currency` | `.Item("currency")` | explicit |
+| `is_active` | CheckBox | `is_active` | `.Item("is_active")` | explicit |
+| `pic_logo`/`bmp` | PictureBox/Image | `logo` (Byte[]) | `DirectCast(...Item("logo"), Byte())` | `@logo` when `IMG1=True` |
+| `pic_water`/`bmp2` | PictureBox/Image | `watermark` (Byte[]) | `DirectCast(...Item("watermark"), Byte())` | `@logo1` when `IMG2=True` |
+
+---
 
 ## Validation and Input Constraints
 
-There is **no explicit required-field validation** in `Button1_Click` or `saved_sql()`. Save is allowed with empty strings.
+### Required Fields
 
-What is validated/normalized:
+| Field | Rule | Error Message |
+|-------|------|---------------|
+| company_name | Must not be empty | "Please enter company name" |
+| company_code | Must not be empty | "Please enter company code" |
+| company_code | Must be unique | "Company code already exists" |
 
-- String escaping only: each TextBox value is escaped using `.Replace("'", "''")`.
-- Currency is captured from ComboBox text, not index value.
-- Image columns are conditionally included in update dictionary only when change flags are set.
-
-Actual save collection code:
-
-```vb
-Dim variable As New Dictionary(Of String, String)
-Dim textboxes = GetAllControls(Me).OfType(Of TextBox)().ToList()
-For Each item As TextBox In textboxes
-    variable.Add(item.Name, "'" & item.Text.Replace("'", "''") & "'")
-Next
-variable.Add(currency.Name, "'" & currency.Text.Replace("'", "''") & "'")
-```
+---
 
 ## Image Handling (Logo + Watermark)
 
@@ -168,29 +194,50 @@ bmp2 = pic_water.Image
 IMG2 = True
 ```
 
-Note: `Button4_Click` contains duplicated `.ShowDialog = Forms.DialogResult.OK` block, causing repeated assignment path for watermark selection.
+---
 
 ## Save Logic (`saved_sql`)
 
-### Entry Point
+### Clear Form
 
 ```vb
-Private Sub Button1_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button1.Click
-    Call saved_sql()
+Public Sub ClearForm()
+    company_name.Clear()
+    company_short_name.Clear()
+    company_code.Clear()
+    address.Clear()
+    city.Clear()
+    telephone.Clear()
+    email.Clear()
+    facebook_url.Clear()
+    brn.Clear()
+    vat.Clear()
+    note1.Clear()
+    note2.Clear()
+    note3.Clear()
+    thanks1.Clear()
+    thanks2.Clear()
+    currency.SelectedIndex = 0
+    is_active.Checked = True
+    pic_logo.Image = Nothing
+    pic_water.Image = Nothing
+    IMG1 = False
+    IMG2 = False
+    mode = "add"
+    company_id = 0
+    Button1.Text = "Save"
 End Sub
 ```
 
-### Update Mode (`company_id > 0`)
+### Update Mode (mode = "edit")
 
 Core pattern:
 
-- Build `variable` map from text fields + currency.
+- Build `variable` map from text fields + currency + is_active.
 - Conditionally include image placeholders:
   - `variable.Add("logo", "@logo")` when `IMG1=True`
   - `variable.Add("watermark", "@logo1")` when `IMG2=True`
 - Choose one of four `SQL_Update` overload calls based on flag combination.
-
-Actual branching:
 
 ```vb
 If IMG1 = True And IMG2 = True Then
@@ -198,8 +245,8 @@ If IMG1 = True And IMG2 = True Then
     MsgBox("Company Details Saved!", vbInformation)
     IMG1 = False
     IMG2 = False
-    Me.Dispose()
-    Me.Close()
+    Call LoadCompanyList()
+    Call ClearForm()
     Exit Sub
 End If
 If IMG1 = True Then
@@ -207,8 +254,8 @@ If IMG1 = True Then
     MsgBox("Company Details Saved!", vbInformation)
     IMG1 = False
     IMG2 = False
-    Me.Dispose()
-    Me.Close()
+    Call LoadCompanyList()
+    Call ClearForm()
     Exit Sub
 End If
 If IMG2 = True Then
@@ -216,8 +263,8 @@ If IMG2 = True Then
     MsgBox("Company Details Saved!", vbInformation)
     IMG1 = False
     IMG2 = False
-    Me.Dispose()
-    Me.Close()
+    Call LoadCompanyList()
+    Call ClearForm()
     Exit Sub
 End If
 If IMG1 = False And IMG2 = False Then
@@ -225,13 +272,13 @@ If IMG1 = False And IMG2 = False Then
     MsgBox("Company Details Saved!", vbInformation)
     IMG1 = False
     IMG2 = False
-    Me.Dispose()
-    Me.Close()
+    Call LoadCompanyList()
+    Call ClearForm()
     Exit Sub
 End If
 ```
 
-### Insert Mode (`company_id = 0`)
+### Insert Mode (mode = "add")
 
 Insert always sends both image parameters:
 
@@ -240,9 +287,11 @@ variable.Add("logo", "@logo")
 variable.Add("watermark", "@logo1")
 Dim d As Integer = SQL_Insert("tbl_company", variable, "@logo", "@logo1")
 MsgBox("Company Details Saved!", vbInformation)
-Me.Dispose()
-Me.Close()
+Call LoadCompanyList()
+Call ClearForm()
 ```
+
+---
 
 ## SQL Pattern Notes
 
@@ -252,16 +301,29 @@ Me.Close()
   - `SQL_Update("tbl_company", variable, "id=" & company_id, ...optional image params...)`
 - Insert:
   - `SQL_Insert("tbl_company", variable, "@logo", "@logo1")`
+- List:
+  - `SELECT ID, company_name, company_code, is_active FROM tbl_company WHERE is_active = 1`
 
 The code relies on helper implementations of `SQL_Update` / `SQL_Insert` to bind `@logo` and `@logo1` from in-memory image objects (`bmp`, `bmp2`).
 
-## Number Sequence / Single Record Strategy
+---
 
-This form implements a **single-company settings** strategy rather than multi-row maintenance:
+## Number Sequence / Single Record Strategy (CHANGES)
 
-1. On load, `company_id` is derived using `get_max_number("id", "tbl_company")`.
-2. If max id exists, form edits that row.
-3. If no row exists, first save executes insert.
-4. Future edits continue updating latest row by `id`.
+**Previous:** Single-company settings — always resolved latest row by max id.
 
-This is effectively a singleton configuration model for company identity data shown across printed documents.
+**New:** Multi-company maintenance:
+
+1. `company_id = 0` → New company (INSERT)
+2. `company_id > 0` → Edit existing company (UPDATE)
+3. Grid double-click → Load company for editing
+4. "New" button → Clear form for new entry
+5. All active companies appear in dropdowns across the application
+
+---
+
+## Backward Compatibility
+
+- Existing single-company record remains with ID=1
+- Reports with `company_id=1` continue to work
+- Auto-migration sets `company_code='XPI'` on existing record

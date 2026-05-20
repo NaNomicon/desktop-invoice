@@ -1,8 +1,8 @@
-# 30. Add/Edit Receipt
+# Receipt Module — Implementation Details
 
-Source: `docs/xpress/legacy-code/XPress/Outstanding/Add_Edit_Receipt.vb` (762 lines)
+> **Multi-Company Support Added:** `company_id` column on `tbl_receipt`.
 
-## Purpose (receipt creation/editing with balance tracking)
+## Purpose
 
 `Add_Edit_Receipt` handles both:
 - creating a new receipt,
@@ -18,6 +18,48 @@ Public Class Add_Edit_Receipt
     Dim pre_load_status As String = ""
     Public save_ad_due, cr_dr As String
 ```
+
+---
+
+## Multi-Company Support
+
+### Company Selection
+
+A **company ComboBox** is added at the form header.
+
+**UI Placement:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Company: [X-Press Ironing Ltd ▼]     Customer: [________] │
+│                                    Receipt No: [____]       │
+│  Receipt Date: [___]                Amount Received: [____]   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Data Source:**
+```sql
+SELECT id, company_name FROM tbl_company WHERE is_active = 1 ORDER BY id
+```
+
+**Load Logic:**
+```vb
+Private Sub LoadCompanyCombo()
+    Dim ds As DataSet = SQL_Query("SELECT id, company_name FROM tbl_company WHERE is_active = 1 ORDER BY id")
+    company_cmb.DataSource = ds.Tables(0)
+    company_cmb.DisplayMember = "company_name"
+    company_cmb.ValueMember = "id"
+    If ds.Tables(0).Rows.Count > 0 Then
+        company_cmb.SelectedIndex = 0
+    End If
+End Sub
+```
+
+**Save Logic:**
+```vb
+variable.Add("company_id", company_cmb.SelectedValue)
+```
+
+---
 
 ## Load logic (receipt_no from tbl_numbers, identify="V"/"R" pattern)
 
@@ -52,6 +94,8 @@ Public Sub load_data()
     End If
 ```
 
+---
+
 ## Transaction history grid (INVOICE + RECEIPT UNION query by customer_id, order by extra desc)
 
 History is assembled from two queries (invoice + receipt), unioned, and sorted by `extra desc`.
@@ -67,6 +111,8 @@ Public Sub load_grid()
     report_qurty = A & " UNION " & B & " Order by extra desc"
     Call SQL_Query(A & " UNION " & B, " Order by extra desc")
 ```
+
+---
 
 ## Load_data for Voucher (Receipt_voucher_ID > 0) vs Edit (receipt_id > 0)
 
@@ -132,6 +178,8 @@ other.Checked = CBool(ds.Tables(0).Rows(0).Item("other").ToString)
 End If
 ```
 
+---
+
 ## pre_load_status tracking
 
 `pre_load_status` stores previous balance state and drives both UI and reversal logic.
@@ -149,6 +197,8 @@ Label4.Text = temp & " Amount"
 ```vb
 pre_load_status = ds.Tables(0).Rows(0).Item("pre_load").ToString
 ```
+
+---
 
 ## Balance calculation (due_amount, amount_received)
 
@@ -185,6 +235,8 @@ Private Sub amount_received_TextChanged(ByVal sender As System.Object, ByVal e A
     cal()
 End Sub
 ```
+
+---
 
 ## cr_dr and ad_due determination based on balance
 
@@ -226,11 +278,19 @@ ElseIf ad_de = "Due" Then
 End If
 ```
 
+---
+
 ## Save logic with complex reversal for edit mode
 
 `saved()` has two major branches:
 - `receipt_id > 0`: edit mode with reversal-style customer due adjustments based on previous state (`pre_load_status`, `pre_load_amount_paid`, current due), then receipt update.
 - else: insert new receipt, update customer due/status, increment `tbl_numbers.receipt_no`.
+
+### Multi-Company Addition
+
+```vb
+variable.Add("company_id", "'" & Val(company_cmb.SelectedValue) & "'")
+```
 
 Core edit reversal cases:
 
@@ -295,6 +355,7 @@ If receipt_id > 0 Then
 Else
     ' INSERT NEW RECEIPT path (source lines 597-682):
     ' 1. Build variable with all receipt fields
+    variable.Add("company_id", "'" & Val(company_cmb.SelectedValue) & "'")
     ' 2. cr_dr/ad_due determination based on customer balance:
     '    ad_de = get_single_value("ad_due", "tbl_customer", "id", customer_id)
     '    If ad_de = "Advance" Then: str1 = "Cr." (always)
@@ -317,4 +378,31 @@ Else
     receipt_id = get_max_number("id", "tbl_receipt")
     MAKEPDF()
 End If
+```
+
+---
+
+## Database Schema
+
+### tbl_receipt
+
+```sql
+CREATE TABLE tbl_receipt (
+    [ID] BIGINT IDENTITY(1,1) NOT NULL PRIMARY KEY,
+    receipt_no VARCHAR(50),
+    receipt_date DATE,
+    customer_id BIGINT,
+    company_id BIGINT DEFAULT 1,        -- Multi-company support
+    due_amount NUMERIC(18,2),
+    amount_received NUMERIC(18,2),
+    cheque_no VARCHAR(200),
+    no VARCHAR(MAX),
+    balance NUMERIC(18,2),
+    cr_dr VARCHAR(100),
+    invoice_no VARCHAR(100),
+    pre_load VARCHAR(100),
+    cash VARCHAR(100) DEFAULT '0',
+    cheque VARCHAR(100) DEFAULT '0',
+    other VARCHAR(100) DEFAULT '0'
+)
 ```
