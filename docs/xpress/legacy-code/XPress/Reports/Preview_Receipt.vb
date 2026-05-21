@@ -40,22 +40,18 @@ Public Class Preview_Receipt
         'DATASET1
         Dim ds As New DataSet
         Dim bs As New BindingSource
-        Using cn1 As New SqlConnection(con111)
-            cn1.Open()
-            Dim q1 As String
-            q1 = "SELECT tbl_receipt.id, tbl_receipt.receipt_no, tbl_receipt.receipt_date, " &
-                "tbl_receipt.customer_id, tbl_receipt.due_amount, tbl_receipt.amount_received, " &
-                "tbl_receipt.cheque_no, tbl_receipt.no, tbl_receipt.balance, tbl_receipt.cr_dr, " &
-                "tbl_receipt.invoice_no, tbl_customer.id AS Expr1, tbl_customer.customer_name, " &
-                "tbl_customer.contact, tbl_customer.customer_type, tbl_customer.telephone, " &
-                "tbl_customer.address, tbl_customer.email, tbl_customer.due_amount AS Expr2, " &
-                "tbl_customer.title_name, tbl_customer.reg_date, tbl_customer.ad_due, " &
-                "tbl_customer.brn, tbl_customer.vat, tbl_receipt.pre_load, tbl_receipt.cash, tbl_receipt.cheque, tbl_receipt.other " &
-                "FROM tbl_receipt INNER JOIN tbl_customer ON tbl_receipt.customer_id = tbl_customer.id where tbl_receipt.id='" & receipt_id & "'"
-            Dim sa As New SqlDataAdapter(q1, con111)
-            'sa.SelectCommand.CommandTimeout = cGlobals.ReportTimeout
-            sa.Fill(ds, "DataSet1")
-        End Using
+        Dim q1 As String
+        q1 = "SELECT tbl_receipt.id, tbl_receipt.receipt_no, tbl_receipt.receipt_date, " &
+            "tbl_receipt.customer_id, tbl_receipt.due_amount, tbl_receipt.amount_received, " &
+            "tbl_receipt.cheque_no, tbl_receipt.no, tbl_receipt.balance, tbl_receipt.cr_dr, " &
+            "tbl_receipt.invoice_no, tbl_customer.id AS Expr1, tbl_customer.customer_name, " &
+            "tbl_customer.contact, tbl_customer.customer_type, tbl_customer.telephone, " &
+            "tbl_customer.address, tbl_customer.email, tbl_customer.due_amount AS Expr2, " &
+            "tbl_customer.title_name, tbl_customer.reg_date, tbl_customer.ad_due, " &
+            "tbl_customer.brn, tbl_customer.vat, tbl_receipt.pre_load, tbl_receipt.cash, tbl_receipt.cheque, tbl_receipt.other " &
+            "FROM tbl_receipt INNER JOIN tbl_customer ON tbl_receipt.customer_id = tbl_customer.id where tbl_receipt.id='" & receipt_id & "'"
+        Dim sa As New SqlDataAdapter(q1, Module1.con)
+        sa.Fill(ds, "DataSet1")
         bs.DataSource = ds
         bs.DataMember = "DataSet1"
         Dim rds As ReportDataSource = New ReportDataSource
@@ -65,15 +61,10 @@ Public Class Preview_Receipt
 
         Dim ds12 As New DataSet
         Dim bs12 As New BindingSource
-        Using cn122 As New SqlConnection(con111)
-            cn122.Open()
-
-            Dim q As String
-            q = "select * from tbl_company"
-            Dim sa12 As New SqlDataAdapter(q, con111)
-            'sa.SelectCommand.Command Timeout = cGlobals.ReportTimeout
-            sa12.Fill(ds12, "DataSet2")
-        End Using
+        Dim q As String
+        q = "select * from tbl_company"
+        Dim sa12 As New SqlDataAdapter(q, Module1.con)
+        sa12.Fill(ds12, "DataSet2")
         bs12.DataSource = ds12
         bs12.DataMember = "DataSet2"
         Dim rds12 As ReportDataSource = New ReportDataSource
@@ -83,15 +74,9 @@ Public Class Preview_Receipt
 
         Dim ds13 As New DataSet
         Dim bs13 As New BindingSource
-        Using cn122 As New SqlConnection(con111)
-            cn122.Open()
-
-            Dim q As String
-            q = "SELECT cash, cheque, other FROM tbl_setting"
-            Dim sa13 As New SqlDataAdapter(q, con111)
-            'sa.SelectCommand.Command Timeout = cGlobals.ReportTimeout
-            sa13.Fill(ds13, "DataSet3")
-        End Using
+        q = "SELECT cash, cheque, other FROM tbl_setting"
+        Dim sa13 As New SqlDataAdapter(q, Module1.con)
+        sa13.Fill(ds13, "DataSet3")
         bs13.DataSource = ds13
         bs13.DataMember = "DataSet3"
         Dim rds13 As ReportDataSource = New ReportDataSource

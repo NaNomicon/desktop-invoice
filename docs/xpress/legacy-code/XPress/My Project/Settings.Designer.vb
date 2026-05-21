@@ -57,8 +57,7 @@ Namespace My
         <Global.System.Configuration.ApplicationScopedSettingAttribute(),  _
          Global.System.Diagnostics.DebuggerNonUserCodeAttribute(),  _
          Global.System.Configuration.SpecialSettingAttribute(Global.System.Configuration.SpecialSetting.ConnectionString),  _
-         Global.System.Configuration.DefaultSettingValueAttribute("Data Source=.\SQLEXPRESS;AttachDbFilename=|DataDirectory|\bin\Debug\XPressDB.mdf;"& _ 
-            "Integrated Security=True;Connect Timeout=30;User Instance=True")>  _
+         Global.System.Configuration.DefaultSettingValueAttribute("Data Source=.\SQLEXPRESS;Initial Catalog=XPressDB;Integrated Security=True;TrustServerCertificate=True;")>  _
         Public ReadOnly Property XPressDBConnectionString() As String
             Get
                 Return CType(Me("XPressDBConnectionString"),String)

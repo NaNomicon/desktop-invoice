@@ -11,6 +11,16 @@ Imports Microsoft.Reporting.WinForms
 Imports System.Data.SqlClient
 
 Public Class Preview_Invoice_Report
+    Private Sub WriteDebugLog(ByVal message As String)
+        Try
+            Dim logPath As String = Application.StartupPath & "\debug.log"
+            Using sw As New IO.StreamWriter(logPath, True)
+                sw.WriteLine("[" & Now.ToString("yyyy-MM-dd HH:mm:ss") & "] Preview_Invoice_Report | " & message)
+            End Using
+        Catch ex As Exception
+        End Try
+    End Sub
+
     Private Sub Button4_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button4.Click
         Me.Dispose()
         Me.Close()
@@ -28,32 +38,29 @@ Public Class Preview_Invoice_Report
     End Sub
 
     Public Sub Preview_Invoice_Report_Load(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles MyBase.Load
-        Call set_fonr(Me, Label2)
-        Call con_sql()
-        Me.KeyPreview = True
-        Dim a As String
+        Try
+            Call set_fonr(Me, Label2)
+            Call con_sql()
+            Me.KeyPreview = True
+            Dim a As String
 
-        a = REPORT_CON_STRING
+            a = REPORT_CON_STRING
         Dim con111 As String = (a)
 
         'DATASET1
         Dim ds As New DataSet
         Dim bs As New BindingSource
-        Using cn1 As New SqlConnection(con111)
-            cn1.Open()
-            Dim q1 As String
-            q1 = "SELECT tbl_customer.customer_name, tbl_customer.title_name,  tbl_invoice_main.invoice_date, " &
-                "tbl_invoice_main.cr_dr,tbl_invoice_main.paid_amount, tbl_customer.contact, tbl_customer.customer_type, " &
-                "tbl_customer.telephone, tbl_customer.address, tbl_customer.email, tbl_invoice_main.invoice_no, " &
-                "tbl_invoice_main.checklist_no, tbl_invoice_main.sub_total, tbl_invoice_main.amount_due, " &
-                "tbl_invoice_main.vat, tbl_invoice_main.discount, tbl_invoice_main.total, tbl_invoice_main.per, " &
-                "tbl_customer.brn, tbl_customer.vat AS Expr1, tbl_invoice_main.identify " &
-                "As E1 FROM tbl_invoice_main INNER JOIN tbl_customer ON " &
-                "tbl_invoice_main.customer_id = tbl_customer.id where tbl_invoice_main.id='" & invoice_id & "'"
-            Dim sa As New SqlDataAdapter(q1, con111)
-            'sa.SelectCommand.CommandTimeout = cGlobals.ReportTimeout
-            sa.Fill(ds, "DataSet1")
-        End Using
+        Dim q1 As String
+        q1 = "SELECT tbl_customer.customer_name, tbl_customer.title_name,  tbl_invoice_main.invoice_date, " &
+            "tbl_invoice_main.cr_dr,tbl_invoice_main.paid_amount, tbl_customer.contact, tbl_customer.customer_type, " &
+            "tbl_customer.telephone, tbl_customer.address, tbl_customer.email, tbl_invoice_main.invoice_no, " &
+            "tbl_invoice_main.checklist_no, tbl_invoice_main.sub_total, tbl_invoice_main.amount_due, " &
+            "tbl_invoice_main.vat, tbl_invoice_main.discount, tbl_invoice_main.total, tbl_invoice_main.per, " &
+            "tbl_customer.brn, tbl_customer.vat AS Expr1, tbl_invoice_main.identify " &
+            "As E1 FROM tbl_invoice_main INNER JOIN tbl_customer ON " &
+            "tbl_invoice_main.customer_id = tbl_customer.id where tbl_invoice_main.id='" & invoice_id & "'"
+        Dim sa As New SqlDataAdapter(q1, Module1.con)
+        sa.Fill(ds, "DataSet1")
         bs.DataSource = ds
         bs.DataMember = "DataSet1"
         Dim rds As ReportDataSource = New ReportDataSource
@@ -64,15 +71,10 @@ Public Class Preview_Invoice_Report
 
         Dim ds1 As New DataSet
         Dim bs1 As New BindingSource
-        Using cn12 As New SqlConnection(con111)
-            cn12.Open()
-
-            Dim q As String
-            q = "SELECT tbl_invoice_sub.qty, tbl_product.product_id, tbl_product.product_name, tbl_product_type.type_name, tbl_invoice_sub.unit_price, tbl_invoice_sub.row_total,  tbl_invoice_sub.s_no as tot_rows FROM tbl_product_type INNER JOIN tbl_product ON tbl_product_type.id = tbl_product.type_id INNER JOIN tbl_invoice_sub ON tbl_product.id = tbl_invoice_sub.product_id where tbl_invoice_sub.main_id='" & invoice_id & "'"
-            Dim sa1 As New SqlDataAdapter(q, con111)
-            'sa.SelectCommand.Command Timeout = cGlobals.ReportTimeout
-            sa1.Fill(ds1, "DataSet2")
-        End Using
+        Dim q As String
+        q = "SELECT tbl_invoice_sub.qty, tbl_product.product_id, tbl_product.product_name, tbl_product_type.type_name, tbl_invoice_sub.unit_price, tbl_invoice_sub.row_total,  tbl_invoice_sub.s_no as tot_rows FROM tbl_product_type INNER JOIN tbl_product ON tbl_product_type.id = tbl_product.type_id INNER JOIN tbl_invoice_sub ON tbl_product.id = tbl_invoice_sub.product_id where tbl_invoice_sub.main_id='" & invoice_id & "'"
+        Dim sa1 As New SqlDataAdapter(q, Module1.con)
+        sa1.Fill(ds1, "DataSet2")
         bs1.DataSource = ds1
         bs1.DataMember = "DataSet2"
         Dim rds1 As ReportDataSource = New ReportDataSource
@@ -82,15 +84,9 @@ Public Class Preview_Invoice_Report
 
         Dim ds12 As New DataSet
         Dim bs12 As New BindingSource
-        Using cn122 As New SqlConnection(con111)
-            cn122.Open()
-
-            Dim q As String
-            q = "select * from tbl_company"
-            Dim sa12 As New SqlDataAdapter(q, con111)
-            'sa.SelectCommand.Command Timeout = cGlobals.ReportTimeout
-            sa12.Fill(ds12, "DataSet3")
-        End Using
+        q = "select * from tbl_company"
+        Dim sa12 As New SqlDataAdapter(q, Module1.con)
+        sa12.Fill(ds12, "DataSet3")
         bs12.DataSource = ds12
         bs12.DataMember = "DataSet3"
         Dim rds12 As ReportDataSource = New ReportDataSource
@@ -159,6 +155,7 @@ Public Class Preview_Invoice_Report
             End If
           
         End With
+        WriteDebugLog("Load start | invoice_id=" & invoice_id & " | report_path=" & ReportViewer2.LocalReport.ReportPath & " | ds1_rows=" & ds.Tables(0).Rows.Count & " | ds2_rows=" & ds1.Tables(0).Rows.Count & " | ds3_rows=" & ds12.Tables(0).Rows.Count)
         'PrintDialog1.Document = RichTextBoxSelectionAttribute.
         'PrintDialog1.PrinterSettings = PrintDocument1.PrinterSettings
         'PrintDialog1.AllowSomePages = True
@@ -168,13 +165,23 @@ Public Class Preview_Invoice_Report
         'End If
         Me.ReportViewer2.SetDisplayMode(DisplayMode.PrintLayout) 'Set Layout
         Me.ReportViewer2.ShowProgress = True
+        WriteDebugLog("Before RefreshReport | report_path=" & ReportViewer2.LocalReport.ReportPath & " | invoice_id=" & invoice_id)
         'If is_pdf = True Then
         Me.ReportViewer2.RefreshReport()
+        WriteDebugLog("After RefreshReport | report_path=" & ReportViewer2.LocalReport.ReportPath & " | invoice_id=" & invoice_id)
         'Me.ReportViewer2.RefreshReport()
         ' ElseIf is_pdf = False Then
 
         ' End If
         is_pdf = False
+        Catch ex As Exception
+            Dim innerMessage As String = ""
+            If Not ex.InnerException Is Nothing Then
+                innerMessage = ex.InnerException.Message
+            End If
+            WriteDebugLog("ERROR | " & ex.Message & " | INNER=" & innerMessage & " | report_path=" & ReportViewer2.LocalReport.ReportPath & " | invoice_id=" & invoice_id)
+            Throw
+        End Try
     End Sub
     Dim pageIndex As Integer = 0
     Dim streams As IList(Of Stream)

@@ -215,10 +215,11 @@ Module SQL_CRUD
     Function isemail(ByVal s As String) As Boolean
         Try
             Dim a As New System.Net.Mail.MailAddress(s)
-        Catch
+            Return True
+        Catch ex As FormatException
             MsgBox("Please Enter Valid E-Mail Address", vbCritical, "WARNING")
+            Return False
         End Try
-        Return True
     End Function
     Public Function get_max_number(ByVal field_nm As String, ByVal tbl_nm As String) As Integer
         Dim da1 As New SqlDataAdapter
@@ -289,20 +290,20 @@ Module SQL_CRUD
         Call con_sql()
 
         Dim query As String = "SELECT customer_id, " & _
-                              "       SUM(total) AS TotalDueAmount, " & _
+                              "       SUM(i.total) AS TotalDueAmount, " & _
                               "       (SELECT SUM(r.amount_received) " & _
                               "        FROM tbl_receipt r " & _
                               "        WHERE r.customer_id = i.customer_id) AS TotalReceived, " & _
-                              "       (SUM(total) - COALESCE((SELECT SUM(r.amount_received) " & _
-                              "                               FROM tbl_receipt r " & _
-                              "                               WHERE r.customer_id = i.customer_id), 0)) AS FinalDueAmount " & _
+                              "       (SUM(i.total) - COALESCE((SELECT SUM(r.amount_received) " & _
+                              "                                 FROM tbl_receipt r " & _
+                              "                                 WHERE r.customer_id = i.customer_id), 0)) AS FinalDueAmount " & _
                               "FROM tbl_invoice_main i " & _
                               "WHERE customer_id = " & CustomerId & " " & _
                               "GROUP BY customer_id"
 
         Dim ds1 As DataSet = SQL_Query(query)
-        If ds1.Tables(0).Rows.Count > 0 Then
-            Return Format(Val(ds1.Tables(0).Rows(0).Item("FinalDueAmount").ToString), "0.00")
+        If ds1.Tables(0).Rows.Count > 0 AndAlso Not IsDBNull(ds1.Tables(0).Rows(0).Item("FinalDueAmount")) Then
+            Return Math.Round(Convert.ToDouble(ds1.Tables(0).Rows(0).Item("FinalDueAmount")), 2)
         Else
             Return 0
         End If

@@ -34,14 +34,10 @@ Public Class Preview_Statement_Report
         'DATASET1
         Dim ds As New DataSet
         Dim bs As New BindingSource
-        Using cn1 As New SqlConnection(con111)
-            cn1.Open()
-            Dim q1 As String
-            q1 = report_qurty  '"SELECT tbl_quotation_main.*, tbl_customer.* FROM tbl_quotation_main INNER JOIN tbl_customer ON tbl_quotation_main.customer_id = tbl_customer.id where tbl_quotation_main.id='" & quotation_id & "'"
-            Dim sa As New SqlDataAdapter(q1, con111)
-            'sa.SelectCommand.CommandTimeout = cGlobals.ReportTimeout
-            sa.Fill(ds, "DataSet1")
-        End Using
+        Dim q1 As String
+        q1 = report_qurty
+        Dim sa As New SqlDataAdapter(q1, Module1.con)
+        sa.Fill(ds, "DataSet1")
         bs.DataSource = ds
         bs.DataMember = "DataSet1"
         Dim rds As ReportDataSource = New ReportDataSource
@@ -52,15 +48,10 @@ Public Class Preview_Statement_Report
 
         Dim ds1 As New DataSet
         Dim bs1 As New BindingSource
-        Using cn12 As New SqlConnection(con111)
-            cn12.Open()
-
-            Dim q As String
-            q = "select * from tbl_customer where id='" & customer_id & "'" '"SELECT tbl_quotation_sub.qty, tbl_product.product_name, tbl_product_type.type_name, tbl_quotation_sub.unit_price, tbl_quotation_sub.row_total, tbl_quotation_sub.s_no as tot_rows FROM tbl_quotation_sub INNER JOIN tbl_product ON tbl_quotation_sub.product_id = tbl_product.id INNER JOIN tbl_product_type ON tbl_product.type_id = tbl_product_type.id where tbl_quotation_sub.main_id='" & quotation_id & "'"
-            Dim sa1 As New SqlDataAdapter(q, con111)
-            'sa.SelectCommand.Command Timeout = cGlobals.ReportTimeout
-            sa1.Fill(ds1, "DataSet2")
-        End Using
+        Dim q As String
+        q = "select * from tbl_customer where id='" & customer_id & "'"
+        Dim sa1 As New SqlDataAdapter(q, Module1.con)
+        sa1.Fill(ds1, "DataSet2")
         bs1.DataSource = ds1
         bs1.DataMember = "DataSet2"
         Dim rds1 As ReportDataSource = New ReportDataSource
@@ -70,15 +61,9 @@ Public Class Preview_Statement_Report
 
         Dim ds12 As New DataSet
         Dim bs12 As New BindingSource
-        Using cn122 As New SqlConnection(con111)
-            cn122.Open()
-
-            Dim q As String
-            q = "select * from tbl_company"
-            Dim sa12 As New SqlDataAdapter(q, con111)
-            'sa.SelectCommand.Command Timeout = cGlobals.ReportTimeout
-            sa12.Fill(ds12, "DataSet3")
-        End Using
+        q = "select * from tbl_company"
+        Dim sa12 As New SqlDataAdapter(q, Module1.con)
+        sa12.Fill(ds12, "DataSet3")
         bs12.DataSource = ds12
         bs12.DataMember = "DataSet3"
         Dim rds12 As ReportDataSource = New ReportDataSource

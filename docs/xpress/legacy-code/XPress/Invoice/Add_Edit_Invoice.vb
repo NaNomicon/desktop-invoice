@@ -52,6 +52,16 @@ Public Class Add_Edit_Invoice
     Dim check_per_vat As String = ""
     Dim vat_per_value As String = ""
     Dim old_invoice_date As Date
+    Private Sub WriteDebugLog(ByVal message As String)
+        Try
+            Dim logPath As String = Application.StartupPath & "\debug.log"
+            Using sw As New IO.StreamWriter(logPath, True)
+                sw.WriteLine("[" & Now.ToString("yyyy-MM-dd HH:mm:ss") & "] " & message)
+            End Using
+        Catch ex As Exception
+        End Try
+    End Sub
+
     Public Sub Add_Edit_Invoice_Load(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles MyBase.Load
         case_debit.SelectedIndex = 1
         Call set_fonr(Me, Label2)
@@ -646,9 +656,10 @@ Public Class Add_Edit_Invoice
         With DataGridView1
             If e.KeyCode = Keys.Enter Then
                 customer_name.Text = .Rows(0).Cells(1).Value 'Item Name
-                customer_id = .Rows(0).Cells(0).Value 'patient id
-                Dim k As String = get_single_value("due_amount", "tbl_customer", " id", customer_id)
-                Dim ad_due As String = get_single_value("ad_due", "tbl_customer", " id", customer_id)
+                customer_id = Val(.Rows(0).Cells(0).Value) 'patient id
+                tmp_cust_id = CStr(customer_id)
+                Dim k As String = get_single_value("due_amount", "tbl_customer", " id", CStr(customer_id))
+                Dim ad_due As String = get_single_value("ad_due", "tbl_customer", " id", CStr(customer_id))
                 Label8.Text = ad_due & " Amount"
                 'k = GetDueAmount(customer_id)
                 amount_due.Text = Format(Val(k), "0.00")
@@ -670,9 +681,9 @@ Public Class Add_Edit_Invoice
         With DataGridView1
             If DataGridView1.Rows.Count > 0 Then
                 customer_name.Text = .Rows(.CurrentRow.Index).Cells(1).Value 'Item Name
-                customer_id = .Rows(.CurrentRow.Index).Cells(0).Value 'patient id
-                tmp_cust_id = customer_id
-                Dim k As String = get_single_value("due_amount", "tbl_customer", " id", customer_id)
+                customer_id = Val(.Rows(.CurrentRow.Index).Cells(0).Value) 'patient id
+                tmp_cust_id = CStr(customer_id)
+                Dim k As String = get_single_value("due_amount", "tbl_customer", " id", CStr(customer_id))
                 'k = GetDueAmount(customer_id)
                 Dim ad_due As String = get_single_value("ad_due", "tbl_customer", " id", customer_id)
                 Label8.Text = ad_due & " Amount"
@@ -895,6 +906,8 @@ jjjj:
     End Sub
 
     Private Sub Button1_Click(ByVal sender As System.Object, ByVal e As System.EventArgs) Handles Button1.Click
+        Try
+            WriteDebugLog("Button1_Click start | invoice_id=" & invoice_id & " | tmp_invoice_id=" & tmp_invoice_id & " | customer_id=" & customer_id & " | tmp_cust_id=" & tmp_cust_id & " | customer_name=" & customer_name.Text & " | total_amt=" & total_amt.Text & " | amount_due=" & amount_due.Text & " | sub_total=" & sub_total.Text)
         'Button6.Text = "Sending...."
         is_pdf = True
         If customer_name.Text = "" Then
@@ -923,7 +936,15 @@ jjjj:
             Exit Sub
         End If
         'PictureBox2.Visible = True
-        msmsms = get_single_value("title_name", "tbl_customer", "id", customer_id)
+        If customer_id <= 0 AndAlso Val(tmp_cust_id) > 0 Then
+            customer_id = Val(tmp_cust_id)
+        End If
+        If customer_id <= 0 Then
+            MsgBox("Please select a customer from the list before saving", vbCritical, "WARNING")
+            customer_name.Focus()
+            Exit Sub
+        End If
+        msmsms = get_single_value("title_name", "tbl_customer", "id", CStr(customer_id))
         user_name = msmsms & " " & customer_name.Text
         Call saved()
         'If tmp_invoice_id > 0 Then
@@ -945,8 +966,11 @@ jjjj:
 
         'Exit Sub
 
+        WriteDebugLog("Before Preview_Invoice_Report_Load | invoice_id=" & invoice_id & " | tmp_invoice_id=" & tmp_invoice_id)
         Call Preview_Invoice_Report.Preview_Invoice_Report_Load(sender, e)
+        WriteDebugLog("After Preview_Invoice_Report_Load | invoice_id=" & invoice_id & " | report_path=" & Preview_Invoice_Report.ReportViewer2.LocalReport.ReportPath)
         Dim quot_path1 As String = get_single_value("Invoice_path", "tbl_setting", "id", get_max_number("id", "tbl_setting"))
+        WriteDebugLog("After Invoice_path lookup | quot_path1=" & quot_path1)
         If quot_path1 = "" Then
             MsgBox("Please Set Invoice Save Path from Setting", vbCritical, "Warning")
             Exit Sub
@@ -954,8 +978,11 @@ jjjj:
         'user_name = msmsms & " " & customer_name.Text  'DataGridView1.SelectedRows(0).Cells(3).Value.ToString
         Dim folder_path, pdf_path As String
         Dim file_name As String = "INV" & get_single_value("invoice_no", "tbl_invoice_main", "id", tmp_invoice_id) & "-" & user_name
+        WriteDebugLog("After file_name build | file_name=" & file_name)
         Dim iMonth As Integer = Month(invoice_date.Value)
-        folder_path = quot_path1 & "\" & MonthName(iMonth)
+        WriteDebugLog("After iMonth build | iMonth=" & iMonth & " | invoice_date=" & invoice_date.Value)
+        folder_path = quot_path1 & "\\" & MonthName(iMonth)
+        WriteDebugLog("After folder_path build | folder_path=" & folder_path)
 
         If (Not System.IO.Directory.Exists(folder_path)) Then
             System.IO.Directory.CreateDirectory(folder_path)
@@ -963,8 +990,10 @@ jjjj:
         'MsgBox(file_name)
         'MsgBox(folder_path)
         'MsgBox(Q_no)
+        WriteDebugLog("Before PDF Render | report_path=" & Preview_Invoice_Report.ReportViewer2.LocalReport.ReportPath & " | pdf_path=" & quot_path1 & "\\" & MonthName(iMonth) & "\\" & file_name & ".pdf")
         Dim Bytes() As Byte = Preview_Invoice_Report.ReportViewer2.LocalReport.Render("PDF", "", Nothing, Nothing, Nothing, Nothing, Nothing)
-        pdf_path = quot_path1 & "\" & MonthName(iMonth) & "\" & file_name & ".pdf"
+        WriteDebugLog("After PDF Render | bytes=" & Bytes.Length)
+        pdf_path = quot_path1 & "\\" & MonthName(iMonth) & "\\" & file_name & ".pdf"
         'global_pdf_path = quot_path1 'pdf_path
         Using Stream As New FileStream(pdf_path, FileMode.Create)
             Stream.Write(Bytes, 0, Bytes.Length)
@@ -975,16 +1004,27 @@ jjjj:
         MsgBox("Invoice Details Saved!")
         Me.Dispose()
         Me.Close()
+        Catch ex As Exception
+            WriteDebugLog("Button1_Click ERROR | " & ex.Message & " | customer_id=" & customer_id & " | tmp_cust_id=" & tmp_cust_id & " | customer_name=" & customer_name.Text & " | total_amt=" & total_amt.Text & " | amount_due=" & amount_due.Text & " | sub_total=" & sub_total.Text)
+            MsgBox(ex.Message, vbCritical, "Save Error")
+        End Try
     End Sub
     Dim str1 As String = ""
     Dim msmsms As String = ""
     Public Sub saved1()
-        msmsms = get_single_value("title_name", "tbl_customer", "id", customer_id)
+        If customer_id <= 0 AndAlso Val(tmp_cust_id) > 0 Then
+            customer_id = Val(tmp_cust_id)
+        End If
+        If customer_id <= 0 Then
+            MsgBox("Error: Customer not selected. Please select a customer before saving.", vbCritical, "Customer Error")
+            Exit Sub
+        End If
+        msmsms = get_single_value("title_name", "tbl_customer", "id", CStr(customer_id))
         Dim variable As New Dictionary(Of String, String)
         old_date = Date.Now
         'MsgBox(Format(temp_date, "dd-MM-yyyy"))
         If customer_id <= 0 Then
-            customer_id = tmp_cust_id
+            customer_id = Val(tmp_cust_id)
         End If
 
         Dim print_due As String
@@ -996,7 +1036,8 @@ jjjj:
 
         Dim days As Integer = (old_date - temp_date).Days
         Dim edit_days As String = get_single_value("invoice_days", "tbl_setting", "id", get_max_number("id", "tbl_setting"))
-        If edit_days < days Then
+        WriteDebugLog("saved() edit_days=" & edit_days & " | days=" & days)
+        If Val(edit_days) < days Then
             invoice_no.Text = get_single_value("invoice_no", "tbl_numbers", "id", get_max_number("id", "tbl_numbers"))
             tmp_invoice_id = 0
             'invoice_date.Value = Date.Now
@@ -1021,12 +1062,12 @@ jjjj:
                 m1 = "update tbl_customer set due_amount='" & Math.Abs(Val(total_amt.Text) + Val(temp_paid_amount)) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
                 cmd.ExecuteNonQuery()
-                Dim get_due As Double = get_single_value("due_amount", "tbl_customer", "id", customer_id)
+                Dim get_due As Double = Val(get_single_value("due_amount", "tbl_customer", "id", CStr(customer_id)))
                 m1 = "update tbl_customer set due_amount='" & Math.Abs(Val(total_amt.Text) - Val(paid_amount.Text)) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
                 cmd.ExecuteNonQuery()
             Else
-                Dim get_due As Double = get_single_value("due_amount", "tbl_customer", "id", customer_id)
+                Dim get_due As Double = Val(get_single_value("due_amount", "tbl_customer", "id", CStr(customer_id)))
                 Dim tot_amt As Double = Math.Abs(Val(total_amt.Text))
                 Dim m1 As String = "update tbl_customer set due_amount='" & Math.Abs(Val(tot_amt) - Val(paid_amount.Text)) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
@@ -1103,7 +1144,7 @@ jjjj:
                 tmp = Val(tmp) - Val(old_sub_total) + Val(sub_total.Text)
 
                 Dim m1 As String = ""
-                Dim get_due As Double = get_single_value("due_amount", "tbl_customer", "id", customer_id)
+                Dim get_due As Double = Val(get_single_value("due_amount", "tbl_customer", "id", CStr(customer_id)))
                 m1 = "update tbl_customer set due_amount='" & Val(tmp) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
                 cmd.ExecuteNonQuery()
@@ -1230,12 +1271,31 @@ kkk:
 
 
     Public Sub saved()
-        msmsms = get_single_value("title_name", "tbl_customer", "id", customer_id)
+        WriteDebugLog("saved() start | invoice_id=" & invoice_id & " | tmp_invoice_id=" & tmp_invoice_id & " | customer_id=" & customer_id & " | tmp_cust_id=" & tmp_cust_id & " | identify=" & identify & " | case_debit=" & case_debit.Text & " | total_amt=" & total_amt.Text & " | amount_due=" & amount_due.Text & " | sub_total=" & sub_total.Text)
+        If customer_id <= 0 AndAlso Val(tmp_cust_id) > 0 Then
+            customer_id = Val(tmp_cust_id)
+        End If
+        If customer_id <= 0 Then
+            MsgBox("Error: Customer not selected. Please select a customer before saving.", vbCritical, "Customer Error")
+            Try
+                Dim logPath As String = "C:\XPress\XPress\bin\Release\debug.log"
+                Using sw As New IO.StreamWriter(logPath, True)
+                    sw.WriteLine("[" & Now & "] saved() invalid customer_id - tmp_cust_id=" & tmp_cust_id & ", customer_id=" & customer_id)
+                End Using
+            Catch ex As Exception
+            End Try
+            Exit Sub
+        End If
+        msmsms = get_single_value("title_name", "tbl_customer", "id", CStr(customer_id))
         Dim variable As New Dictionary(Of String, String)
         old_date = Date.Now
         'MsgBox(Format(temp_date, "dd-MM-yyyy"))
         If customer_id <= 0 Then
-            customer_id = tmp_cust_id
+            customer_id = Val(tmp_cust_id)
+        End If
+        If customer_id <= 0 Then
+            MsgBox("Error: Customer ID invalid after fallback. Cannot save invoice.", vbCritical, "Customer Error")
+            Exit Sub
         End If
 
         Dim print_due As String
@@ -1247,7 +1307,8 @@ kkk:
 
         Dim days As Integer = (old_date - temp_date).Days
         Dim edit_days As String = get_single_value("invoice_days", "tbl_setting", "id", get_max_number("id", "tbl_setting"))
-        If edit_days < days Then
+        WriteDebugLog("saved() edit_days=" & edit_days & " | days=" & days)
+        If Val(edit_days) < days Then
             invoice_no.Text = get_single_value("invoice_no", "tbl_numbers", "id", get_max_number("id", "tbl_numbers"))
             tmp_invoice_id = 0
             'invoice_date.Value = Date.Now
@@ -1272,12 +1333,12 @@ kkk:
                 m1 = "update tbl_customer set due_amount='" & Math.Abs(Val(total_amt.Text) + Val(temp_paid_amount)) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
                 cmd.ExecuteNonQuery()
-                Dim get_due As Double = get_single_value("due_amount", "tbl_customer", "id", customer_id)
+                Dim get_due As Double = Val(get_single_value("due_amount", "tbl_customer", "id", CStr(customer_id)))
                 m1 = "update tbl_customer set due_amount='" & Math.Abs(Val(total_amt.Text) - Val(paid_amount.Text)) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
                 cmd.ExecuteNonQuery()
             Else
-                Dim get_due As Double = get_single_value("due_amount", "tbl_customer", "id", customer_id)
+                Dim get_due As Double = Val(get_single_value("due_amount", "tbl_customer", "id", CStr(customer_id)))
                 Dim tot_amt As Double = Math.Abs(Val(total_amt.Text))
                 Dim m1 As String = "update tbl_customer set due_amount='" & Math.Abs(Val(tot_amt) - Val(paid_amount.Text)) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
@@ -1355,7 +1416,7 @@ kkk:
                 Dim newDueAmt As String = Val(oldDueAmt) - Val(old_sub_total) + Val(total_amt.Text)
 
                 Dim m1 As String = ""
-                Dim get_due As Double = get_single_value("due_amount", "tbl_customer", "id", customer_id)
+                Dim get_due As Double = Val(get_single_value("due_amount", "tbl_customer", "id", CStr(customer_id)))
                 m1 = "update tbl_customer set due_amount='" & Val(newDueAmt) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
                 cmd.ExecuteNonQuery()
@@ -1876,7 +1937,8 @@ kkk:
         If (Not System.IO.Directory.Exists(folder_path)) Then
             System.IO.Directory.CreateDirectory(folder_path)
         End If
-
+        WriteDebugLog("After folder ensure | folder_exists=" & System.IO.Directory.Exists(folder_path) & " | folder_path=" & folder_path)
+        'MsgBox(file_name)
         'MsgBox(folder_path)
         'MsgBox(Q_no)
         'Dim Bytes() As Byte = Preview_Invoice_Report.ReportViewer2.LocalReport.Render("PDF", "", Nothing, Nothing, Nothing, Nothing, Nothing)
