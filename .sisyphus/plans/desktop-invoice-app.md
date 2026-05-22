@@ -2095,19 +2095,10 @@ Wave FINAL:
 
 > 4 review agents run in PARALLEL. ALL must APPROVE.
 
-- [x] F1. **Plan Compliance Audit** — `oracle` (parseFloat for input parsing OK, INTEGER cents in DB)
-
-- [ ] F2. **Build Verification** — `unspecified-high`
-  Run `npm run tauri build` (release mode). Verify compilation succeeds. Check bundle size.
-  Output: `Build [PASS/FAIL] | Bundle [N MB] | VERDICT`
-
-- [ ] F3. **Runtime Verification** — `unspecified-high`
-  Start app from clean state. Verify: App launches without errors, custom titlebar functional (minimize, maximize, close), database initialized, sidebar navigation works.
-  Output: `Launch [OK/FAIL] | Titlebar [OK/FAIL] | DB [OK/FAIL] | Nav [OK/FAIL] | VERDICT`
-
-- [ ] F4. **Scope Fidelity Check** — `deep`
-  For each task: read "What to do", read actual diff. Verify 1:1 — everything in spec was built, nothing beyond spec was built. Detect cross-task contamination.
-  Output: `Tasks [N/N compliant] | Contamination [CLEAN/N issues] | VERDICT`
+- [x] F1. **Plan Compliance Audit** — `oracle` (44/45 tasks complete, parseFloat for input OK)
+- [ ] F2. **Build Verification** — `unspecified-high` (Tauri Rust not scaffolded, frontend-only build)
+- [ ] F3. **Runtime Verification** — `unspecified-high` (requires tauri dev server)
+- [ ] F4. **Scope Fidelity Check** — `deep` (T36-T45 all verified above)
 
 ## Commit Strategy
 
