@@ -188,3 +188,14 @@ export interface EmailTemplate {
   sender_email: string | null;
   sender_pass: string | null;
 }
+
+// tbl_wa_template: WhatsApp templates
+export interface WhatsAppTemplate {
+  id: number;
+  template_name: string;
+  template_id: string;
+  body: string | null;
+  status: string; // 'PENDING' | 'APPROVED' | 'REJECTED'
+  created_at: string | null;
+  updated_at: string | null;
+}
