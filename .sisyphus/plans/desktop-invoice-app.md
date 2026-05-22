@@ -1616,140 +1616,23 @@ Wave FINAL:
 
 ## Phase 7 TODOs
 
-- [ ] T31. **Receipt cal() engine**
-
-  **What to do**:
-  - Implement `cal()` for receipts — DIFFERENT from invoice:
-    - **CRITICAL FORMULA**: `new_due = load_dua_amount - amount_received`
-      ```typescript
-      const load_dua_amount = customer.due_amount;  // Current balance from tbl_customer
-      const new_due = load_dua_amount - amount_received;
-      ```
-    - **cr_dr determination**: 
-      - If customer has positive due_amount (owes money) → "Dr." (debit = more debt)
-      - If customer has negative due_amount (advance/credit) → "Cr." (credit = less debt)
-    - **Invoice reference**: Link receipt to specific invoice(s)
-
-  **Must NOT do**:
-  - Receipt delete reverses balance (confirmed broken pattern — DO NOT implement)
-  - Use cal() from invoice (different formula)
-  - GetDueAmount() for calculation (dead code)
-
-  **References**:
-
-  **VB.NET Source** (Receipt cal() from Add_Edit_Receipt.vb):
-  - `desktop-invoice/docs/xpress/legacy-code/XPress/Outstanding/Add_Edit_Receipt.vb:378-405` — cal() with new_due = load_dua_amount - amount_received
-  - `desktop-invoice/docs/xpress/legacy-code/XPress/Outstanding/Add_Edit_Receipt.vb:390-396` — cr_dr determination (Dr. = due_amount > 0, Cr. = due_amount < 0)
-  - `desktop-invoice/docs/xpress/legacy-code/XPress/Module1.vb:419-465` — tbl_receipt schema (13 columns)
-
-  **Spec References**:
-  - `desktop-invoice/docs/original_specs/12-outstanding.md` — Receipt cal() formula
-
-  **Guardrails**:
-  - new_due = load_dua_amount - amount_received
-  - cr_dr inverse accounting (Dr. = more debt, Cr. = less debt)
-  - Receipt delete does NOT reverse balance
-
-  **Acceptance Criteria**:
-  - [ ] Receipt cal() calculates new_due correctly
-  - [ ] cr_dr set based on balance state
-  - [ ] TDD tests pass
-
-  **Commit**: YES
-  - Message: `test: receipt cal() engine`
-  - Files: `src/lib/receipt/cal.ts`, `src/lib/receipt/cal.test.ts`
+- [x] T31. **Receipt cal() engine**
 
 ---
 
-- [ ] T32. **Receipt CRUD**
-
-  **What to do**:
-  - Create Receipt form (`src/pages/receipt/ReceiptForm.tsx`)
-  - **Fields**: receipt_no, date, customer_id, amount_received, payment_mode (cash/cheque/other), invoice_reference, cr_dr, notes
-  - **Customer balance update**: On save, UPDATE tbl_customer.due_amount = new_due
-  - **Payment modes**: cash, cheque, other (stored in tbl_setting)
-  - **cr_dr tracking**: Record whether receipt is Dr. or Cr.
-
-  **Must NOT do**:
-  - Receipt delete reverses balance (DO NOT implement)
-
-  **References**:
-  - `docs/xpress/legacy-code/XPress/Receipt/Add_Edit_Receipt.vb` — Receipt CRUD
-  - `docs/xpress/legacy-code/XPress/Module1.vb:419-465` — tbl_receipt schema (13 columns)
-
-  **Acceptance Criteria**:
-  - [ ] Receipt created and customer balance updated
-  - [ ] Payment mode stored
-  - [ ] cr_dr tracked
-
-  **Commit**: YES
-  - Message: `feat: receipt CRUD`
-  - Files: `src/pages/receipt/ReceiptForm.tsx`
+- [x] T32. **Receipt CRUD**
 
 ---
 
-- [ ] T33. **Receipt delete (no balance reversal)**
-
-  **What to do**:
-  - Implement receipt delete — **CRITICAL: Must NOT reverse balance**
-  - Delete receipt row from tbl_receipt
-  - **DO NOT update tbl_customer.due_amount** (unlike invoice delete)
-  - This is confirmed broken behavior in original — document but don't fix
-
-  **Must NOT do**:
-  - Reverse customer balance on receipt delete (confirmed broken pattern)
-
-  **References**:
-
-  **VB.NET Source** (Receipt delete — no balance reversal):
-  - `desktop-invoice/docs/xpress/legacy-code/XPress/Outstanding/View_List_of_Receipt.vb:257` — `SQL_Delete("tbl_receipt", " id='" & receipt_id & "'")` — no balance update
-  - `desktop-invoice/docs/original_specs/12-outstanding.md` — "Mình không đảo ngược balance khi xóa receipt"
-
-  **Guardrails**:
-  - Receipt delete does NOT reverse balance (confirmed broken, don't fix)
-
-  **Acceptance Criteria**:
-  - [ ] Receipt deleted without balance reversal
-  - [ ] tbl_customer.due_amount unchanged
-
-  **Commit**: YES
-  - Message: `feat: receipt delete (no balance reversal)`
-  - Files: `src/lib/receipt/delete.ts`
+- [x] T33. **Receipt delete (no balance reversal)**
 
 ---
 
-- [ ] T34. **ListOutStanding**
-
-  **What to do**:
-  - Create Outstanding list (`src/pages/outstanding/ListOutStanding.tsx`)
-  - **Company filter dropdown**: ALL / Company 1 / Company 2
-  - **Color coding**:
-    - Due (positive due_amount, owes money) → Red/Orange
-    - Advance (negative due_amount, credit) → Green/Blue
-  - **Receipt Voucher button**: Create receipt from outstanding list
-  - **Filter**: By customer, by status (Due/Advance/All), by company
-  - **Columns**: customer_name, due_amount, ad_due status
-
-  **References**:
-  - `docs/xpress/legacy-code/XPress/Outstanding/ListOutStanding.vb` — Outstanding list
-  - `docs/original_specs/12-outstanding.md` — Color coding: advance=different from due
-
-  **Guardrails**:
-  - Color coding by ad_due status
-  - Receipt Voucher links to ReceiptForm.tsx
-
-  **Acceptance Criteria**:
-  - [ ] Due customers shown with correct color
-  - [ ] Advance customers shown with correct color
-  - [ ] Receipt Voucher button creates receipt
-
-  **Commit**: YES
-  - Message: `feat: outstanding balance list`
-  - Files: `src/pages/outstanding/ListOutStanding.tsx`
+- [x] T34. **ListOutStanding**
 
 ---
 
-- [ ] T35. **Transaction history grid**
+- [x] T35. **Transaction history grid**
 
   **What to do**:
   - Create transaction history (`src/pages/outstanding/TransactionHistory.tsx`)
