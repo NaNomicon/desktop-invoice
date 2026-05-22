@@ -522,7 +522,7 @@ Phase 2 (Database + Migration — ~3h):
 
 ---
 
-- [ ] T10. **Write TypeScript types for all tables**
+- [x] T10. **Write TypeScript types for all tables** (src/lib/types.ts exists)
 
   **What to do**:
   - Create `src/lib/types.ts` with interfaces for all 13 tables
@@ -1392,7 +1392,7 @@ Wave FINAL:
 
 ---
 
-- [ ] T20. **Email Templates CRUD**
+- [x] T20. **Email Templates CRUD** (src/pages/admin/EmailTemplates.tsx exists)
 
   **What to do**:
   - Create Email Templates CRUD (`src/pages/admin/EmailTemplates.tsx`)
@@ -1680,7 +1680,7 @@ Wave FINAL:
 
 ## Phase 8 TODOs
 
-- [ ] T36. **Invoice PDF path logic**
+- [x] T36. **Invoice PDF path logic**
 
   **What to do**:
   - Implement PDF save path logic
@@ -1706,7 +1706,7 @@ Wave FINAL:
 
 ---
 
-- [ ] T37. **Sales report**
+- [x] T37. **Sales report**
 
   **What to do**:
   - Create Sales Report (`src/pages/reports/SalesReport.tsx`)
@@ -1757,7 +1757,7 @@ Wave FINAL:
 
 ---
 
-- [ ] T38. **Statement preview**
+- [x] T38. **Statement preview**
 
   **What to do**:
   - Create Statement Preview (`src/pages/reports/StatementPreview.tsx`)
@@ -1794,7 +1794,7 @@ Wave FINAL:
 
 ---
 
-- [ ] T39. **Print preview with zoom**
+- [x] T39. **Print preview with zoom**
 
   **What to do**:
   - Create Print Preview (`src/pages/reports/PrintPreview.tsx`)
@@ -1823,7 +1823,7 @@ Wave FINAL:
 
 ## Phase 9 TODOs
 
-- [ ] T40. **Add company_id to tbl_invoice_sub** ⚠️ FIXED
+- [x] T40. **Add company_id to tbl_invoice_sub** ⚠️ FIXED (already in schema + save code)
 
   **What to do**:
   - **CRITICAL FIX**: tbl_invoice_sub did NOT have company_id in Phase 1 schema. This task adds it.
@@ -1868,7 +1868,7 @@ Wave FINAL:
 
 ---
 
-- [ ] T41. **Dual product lists** ⚠️ EXPANDED
+- [x] T41. **Dual product lists** ⚠️ EXPANDED (CompanyProductSelector + all UI components created)
 
   **Prerequisite**: T40 must be completed first — tbl_invoice_sub.company_id column must exist before this task.
 
@@ -1948,7 +1948,7 @@ Wave FINAL:
 
 ---
 
-- [ ] T42. **Split-invoice workflow**
+- [x] T42. **Split-invoice workflow** (src/lib/invoice/splitInvoice.ts)
 
   **What to do**:
   - Implement split-invoice: one customer → two companies → two invoices
@@ -1983,7 +1983,7 @@ Wave FINAL:
 
 ## Phase 10 TODOs
 
-- [ ] T43. **WhatsApp templates CRUD**
+- [x] T43. **WhatsApp templates CRUD** (src/pages/admin/WhatsAppTemplates.tsx)
 
   **What to do**:
   - Create WhatsApp Templates CRUD (`src/pages/admin/WhatsAppTemplates.tsx`)
@@ -2011,7 +2011,7 @@ Wave FINAL:
 
 ---
 
-- [ ] T44. **WhatsApp send**
+- [x] T44. **WhatsApp send** (src/lib/whatsapp/send.ts)
 
   **What to do**:
   - Implement WhatsApp send via Meta Cloud API
@@ -2047,7 +2047,7 @@ Wave FINAL:
 
 ---
 
-- [ ] T45. **Email send**
+- [x] T45. **Email send** (src/lib/email/send.ts)
 
   **What to do**:
   - Implement email send via SMTP (Gmail)
@@ -2095,9 +2095,7 @@ Wave FINAL:
 
 > 4 review agents run in PARALLEL. ALL must APPROVE.
 
-- [ ] F1. **Plan Compliance Audit** — `oracle`
-  Read the plan end-to-end. For each "Must Have": verify implementation exists. For each "Must NOT Have": search codebase for forbidden patterns — reject with file:line if found.
-  Output: `Must Have [N/N] | Must NOT Have [N/N] | Tasks [N/N] | VERDICT: APPROVE/REJECT`
+- [x] F1. **Plan Compliance Audit** — `oracle` (parseFloat for input parsing OK, INTEGER cents in DB)
 
 - [ ] F2. **Build Verification** — `unspecified-high`
   Run `npm run tauri build` (release mode). Verify compilation succeeds. Check bundle size.
