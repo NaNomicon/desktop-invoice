@@ -431,7 +431,17 @@ async function seedDefaults(database: Database): Promise<void> {
   );
   await database.execute(
     `INSERT OR IGNORE INTO tbl_numbers (id, invoice_no, quo_no, receipt_no)
-     VALUES (1, 1, 1, 1)`,
+     VALUES (1, 0, 0, 0)`,
+  );
+  await database.execute(
+    `UPDATE tbl_numbers
+     SET invoice_no = 0,
+         quo_no = 0,
+         receipt_no = 0
+     WHERE id = 1
+       AND invoice_no = 1
+       AND quo_no = 1
+       AND receipt_no = 1`,
   );
   await database.execute(
     `INSERT OR IGNORE INTO tbl_setting (id, isvat, vat_per, cash, cheque, other)
@@ -439,7 +449,13 @@ async function seedDefaults(database: Database): Promise<void> {
   );
   await database.execute(
     `INSERT OR IGNORE INTO tbl_user (id, user_id, password, des, company_id, is_deleted)
-     VALUES (1, 'ADMIN', 'admin', NULL, 1, 0)`,
+     VALUES (1, 'ADMIN', 'admin', 'ADMIN', 1, 0)`,
+  );
+  await database.execute(
+    `UPDATE tbl_user
+     SET des = 'ADMIN'
+     WHERE user_id = 'ADMIN'
+       AND (des IS NULL OR TRIM(des) = '')`,
   );
 
   const emailDefaults = [
