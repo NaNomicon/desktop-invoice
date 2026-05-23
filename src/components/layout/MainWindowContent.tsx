@@ -18,6 +18,7 @@ import SettingsPage from '@/pages/admin/Settings'
 import SalesReport from '@/pages/reports/SalesReport'
 import StatementPreview from '@/pages/reports/StatementPreview'
 import PrintPreview from '@/pages/reports/PrintPreview'
+import QuotationPreview from '@/pages/reports/QuotationPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -289,12 +290,7 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             />
             <Route
               path="/reports/quotations"
-              element={
-                <PlaceholderPage
-                  title="Quotation Report"
-                  description="This HOME entry is available for navigation. The dedicated quotation report implementation will be completed in the quotation report spec work."
-                />
-              }
+              element={<QuotationPreview />}
             />
             <Route
               path="/reports/receipts"
