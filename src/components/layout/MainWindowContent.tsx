@@ -64,6 +64,7 @@ const ROUTE_TABS: Record<string, RouteTabDefinition> = {
   '/reports/sales': { title: 'Sales Report' },
   '/reports/statement': { title: 'Outstanding Report' },
   '/reports/print': { title: 'Invoice Report' },
+  '/reports/print/0': { title: 'Invoice Report' },
   '/reports/invoices': { title: 'Invoice Report' },
   '/reports/quotations': { title: 'Quotation Report' },
   '/reports/receipts': { title: 'Receipt Report' },
@@ -71,6 +72,18 @@ const ROUTE_TABS: Record<string, RouteTabDefinition> = {
   '/home/change-password': { title: 'Change Password' },
   '/home/backup': { title: 'Backup Database' },
   '/home/restore': { title: 'Restore Database' },
+}
+
+function getRouteTabDefinition(pathname: string): RouteTabDefinition | null {
+  if (ROUTE_TABS[pathname]) {
+    return ROUTE_TABS[pathname]
+  }
+
+  if (pathname.startsWith('/reports/print/')) {
+    return { title: 'Invoice Report' }
+  }
+
+  return null
 }
 
 function PlaceholderPage({
@@ -103,7 +116,7 @@ function HomeTabs() {
   const [confirmClose, setConfirmClose] = useState<HomeTabItem | null>(null)
 
   useEffect(() => {
-    const definition = ROUTE_TABS[location.pathname]
+    const definition = getRouteTabDefinition(location.pathname)
     if (!definition) {
       return
     }
@@ -264,6 +277,7 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             <Route path="/reports/sales" element={<SalesReport />} />
             <Route path="/reports/statement" element={<StatementPreview />} />
             <Route path="/reports/print" element={<PrintPreview invoice_id={0} />} />
+            <Route path="/reports/print/:invoiceId" element={<PrintPreview invoice_id={0} />} />
             <Route
               path="/reports/invoices"
               element={

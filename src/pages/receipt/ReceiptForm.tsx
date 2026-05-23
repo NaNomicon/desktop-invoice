@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { cal } from '@/lib/receipt/cal';
 import { saved } from '@/lib/receipt/saved';
@@ -19,6 +20,13 @@ function dollars(c: number): string {
 
 function ReceiptForm() {
   useAuthStore((s) => s.company_id);
+  const location = useLocation();
+  const receiptPrefill = location.state as {
+    customerId?: number;
+    customerName?: string;
+    dueAmount?: number;
+    adDueStatus?: string;
+  } | null;
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [, setCompanies] = useState<Company[]>([]);
@@ -58,10 +66,6 @@ function ReceiptForm() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
-
   const selectCustomer = useCallback((c: Customer) => {
     setCustomerId(c.id);
     setDueAmount(c.due_amount);
@@ -70,6 +74,33 @@ function ReceiptForm() {
     setLoadDuaAmount(loadAmount);
     setAmountReceived(String(Math.abs(loadAmount)));
   }, []);
+
+  useEffect(() => {
+    if (!receiptPrefill?.customerId || customers.length === 0) {
+      return;
+    }
+
+    const matchedCustomer =
+      customers.find((customer) => customer.id === receiptPrefill.customerId) ??
+      null;
+
+    if (matchedCustomer) {
+      selectCustomer(matchedCustomer);
+      setCustomerSearch(matchedCustomer.customer_name);
+      return;
+    }
+
+    setCustomerId(receiptPrefill.customerId);
+    setDueAmount(receiptPrefill.dueAmount ?? 0);
+    setAdDueStatus(receiptPrefill.adDueStatus ?? 'Due');
+    const loadAmount =
+      receiptPrefill.adDueStatus === 'Advance'
+        ? -(receiptPrefill.dueAmount ?? 0)
+        : (receiptPrefill.dueAmount ?? 0);
+    setLoadDuaAmount(loadAmount);
+    setAmountReceived(String(Math.abs(loadAmount)));
+    setCustomerSearch(receiptPrefill.customerName ?? '');
+  }, [customers, receiptPrefill, selectCustomer]);
 
   const filteredCustomers = customerSearch
     ? customers.filter((c) =>

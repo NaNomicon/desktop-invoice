@@ -36,10 +36,15 @@ export interface InvoiceSaveParams {
  * Cr. → SUBTRACT total from customer.due_amount (customer credit)
  * str1 initialized to "" before conditional assignment.
  */
+export interface InvoiceSaveResult {
+  id: number;
+  invoice_no: string;
+}
+
 export async function saved(
   params: InvoiceSaveParams,
   companyId: number,
-): Promise<string> {
+): Promise<InvoiceSaveResult> {
   const db = await getDb();
 
   let str1 = '';
@@ -143,7 +148,7 @@ export async function saved(
     }
 
     await db.execute('COMMIT');
-    return invoice_no;
+    return { id: main_id, invoice_no };
   } catch (err) {
     await db.execute('ROLLBACK');
     throw err;

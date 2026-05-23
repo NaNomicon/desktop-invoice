@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
 import { getInvoicePdfPath } from '@/lib/pdf/path';
@@ -18,14 +19,16 @@ function dollars(c: number): string {
 }
 
 function PrintPreview({ invoice_id }: PrintPreviewProps) {
-  const [zoom, setZoom] = useState(() => (invoice_id ? 100 : 100));
+  const params = useParams<{ invoiceId?: string }>();
+  const resolvedInvoiceId = params.invoiceId ? parseInt(params.invoiceId, 10) : invoice_id;
+  const [zoom, setZoom] = useState(() => (resolvedInvoiceId ? 100 : 100));
 
   const { data: invoice, isLoading } = useQuery({
-    queryKey: ['printPreviewInvoice', invoice_id],
+    queryKey: ['printPreviewInvoice', resolvedInvoiceId],
     queryFn: async () => {
       const rows = await query<InvoiceMain>(
         'SELECT * FROM tbl_invoice_main WHERE id = ? AND is_deleted = 0',
-        [invoice_id],
+        [resolvedInvoiceId],
       );
       if (rows.length === 0) return null;
 
