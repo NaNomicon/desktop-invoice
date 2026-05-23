@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { quoCal } from '@/lib/quotation/cal';
 import { saveQuotation } from '@/lib/quotation/saved';
+import { splitQuotation } from '@/lib/quotation/splitQuotation';
 import type {
   Company,
   Customer,
@@ -59,6 +60,7 @@ interface LineItem {
   row_total: number;
   s_no: number;
   deleted: boolean;
+  company_id: number | null;
 }
 
 interface ProductSearchRow {
@@ -67,6 +69,7 @@ interface ProductSearchRow {
   product_name: string;
   type_id: number | null;
   price: number;
+  company_id: number;
 }
 
 let uidCounter = 1;
@@ -97,6 +100,7 @@ function createBlankLineItem(): LineItem {
     row_total: 0,
     s_no: 1,
     deleted: false,
+    company_id: null,
   };
 }
 
@@ -229,7 +233,7 @@ function QuotationForm() {
           'SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
         ),
         query<Product>(
-          'SELECT * FROM tbl_product WHERE is_deleted = 0 ORDER BY product_name',
+          'SELECT id, product_id, product_name, type_id, company_id, price, is_deleted FROM tbl_product WHERE is_deleted = 0 ORDER BY product_name',
         ),
         query<ProductType>(
           'SELECT * FROM tbl_product_type WHERE is_deleted = 0 ORDER BY type_name',
@@ -264,8 +268,8 @@ function QuotationForm() {
           'SELECT * FROM tbl_quotation_main WHERE id = ? LIMIT 1',
           [quotationId],
         ),
-        query<QuotationSub & ProductSearchRow>(
-          `SELECT qs.*, p.product_name, p.product_id, p.type_id, p.price
+        query<QuotationSub & ProductSearchRow & { company_id: number }>(
+          `SELECT qs.*, p.product_name, p.product_id, p.type_id, p.price, p.company_id
            FROM tbl_quotation_sub qs
            LEFT JOIN tbl_product p ON qs.product_id = p.id
            WHERE qs.main_id = ?
@@ -302,6 +306,7 @@ function QuotationForm() {
               row_total: item.row_total,
               s_no: item.s_no || index + 1,
               deleted: false,
+              company_id: item.company_id ?? null,
             }))
           : [createBlankLineItem()],
       );
@@ -400,6 +405,7 @@ function QuotationForm() {
         product_id: product.id,
         product_name: product.product_name,
         unit_price: product.price,
+        company_id: product.company_id,
       });
       setProductSearch('');
     },
@@ -422,12 +428,42 @@ function QuotationForm() {
 
     setSaving(true);
     try {
+      const activeItems = lineItems.filter((item) => !item.deleted && item.product_id);
+      const activeCompanyIds = [...new Set(activeItems.map((item) => item.company_id).filter((cid): cid is number => cid !== null))];
+      const hasSplit = activeCompanyIds.length >= 2;
+
+      if (hasSplit) {
+        const result = await splitQuotation({
+          customer_id: customerId,
+          quo_date: quotationDate,
+          checklist_no: checklistNo.trim() || null,
+          no: refNo.trim() || null,
+          identify: 'Quotation',
+          sub_total: subTotal,
+          vat: calcResult.vat,
+          discount: resolvedDiscount,
+          total,
+          per: parseFloat(per || '0'),
+          line_items: activeItems.map((item) => ({
+            id: item.id > 0 ? item.id : undefined,
+            qty: item.qty,
+            product_id: item.product_id,
+            unit_price: item.unit_price,
+            row_total: item.row_total,
+            s_no: item.s_no,
+            company_id: item.company_id!,
+          })),
+        });
+        await loadInitialData();
+        return { ...result, nextQuotationNumber: String((await query<NumberSequence>('SELECT quo_no FROM tbl_numbers WHERE id = 1 LIMIT 1'))[0]?.quo_no ?? 0) };
+      }
+
       const result = await saveQuotation({
         quotation_id: editingId,
         customer_id: customerId,
         quo_no: quotationNumber,
         checklist_no: checklistNo.trim() || null,
-        company_id: companyId,
+        company_id: activeCompanyIds.length === 1 ? activeCompanyIds[0]! : companyId,
         sub_total: subTotal,
         amount_due: selectedCustomer?.due_amount ?? 0,
         vat: calcResult.vat,
@@ -487,8 +523,9 @@ function QuotationForm() {
     if (!result) {
       return;
     }
+    const quoNo = 'quo_no' in result ? result.quo_no : `${result.quotation1_no} & ${result.quotation2_no}`;
     toast.success(
-      editingId ? `Quotation ${result.quo_no} updated` : `Quotation ${result.quo_no} saved`,
+      editingId ? `Quotation ${quoNo} updated` : `Quotation ${quoNo} saved`,
     );
     resetForm(result.nextQuotationNumber);
   }, [editingId, persistQuotation, resetForm]);
@@ -498,9 +535,11 @@ function QuotationForm() {
     if (!result) {
       return;
     }
-    toast.success(`Quotation ${result.quo_no} saved`);
+    const quoNo = 'quo_no' in result ? result.quo_no : `${result.quotation1_no} & ${result.quotation2_no}`;
+    const quoId = 'id' in result ? result.id : result.quotation1_id;
+    toast.success(`Quotation ${quoNo} saved`);
     navigate('/reports/quotations', {
-      state: { quotationId: result.id, quotationNo: result.quo_no },
+      state: { quotationId: quoId, quotationNo: quoNo },
     });
   }, [navigate, persistQuotation]);
 
@@ -530,9 +569,15 @@ function QuotationForm() {
           ) : (
             <Select
               value={item.product_id ? String(item.product_id) : ''}
-              onValueChange={(value) =>
-                updateLineItem(item.uid, { product_id: parseInt(value, 10) })
-              }
+              onValueChange={(value) => {
+                const prod = products.find((p) => p.id === parseInt(value, 10));
+                updateLineItem(item.uid, {
+                  product_id: parseInt(value, 10),
+                  product_name: prod?.product_name ?? item.product_name,
+                  unit_price: prod?.price ?? item.unit_price,
+                  company_id: prod?.company_id ?? item.company_id,
+                });
+              }}
             >
               <SelectTrigger className="h-8 min-w-[220px]">
                 <SelectValue placeholder="Select product..." />

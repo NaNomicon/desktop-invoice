@@ -168,6 +168,7 @@ export interface QuotationSub {
   unit_price: number;
   row_total: number;
   s_no: number;
+  company_id?: number | null;
   is_deleted: number;
 }
 
