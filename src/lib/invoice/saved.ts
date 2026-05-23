@@ -78,10 +78,13 @@ export async function saved(
       invoice_no = String(numRows[0]?.invoice_no ?? 0);
 
       if (params.isAdvance && customer) {
-        await db.execute(
-          'UPDATE tbl_customer SET ad_due = ? WHERE id = ?',
-          [params.isAdvance ? 'Due' : customer.ad_due, params.customer_id],
-        );
+        const remainingAdvance = customer.due_amount - params.total;
+        if (remainingAdvance <= 0) {
+          await db.execute(
+            'UPDATE tbl_customer SET ad_due = ? WHERE id = ?',
+            ['Due', params.customer_id],
+          );
+        }
       }
     }
 
