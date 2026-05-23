@@ -1,9 +1,10 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
-import type { Company } from '@/lib/types';
+import type { Company, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -23,7 +24,14 @@ import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 import 'react-day-picker/style.css';
-import { Download, BarChart3, Calendar } from 'lucide-react';
+import {
+  Download,
+  BarChart3,
+  Calendar,
+  FileText,
+  Printer,
+  Search,
+} from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -31,24 +39,146 @@ import {
 } from '@/components/ui/popover';
 
 interface SalesRow {
+  sales_id: number;
   invoice_no: string;
   invoice_date: string;
   customer_id: number;
   customer_name: string;
+  customer_type: string | null;
   company_id: number;
+  discount: number;
   bill_amount: number; // INTEGER cents
+  checklist_no: string | null;
 }
 
 function dollars(c: number): string {
   return (c / 100).toFixed(2);
 }
 
-type GroupBy = 'none' | 'date' | 'customer' | 'product' | 'company';
+function formatDisplayDate(date: string): string {
+  if (!date) {
+    return '';
+  }
+
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) {
+    return date;
+  }
+
+  return format(parsed, 'dd-MM-yyyy');
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function createSalesReportHtml(options: {
+  rows: SalesRow[];
+  rangeLabel: string;
+  companyLabel: string;
+  searchTerm: string;
+}): string {
+  const { rows, rangeLabel, companyLabel, searchTerm } = options;
+  const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
+  const totalAmount = rows.reduce((sum, row) => sum + row.bill_amount, 0);
+
+  const tableRows = rows
+    .map(
+      (row) => `
+        <tr>
+          <td>${row.sales_id}</td>
+          <td>${escapeHtml(formatDisplayDate(row.invoice_date))}</td>
+          <td>${escapeHtml(row.customer_name)}</td>
+          <td>${escapeHtml(row.customer_type ?? '')}</td>
+          <td>${escapeHtml(row.invoice_no)}</td>
+          <td class="num">${dollars(row.discount)}</td>
+          <td class="num">${dollars(row.bill_amount)}</td>
+          <td>${escapeHtml(row.checklist_no ?? '')}</td>
+        </tr>`,
+    )
+    .join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Sales Report</title>
+  <style>
+    @page { margin: 14mm; size: A4 landscape; }
+    :root { color-scheme: light; }
+    body { font-family: Arial, sans-serif; color: #111827; margin: 0; }
+    main { padding: 24px; }
+    .header { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; margin-bottom: 20px; }
+    .title { margin: 0; font-size: 24px; }
+    .meta { color: #4b5563; font-size: 12px; line-height: 1.5; }
+    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+    .label { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .value { font-size: 16px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 12px; text-align: left; }
+    th { background: #e0f2fe; }
+    td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tfoot td { font-weight: 700; background: #f8fafc; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="header">
+      <div>
+        <h1 class="title">Sales Report</h1>
+        <div class="meta">Generated: ${escapeHtml(generatedAt)}</div>
+      </div>
+      <div class="meta">
+        <div><strong>Date range:</strong> ${escapeHtml(rangeLabel)}</div>
+        <div><strong>Company:</strong> ${escapeHtml(companyLabel)}</div>
+        <div><strong>Search:</strong> ${escapeHtml(searchTerm || 'All records')}</div>
+      </div>
+    </div>
+    <div class="summary">
+      <div class="card"><div class="label">Invoices</div><div class="value">${rows.length}</div></div>
+      <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
+      <div class="card"><div class="label">Net Sales</div><div class="value">$${dollars(totalAmount)}</div></div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Sales ID</th>
+          <th>Invoice Date</th>
+          <th>Customer Name</th>
+          <th>Customer Type</th>
+          <th>Invoice NO</th>
+          <th>Discount</th>
+          <th>Bill Amount</th>
+          <th>Checklist NO</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+      <tfoot>
+        <tr>
+          <td colspan="6">Total</td>
+          <td class="num">${dollars(totalAmount)}</td>
+          <td></td>
+        </tr>
+      </tfoot>
+    </table>
+  </main>
+</body>
+</html>`;
+}
+
+type GroupBy = 'none' | 'date' | 'customer' | 'company';
 
 function SalesReport() {
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
+  const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
 
@@ -61,12 +191,19 @@ function SalesReport() {
     staleTime: 5 * 60_000,
   });
 
+  const { data: settings = [] } = useQuery({
+    queryKey: ['salesReportSettings'],
+    queryFn: () => query<Setting>('SELECT report_path FROM tbl_setting LIMIT 1'),
+    staleTime: 5 * 60_000,
+  });
+
   const { data: salesData = [], isLoading } = useQuery({
     queryKey: [
       'salesReport',
       dateRange?.from?.toISOString() ?? '',
       dateRange?.to?.toISOString() ?? '',
       companyFilter,
+      searchTerm,
     ],
     queryFn: () => {
       const fromDate = dateRange?.from
@@ -75,25 +212,59 @@ function SalesReport() {
       const toDate = dateRange?.to
         ? format(dateRange.to, 'yyyy-MM-dd')
         : '2099-12-31';
+      const likeTerm = `%${searchTerm.trim()}%`;
+
       return query<SalesRow>(
         `SELECT
+          tbl_invoice_main.id AS sales_id,
           tbl_invoice_main.invoice_no,
           tbl_invoice_main.invoice_date,
           tbl_invoice_main.customer_id,
-          tbl_customer.customer_name,
+          LTRIM(tbl_customer.customer_name) AS customer_name,
+          tbl_customer.customer_type,
           tbl_invoice_main.company_id,
-          tbl_invoice_main.sub_total + tbl_invoice_main.vat - tbl_invoice_main.discount as bill_amount
+          tbl_invoice_main.discount,
+          tbl_invoice_main.sub_total + tbl_invoice_main.vat - tbl_invoice_main.discount AS bill_amount,
+          tbl_invoice_main.checklist_no
         FROM tbl_invoice_main
         LEFT JOIN tbl_customer ON tbl_invoice_main.customer_id = tbl_customer.id
         WHERE tbl_invoice_main.invoice_date BETWEEN ? AND ?
           AND (tbl_invoice_main.company_id = ? OR ? = 'ALL')
+          AND (
+            ? = '%%'
+            OR tbl_customer.customer_name LIKE ?
+            OR COALESCE(tbl_customer.customer_type, '') LIKE ?
+            OR tbl_invoice_main.invoice_no LIKE ?
+            OR CAST(tbl_invoice_main.discount AS TEXT) LIKE ?
+            OR COALESCE(tbl_invoice_main.checklist_no, '') LIKE ?
+          )
           AND tbl_invoice_main.is_deleted = 0
-        ORDER BY tbl_invoice_main.invoice_date DESC`,
-        [fromDate, toDate, companyFilter, companyFilter],
+        ORDER BY tbl_invoice_main.invoice_date DESC, tbl_invoice_main.id DESC`,
+        [
+          fromDate,
+          toDate,
+          companyFilter,
+          companyFilter,
+          likeTerm,
+          likeTerm,
+          likeTerm,
+          likeTerm,
+          likeTerm,
+          likeTerm,
+        ],
       );
     },
     staleTime: 30_000,
   });
+
+  const companyLabel = useMemo(() => {
+    if (companyFilter === 'ALL') {
+      return 'All Companies';
+    }
+
+    const company = companies.find((entry) => String(entry.id) === companyFilter);
+    return company?.company_name ?? `Company ${companyFilter}`;
+  }, [companies, companyFilter]);
 
   const groupedSections = useMemo(() => {
     if (groupBy === 'none') return null;
@@ -103,13 +274,13 @@ function SalesReport() {
       let key: string;
       switch (groupBy) {
         case 'date':
-          key = row.invoice_date;
+          key = formatDisplayDate(row.invoice_date);
           break;
         case 'customer':
           key = row.customer_name;
           break;
         case 'company':
-          key = String(row.company_id);
+          key = companies.find((entry) => entry.id === row.company_id)?.company_name ?? `Company ${row.company_id}`;
           break;
         default:
           key = 'other';
@@ -123,58 +294,144 @@ function SalesReport() {
     const entries = Array.from(groups.entries());
     entries.sort(([a], [b]) => a.localeCompare(b));
     return entries;
-  }, [salesData, groupBy]);
+  }, [salesData, groupBy, companies]);
 
-  const handleExportCSV = useCallback(() => {
-    const headers = [
-      'Invoice #',
-      'Date',
-      'Customer',
-      'Company ID',
-      'Bill Amount',
-    ];
-    const rows = salesData.map((row) => [
-      row.invoice_no,
-      row.invoice_date,
-      row.customer_name,
-      String(row.company_id),
-      dollars(row.bill_amount),
-    ]);
-    const csv = [headers, ...rows]
-      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const rangeLabel = dateRange?.from
+    ? `${format(dateRange.from, 'MMM d, yyyy')}${dateRange.to ? ` – ${format(dateRange.to, 'MMM d, yyyy')}` : ''}`
+    : 'All dates';
+
+  const handleOpenPrintableReport = useCallback(
+    (mode: 'print' | 'pdf') => {
+      if (salesData.length === 0) {
+        window.alert('No Data Selected');
+        return;
+      }
+
+      if (mode === 'pdf' && !settings[0]?.report_path?.trim()) {
+        window.alert('Please Set Report Path from Setting');
+        return;
+      }
+
+      const html = createSalesReportHtml({
+        rows: salesData,
+        rangeLabel,
+        companyLabel,
+        searchTerm: searchTerm.trim(),
+      });
+
+      const reportWindow = window.open('', '_blank', 'noopener,noreferrer');
+      if (!reportWindow) {
+        window.alert('Unable to open report preview window');
+        return;
+      }
+
+      reportWindow.document.open();
+      reportWindow.document.write(html);
+      reportWindow.document.close();
+      reportWindow.focus();
+      if (mode === 'pdf') {
+        reportWindow.print();
+      }
+    },
+    [companyLabel, rangeLabel, salesData, searchTerm, settings],
+  );
+
+  const handleExportExcel = useCallback(() => {
+    if (salesData.length === 0) {
+      window.alert('No Data Selected');
+      return;
+    }
+
+    const workbook = `<?xml version="1.0"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Worksheet ss:Name="Sales Report">
+    <Table>
+      <Row>
+        <Cell><Data ss:Type="String">CUSTOMER NAME</Data></Cell>
+        <Cell><Data ss:Type="String">CUSTOMER TYPE</Data></Cell>
+        <Cell><Data ss:Type="String">INVOICE NO</Data></Cell>
+        <Cell><Data ss:Type="String">INVOICE DATE</Data></Cell>
+        <Cell><Data ss:Type="String">DISCOUNT</Data></Cell>
+        <Cell><Data ss:Type="String">SUB TOTAL</Data></Cell>
+        <Cell><Data ss:Type="String">CHECKLIST NO</Data></Cell>
+      </Row>
+      ${salesData
+        .map(
+          (row) => `
+      <Row>
+        <Cell><Data ss:Type="String">${escapeHtml(row.customer_name)}</Data></Cell>
+        <Cell><Data ss:Type="String">${escapeHtml(row.customer_type ?? '')}</Data></Cell>
+        <Cell><Data ss:Type="String">${escapeHtml(row.invoice_no)}</Data></Cell>
+        <Cell><Data ss:Type="String">${escapeHtml(formatDisplayDate(row.invoice_date))}</Data></Cell>
+        <Cell><Data ss:Type="Number">${dollars(row.discount)}</Data></Cell>
+        <Cell><Data ss:Type="Number">${dollars(row.bill_amount)}</Data></Cell>
+        <Cell><Data ss:Type="String">${escapeHtml(row.checklist_no ?? '')}</Data></Cell>
+      </Row>`,
+        )
+        .join('')}
+    </Table>
+  </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([workbook], {
+      type: 'application/vnd.ms-excel;charset=utf-8;',
+    });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `sales-report-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    a.click();
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `sales-report-${format(new Date(), 'yyyy-MM-dd')}.xls`;
+    anchor.click();
     URL.revokeObjectURL(url);
   }, [salesData]);
 
   const columns = useMemo<ColumnDef<SalesRow>[]>(
     () => [
       {
-        accessorKey: 'invoice_no',
-        header: 'Invoice #',
-        cell: (info) => (
-          <span className="font-medium">{info.getValue<string>()}</span>
-        ),
+        accessorKey: 'sales_id',
+        header: 'Sales ID',
+        cell: (info) => <span className="font-medium">{info.getValue<number>()}</span>,
       },
       {
         accessorKey: 'invoice_date',
-        header: 'Date',
-        cell: (info) => info.getValue<string>(),
+        header: 'Invoice Date',
+        cell: (info) => formatDisplayDate(info.getValue<string>()),
       },
       {
         accessorKey: 'customer_name',
-        header: 'Customer',
+        header: 'Customer Name',
         cell: (info) => info.getValue<string>(),
+      },
+      {
+        accessorKey: 'customer_type',
+        header: 'Customer Type',
+        cell: (info) => info.getValue<string | null>() ?? '—',
+      },
+      {
+        accessorKey: 'invoice_no',
+        header: 'Invoice NO',
+        cell: (info) => info.getValue<string>(),
+      },
+      {
+        accessorKey: 'discount',
+        header: 'Discount',
+        cell: (info) => (
+          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+        ),
       },
       {
         accessorKey: 'bill_amount',
         header: 'Bill Amount',
-        cell: (info) => `$${dollars(info.getValue<number>())}`,
+        cell: (info) => (
+          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+        ),
+      },
+      {
+        accessorKey: 'checklist_no',
+        header: 'Checklist NO',
+        cell: (info) => info.getValue<string | null>() ?? '—',
       },
     ],
     [],
@@ -190,25 +447,39 @@ function SalesReport() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const rangeLabel = dateRange?.from
-    ? `${format(dateRange.from, 'MMM d, yyyy')}${dateRange.to ? ` – ${format(dateRange.to, 'MMM d, yyyy')}` : ''}`
-    : 'All dates';
-
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <BarChart3 className="size-5" />
           <h1 className="text-2xl font-semibold">Sales Report</h1>
         </div>
-        <Button
-          variant="outline"
-          onClick={handleExportCSV}
-          disabled={salesData.length === 0}
-        >
-          <Download className="mr-2 size-4" />
-          Export CSV
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => handleOpenPrintableReport('print')}
+            disabled={salesData.length === 0}
+          >
+            <Printer className="mr-2 size-4" />
+            Print
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleOpenPrintableReport('pdf')}
+            disabled={salesData.length === 0}
+          >
+            <FileText className="mr-2 size-4" />
+            View PDF
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExportExcel}
+            disabled={salesData.length === 0}
+          >
+            <Download className="mr-2 size-4" />
+            Export Excel
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -252,6 +523,16 @@ function SalesReport() {
               </SelectContent>
             </Select>
 
+            <div className="relative min-w-64 flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search customer, type, invoice, discount, checklist"
+                className="pl-9"
+              />
+            </div>
+
             <Select
               value={groupBy}
               onValueChange={(v: string) => setGroupBy(v as GroupBy)}
@@ -285,48 +566,76 @@ function SalesReport() {
             </p>
           ) : groupedSections ? (
             <div className="overflow-x-auto rounded-md border">
-              {groupedSections.map(([label, rows]) => (
-                <div key={label}>
-                  <div className="bg-muted/50 px-4 py-2 text-sm font-medium text-muted-foreground">
-                    {label}
-                  </div>
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                          Invoice #
-                        </th>
-                        <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                          Date
-                        </th>
-                        <th className="px-4 py-2 text-left font-medium text-muted-foreground">
-                          Customer
-                        </th>
-                        <th className="px-4 py-2 text-right font-medium text-muted-foreground">
-                          Bill Amount
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row) => (
-                        <tr
-                          key={row.invoice_no}
-                          className="border-t hover:bg-muted/30"
-                        >
-                          <td className="px-4 py-2 font-medium">
-                            {row.invoice_no}
-                          </td>
-                          <td className="px-4 py-2">{row.invoice_date}</td>
-                          <td className="px-4 py-2">{row.customer_name}</td>
-                          <td className="px-4 py-2 text-right">
-                            ${dollars(row.bill_amount)}
-                          </td>
+              {groupedSections.map(([label, rows]) => {
+                const sectionTotal = rows.reduce(
+                  (sum, row) => sum + row.bill_amount,
+                  0,
+                );
+
+                return (
+                  <div key={label}>
+                    <div className="flex items-center justify-between bg-muted/50 px-4 py-2 text-sm font-medium text-muted-foreground">
+                      <span>{label}</span>
+                      <span className="tabular-nums">${dollars(sectionTotal)}</span>
+                    </div>
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                            Sales ID
+                          </th>
+                          <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                            Invoice Date
+                          </th>
+                          <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                            Customer Name
+                          </th>
+                          <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                            Customer Type
+                          </th>
+                          <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                            Invoice NO
+                          </th>
+                          <th className="px-4 py-2 text-right font-medium text-muted-foreground">
+                            Discount
+                          </th>
+                          <th className="px-4 py-2 text-right font-medium text-muted-foreground">
+                            Bill Amount
+                          </th>
+                          <th className="px-4 py-2 text-left font-medium text-muted-foreground">
+                            Checklist NO
+                          </th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr
+                            key={`${row.sales_id}-${row.invoice_no}`}
+                            className="border-t hover:bg-muted/30"
+                          >
+                            <td className="px-4 py-2 font-medium">
+                              {row.sales_id}
+                            </td>
+                            <td className="px-4 py-2">
+                              {formatDisplayDate(row.invoice_date)}
+                            </td>
+                            <td className="px-4 py-2">{row.customer_name}</td>
+                            <td className="px-4 py-2">{row.customer_type ?? '—'}</td>
+                            <td className="px-4 py-2">{row.invoice_no}</td>
+                            <td className="px-4 py-2 text-right tabular-nums">
+                              ${dollars(row.discount)}
+                            </td>
+                            <td className="px-4 py-2 text-right tabular-nums">
+                              ${dollars(row.bill_amount)}
+                            </td>
+                            <td className="px-4 py-2">{row.checklist_no ?? '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })}
             </div>
           ) : (
             <div className="overflow-x-auto rounded-md border">
