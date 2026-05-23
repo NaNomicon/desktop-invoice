@@ -1,3 +1,5 @@
+import { useEffect, useCallback } from 'react'
+import { convertFileSrc } from '@tauri-apps/api/core'
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -14,19 +16,15 @@ import { useTheme } from '@/hooks/use-theme'
 import { useUIStore } from '@/store/ui-store'
 import { useMainWindowEventListeners } from '@/hooks/useMainWindowEventListeners'
 import { cn } from '@/lib/utils'
+import { query } from '@/lib/db'
+import type { Setting } from '@/lib/types'
 
-/**
- * Layout sizing configuration for resizable panels.
- * All values are percentages of total width.
- * Sidebar defaults + main default must equal 100.
- */
 const LAYOUT = {
   leftSidebar: { default: 20, min: 15, max: 40 },
   rightSidebar: { default: 20, min: 15, max: 40 },
   main: { min: 30 },
 } as const
 
-// Main content default is calculated to ensure totals sum to 100%
 const MAIN_CONTENT_DEFAULT =
   100 - LAYOUT.leftSidebar.default - LAYOUT.rightSidebar.default
 
@@ -34,9 +32,25 @@ export function MainWindow() {
   const { theme } = useTheme()
   const leftSidebarVisible = useUIStore(state => state.leftSidebarVisible)
   const rightSidebarVisible = useUIStore(state => state.rightSidebarVisible)
+  const setHomeBackground = useUIStore(state => state.setHomeBackground)
 
-  // Set up global event listeners (keyboard shortcuts, etc.)
   useMainWindowEventListeners()
+
+  const loadHomeBackground = useCallback(async () => {
+    try {
+      const rows = await query<Setting>(
+        'SELECT back_path FROM tbl_setting WHERE id = 1 LIMIT 1'
+      )
+      const backPath = rows[0]?.back_path?.trim()
+      setHomeBackground(backPath ? convertFileSrc(backPath) : null)
+    } catch {
+      setHomeBackground(null)
+    }
+  }, [setHomeBackground])
+
+  useEffect(() => {
+    void loadHomeBackground()
+  }, [loadHomeBackground])
 
   return (
     <div className="flex h-screen w-full flex-col overflow-hidden rounded-[var(--app-corner-radius)] bg-background">
@@ -75,7 +89,6 @@ export function MainWindow() {
         </ResizablePanelGroup>
       </div>
 
-      {/* Global UI Components (hidden until triggered) */}
       <CommandPalette />
       <PreferencesDialog />
       <Toaster

@@ -1,9 +1,3 @@
-/**
- * Application menu builder using Tauri's JavaScript API.
- *
- * This module creates native menus from JavaScript, enabling i18n support
- * through react-i18next. Menus are rebuilt when the language changes.
- */
 import {
   Menu,
   MenuItem,
@@ -13,19 +7,104 @@ import {
 import { check } from '@tauri-apps/plugin-updater'
 import i18n from '@/i18n/config'
 import { useUIStore } from '@/store/ui-store'
+import { useAuthStore } from '@/store/authStore'
 import { logger } from '@/lib/logger'
 import { notifications } from '@/lib/notifications'
 
-const APP_NAME = 'Tauri Template'
+const APP_NAME = 'XPress Billing'
 
-/**
- * Build and set the application menu with translated labels.
- */
 export async function buildAppMenu(): Promise<Menu> {
   const t = i18n.t.bind(i18n)
 
   try {
-    // Build the main application submenu (appears as app name on macOS)
+    const fileSubmenu = await Submenu.new({
+      text: 'File',
+      items: [
+        await MenuItem.new({
+          id: 'change-password',
+          text: 'Change Password',
+          action: () => handleNavigate('/home/change-password'),
+        }),
+        await MenuItem.new({
+          id: 'backup-database',
+          text: 'Backup Database',
+          action: () => handleNavigate('/home/backup'),
+        }),
+        await MenuItem.new({
+          id: 'restore-database',
+          text: 'Restore Database',
+          action: () => handleNavigate('/home/restore'),
+        }),
+        await PredefinedMenuItem.new({ item: 'Separator' }),
+        await MenuItem.new({
+          id: 'logout',
+          text: 'Logout',
+          action: handleLogout,
+        }),
+      ],
+    })
+
+    const masterSubmenu = await Submenu.new({
+      text: 'Master',
+      items: [
+        await createNavItem('Company Details', '/companies'),
+        await createNavItem('Customer', '/customers'),
+        await createNavItem('Product Type', '/product-types'),
+        await createNavItem('Product', '/products'),
+        await createNavItem('User', '/users'),
+      ],
+    })
+
+    const invoiceSubmenu = await Submenu.new({
+      text: 'Invoice',
+      items: [
+        await createNavItem('Add Invoice', '/invoices/new'),
+        await createNavItem('View Invoice', '/invoices'),
+        await createNavItem('Sales Report', '/reports/sales'),
+      ],
+    })
+
+    const quotationSubmenu = await Submenu.new({
+      text: 'Quotation',
+      items: [
+        await createNavItem('Add Quotation', '/quotations/new'),
+        await createNavItem('View Quotation', '/quotations'),
+      ],
+    })
+
+    const outstandingSubmenu = await Submenu.new({
+      text: 'Outstanding',
+      items: [
+        await createNavItem('Outstanding List', '/outstanding'),
+        await createNavItem('Add Receipt', '/receipts/new'),
+        await createNavItem('View Receipt', '/history'),
+      ],
+    })
+
+    const reportSubmenu = await Submenu.new({
+      text: 'Report',
+      items: [
+        await createNavItem('Invoice Report', '/reports/invoices'),
+        await createNavItem('Quotation Report', '/reports/quotations'),
+        await createNavItem('Receipt Report', '/reports/receipts'),
+        await createNavItem('Sales Report', '/reports/sales'),
+        await createNavItem('Outstanding Report', '/reports/outstanding'),
+      ],
+    })
+
+    const settingsSubmenu = await Submenu.new({
+      text: 'Settings',
+      items: [
+        await createNavItem('Application Settings', '/settings'),
+        await MenuItem.new({
+          id: 'preferences',
+          text: t('menu.preferences'),
+          accelerator: 'CmdOrCtrl+,',
+          action: handleOpenPreferences,
+        }),
+      ],
+    })
+
     const appSubmenu = await Submenu.new({
       text: APP_NAME,
       items: [
@@ -39,13 +118,6 @@ export async function buildAppMenu(): Promise<Menu> {
           id: 'check-updates',
           text: t('menu.checkForUpdates'),
           action: handleCheckForUpdates,
-        }),
-        await PredefinedMenuItem.new({ item: 'Separator' }),
-        await MenuItem.new({
-          id: 'preferences',
-          text: t('menu.preferences'),
-          accelerator: 'CmdOrCtrl+,',
-          action: handleOpenPreferences,
         }),
         await PredefinedMenuItem.new({ item: 'Separator' }),
         await PredefinedMenuItem.new({
@@ -68,7 +140,6 @@ export async function buildAppMenu(): Promise<Menu> {
       ],
     })
 
-    // Build the View submenu
     const viewSubmenu = await Submenu.new({
       text: t('menu.view'),
       items: [
@@ -87,12 +158,20 @@ export async function buildAppMenu(): Promise<Menu> {
       ],
     })
 
-    // Build the complete menu
     const menu = await Menu.new({
-      items: [appSubmenu, viewSubmenu],
+      items: [
+        appSubmenu,
+        fileSubmenu,
+        masterSubmenu,
+        invoiceSubmenu,
+        quotationSubmenu,
+        outstandingSubmenu,
+        reportSubmenu,
+        settingsSubmenu,
+        viewSubmenu,
+      ],
     })
 
-    // Set as the application menu
     await menu.setAsAppMenu()
 
     logger.info('Application menu built successfully')
@@ -103,10 +182,14 @@ export async function buildAppMenu(): Promise<Menu> {
   }
 }
 
-/**
- * Set up a listener to rebuild the menu when the language changes.
- * Returns an unsubscribe function for cleanup.
- */
+async function createNavItem(text: string, path: string): Promise<MenuItem> {
+  return MenuItem.new({
+    id: `nav:${path}`,
+    text,
+    action: () => handleNavigate(path, text),
+  })
+}
+
 export function setupMenuLanguageListener(): () => void {
   const handler = async () => {
     logger.info('Language changed, rebuilding menu')
@@ -119,8 +202,6 @@ export function setupMenuLanguageListener(): () => void {
   i18n.on('languageChanged', handler)
   return () => i18n.off('languageChanged', handler)
 }
-
-// Menu action handlers
 
 function handleAbout(): void {
   logger.info('About menu item clicked')
@@ -160,4 +241,24 @@ function handleToggleLeftSidebar(): void {
 function handleToggleRightSidebar(): void {
   logger.info('Toggle Right Sidebar menu item clicked')
   useUIStore.getState().toggleRightSidebar()
+}
+
+function handleNavigate(path: string, title?: string): void {
+  if (title) {
+    useUIStore.getState().registerHomeTab({
+      key: path,
+      title,
+      path,
+      closable: path !== '/invoices',
+    })
+  }
+
+  window.location.hash = `#${path}`
+}
+
+function handleLogout(): void {
+  logger.info('Logout menu item clicked')
+  useAuthStore.getState().logout()
+  useUIStore.getState().resetHomeTabs()
+  window.location.hash = '#/'
 }
