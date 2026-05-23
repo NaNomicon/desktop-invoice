@@ -116,10 +116,7 @@ function EmailTemplatesPage() {
   };
 
   const replacePlaceholders = (text: string): string => {
-    return text
-      .replace(/<date>/gi, '<date>')
-      .replace(/<contact person>/gi, '<contact person>')
-      .replace(/<name>/gi, '<name>');
+    return text;
   };
 
   const columns = useMemo<ColumnDef<EmailTemplate>[]>(
@@ -426,12 +423,12 @@ function EmailTemplatesPage() {
             </div>
 
             <div className="space-y-1">
-              <Label htmlFor="tmpl-attachments">Attachment Path(s)</Label>
+              <Label htmlFor="tmpl-display-name">Sender Display Name</Label>
               <Input
-                id="tmpl-attachments"
+                id="tmpl-display-name"
                 value={form.sub_subject}
                 onChange={(e) => setForm({ ...form, sub_subject: e.target.value })}
-                placeholder="Optional default attachment path list"
+                placeholder="Optional from-name shown to recipients"
               />
             </div>
           </div>

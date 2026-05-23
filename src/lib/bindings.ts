@@ -142,6 +142,14 @@ async updateQuickPaneShortcut(shortcut: string | null) : Promise<Result<null, st
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async sendEmail(request: SendEmailRequest) : Promise<Result<SendEmailResponse, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("send_email", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -195,6 +203,9 @@ export type RecoveryError =
  * JSON serialization/deserialization error
  */
 { type: "ParseError"; message: string }
+export type SendEmailAttachment = { path: string; filename: string | null; mime_type: string | null }
+export type SendEmailRequest = { smtp_host: string | null; smtp_port: number | null; smtp_starttls: boolean | null; sender_email: string; sender_pass: string; sender_name: string | null; to: string; subject: string; html: string; attachments: SendEmailAttachment[] | null }
+export type SendEmailResponse = { sent_to: string; attachment_count: number }
 
 /** tauri-specta globals **/
 

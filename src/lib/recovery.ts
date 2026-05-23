@@ -18,6 +18,8 @@ function formatRecoveryError(error: RecoveryError): string {
       return `IO error: ${error.message}`
     case 'ParseError':
       return `Parse error: ${error.message}`
+    default:
+      return 'Unknown recovery error'
   }
 }
 

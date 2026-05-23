@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
+import { sendEmail } from '@/lib/email/send';
+import { getInvoicePdfPath } from '@/lib/pdf/path';
 import type { Customer, Company, Product, Setting } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { cal } from '@/lib/invoice/cal';
@@ -167,7 +169,7 @@ function InvoiceForm() {
     setLoading(true);
     const [custRows, prodRows, compRows, setRows, seqRows] = await Promise.all([
       query<Customer>(
-        'SELECT id, customer_name, due_amount, ad_due FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
+        'SELECT id, customer_name, due_amount, ad_due, email, title_name FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
       ),
       query<Product>(
         'SELECT id, product_id, product_name, price FROM tbl_product WHERE is_deleted = 0 ORDER BY product_name',
@@ -412,9 +414,94 @@ function InvoiceForm() {
     });
   }, [navigate, selectedCustomer]);
 
-  const handleSend = useCallback(() => {
-    toast.info('Invoice SEND email flow will be completed with the dedicated email spec pass');
-  }, []);
+  const handleSend = useCallback(async () => {
+    if (!selectedCustomer) {
+      toast.error('Please select a customer before sending an invoice email');
+      return;
+    }
+    if (!selectedCustomer.email?.trim()) {
+      toast.error('The selected customer does not have an email address');
+      return;
+    }
+
+    const result = await persistInvoice();
+    if (!result) {
+      return;
+    }
+
+    const invoiceRows = await query<{ id: number; invoice_no: string; invoice_date: string; company_id: number }>(
+      'SELECT id, invoice_no, invoice_date, company_id FROM tbl_invoice_main WHERE id = ? LIMIT 1',
+      [result.id],
+    );
+    const invoice = invoiceRows[0];
+    if (!invoice) {
+      toast.error('Invoice was saved but could not be reloaded for sending');
+      return;
+    }
+
+    const customerName = [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name.trim()]
+      .filter(Boolean)
+      .join(' ');
+    const sendResult = await sendEmail({
+      to: selectedCustomer.email.trim(),
+      template_type: 'INVOICE',
+      variables: {
+        date: invoice.invoice_date,
+        contact_person: selectedCustomer.title_name?.trim() || '',
+        name: selectedCustomer.customer_name,
+      },
+      pdf_path: await getInvoicePdfPath({
+        id: invoice.id,
+        customer_id: selectedCustomer.id,
+        invoice_no: invoice.invoice_no,
+        checklist_no: checklistNo || null,
+        company_id: invoice.company_id,
+        sub_total: subTotal,
+        amount_due: selectedCustomer.due_amount,
+        vat: calResult.vat,
+        discount: calResult.discount,
+        total: calResult.total,
+        per: parseFloat(per || '0'),
+        invoice_date: invoice.invoice_date,
+        case_debit: caseDebit || null,
+        paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+        balance: caseDebit === 'CREDIT' ? calResult.total : balance,
+        no: refNo || null,
+        cr_dr: null,
+        identify: 'Invoice',
+        print_due: printDue ? 'YES' : null,
+        is_deleted: 0,
+      }),
+    });
+
+    if (!sendResult.success) {
+      toast.error(sendResult.error ?? 'Failed to send invoice email');
+      return;
+    }
+
+    toast.success(`Invoice ${result.invoice_no} emailed to ${customerName}`, {
+      description:
+        sendResult.attachmentCount && sendResult.attachmentCount > 0
+          ? 'Invoice email sent with PDF attachment'
+          : 'Invoice email sent without PDF attachment because no saved file was found',
+    });
+    resetForm(result.nextInvoiceNumber);
+  }, [
+    balance,
+    calResult.discount,
+    calResult.total,
+    calResult.vat,
+    caseDebit,
+    checklistNo,
+    paidAmount,
+    per,
+    persistInvoice,
+    printDue,
+    refNo,
+    resetForm,
+    selectedCustomer,
+    subTotal,
+  ]);
 
   const columns = useMemo<ColumnDef<LineItem>[]>(
     () => [
@@ -583,7 +670,7 @@ function InvoiceForm() {
             <Receipt className="size-4" />
             Create Receipt
           </Button>
-          <Button variant="outline" onClick={handleSend} disabled={saving}>
+          <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
             <Mail className="size-4" />
             Send
           </Button>
