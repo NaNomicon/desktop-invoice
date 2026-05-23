@@ -7,6 +7,7 @@ import type { Customer, Company, Product, Setting } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { cal } from '@/lib/invoice/cal';
 import { saved } from '@/lib/invoice/saved';
+import { splitInvoice } from '@/lib/invoice/splitInvoice';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +47,8 @@ interface LineItem {
   row_total: number;
   s_no: number;
   deleted: boolean;
+  /** Company bucket: 1=XPI (Ironing), 2=XPW (Wash), or null for unassigned */
+  company_id: number | null;
 }
 
 interface InvoicePrefillState {
@@ -93,6 +96,7 @@ function nextBlankLineItems(): LineItem[] {
       row_total: 0,
       s_no: 1,
       deleted: false,
+      company_id: null,
     },
   ];
 }
@@ -172,7 +176,7 @@ function InvoiceForm() {
         'SELECT id, customer_name, due_amount, ad_due, email, title_name FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
       ),
       query<Product>(
-        'SELECT id, product_id, product_name, price FROM tbl_product WHERE is_deleted = 0 ORDER BY product_name',
+        'SELECT id, product_id, product_name, price, company_id FROM tbl_product WHERE is_deleted = 0 ORDER BY product_name',
       ),
       query<Company>(
         'SELECT id, company_name FROM tbl_company WHERE is_active = 1',
@@ -218,6 +222,7 @@ function InvoiceForm() {
         row_total: 0,
         s_no: prev.length + 1,
         deleted: false,
+        company_id: null,
       },
     ]);
   }, []);
@@ -282,6 +287,7 @@ function InvoiceForm() {
             row_total: item.row_total,
             s_no: item.s_no || index + 1,
             deleted: false,
+            company_id: null,
           };
         }),
       );
@@ -316,7 +322,47 @@ function InvoiceForm() {
 
     setSaving(true);
     try {
-      const activeItems = lineItems.filter((li) => !li.deleted);
+      const activeItems = lineItems.filter((li) => !li.deleted && li.product_id !== null);
+      const activeCompanyIds = [...new Set(activeItems.map((li) => li.company_id).filter((cid): cid is number => cid !== null))];
+      const hasSplit = activeCompanyIds.length >= 2;
+
+      const resolveCompanyId = (cid: number | null): number => {
+        if (cid !== null && cid !== undefined) return cid;
+        if (activeCompanyIds.length === 1) return activeCompanyIds[0]!;
+        return companyId;
+      };
+
+      if (hasSplit) {
+        const result = await splitInvoice({
+          customer_id: customerId,
+          invoice_date: invoiceDate,
+          checklist_no: checklistNo || null,
+          case_debit: caseDebit || 'CREDIT',
+          paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+          per: parseFloat(per || '0'),
+          sub_total: subTotal,
+          vat: calResult.vat,
+          discount: calResult.discount,
+          total: calResult.total,
+          amount_due: selectedCustomer?.due_amount ?? 0,
+          cr_dr: calResult.total > cents(paidAmount) ? 'Dr.' : 'Cr.',
+          line_items: activeItems.map((li, i) => ({
+            qty: li.qty,
+            product_id: li.product_id,
+            unit_price: li.unit_price,
+            row_total: li.row_total,
+            s_no: i + 1,
+            company_id: li.company_id!,
+          })),
+        });
+        const nextRows = await query<{ invoice_no: number }>(
+          'SELECT invoice_no FROM tbl_numbers WHERE id = 1',
+        );
+        const nextInvoiceNumber = String(nextRows[0]?.invoice_no ?? 0);
+        await loadData();
+        return { ...result, nextInvoiceNumber };
+      }
+
       const result = await saved(
         {
           customer_id: customerId,
@@ -340,10 +386,11 @@ function InvoiceForm() {
             unit_price: li.unit_price,
             row_total: li.row_total,
             s_no: i + 1,
+            company_id: li.company_id,
           })),
           isAdvance,
         },
-        companyId,
+        resolveCompanyId(activeItems[0]?.company_id ?? null),
       );
       const nextRows = await query<{ invoice_no: number }>(
         'SELECT invoice_no FROM tbl_numbers WHERE id = 1',
@@ -384,7 +431,8 @@ function InvoiceForm() {
       return;
     }
 
-    toast.success(`Invoice ${result.invoice_no} saved`);
+    const invNo = 'invoice_no' in result ? result.invoice_no : `${result.invoice1_no} & ${result.invoice2_no}`;
+    toast.success(`Invoice ${invNo} saved`);
     resetForm(result.nextInvoiceNumber);
   }, [persistInvoice, resetForm]);
 
@@ -394,8 +442,10 @@ function InvoiceForm() {
       return;
     }
 
-    toast.success(`Invoice ${result.invoice_no} saved`);
-    navigate(`/reports/print/${result.id}`);
+    const invId = 'id' in result ? result.id : result.invoice1_id;
+    const invNo = 'invoice_no' in result ? result.invoice_no : `${result.invoice1_no} & ${result.invoice2_no}`;
+    toast.success(`Invoice ${invNo} saved`);
+    navigate(`/reports/print/${invId}`);
   }, [navigate, persistInvoice]);
 
   const handleCreateReceipt = useCallback(() => {
@@ -429,9 +479,10 @@ function InvoiceForm() {
       return;
     }
 
+    const resultId = 'id' in result ? result.id : result.invoice1_id;
     const invoiceRows = await query<{ id: number; invoice_no: string; invoice_date: string; company_id: number }>(
       'SELECT id, invoice_no, invoice_date, company_id FROM tbl_invoice_main WHERE id = ? LIMIT 1',
-      [result.id],
+      [resultId],
     );
     const invoice = invoiceRows[0];
     if (!invoice) {
@@ -479,11 +530,8 @@ function InvoiceForm() {
       return;
     }
 
-    toast.success(`Invoice ${result.invoice_no} emailed to ${customerName}`, {
-      description:
-        sendResult.attachmentCount && sendResult.attachmentCount > 0
-          ? 'Invoice email sent with PDF attachment'
-          : 'Invoice email sent without PDF attachment because no saved file was found',
+    toast.success(`Invoice emailed to ${customerName}`, {
+      description: 'Invoice email sent'
     });
     resetForm(result.nextInvoiceNumber);
   }, [
@@ -516,6 +564,9 @@ function InvoiceForm() {
         header: 'Product',
         cell: (info) => {
           const li = info.row.original;
+          const filteredProducts = li.company_id
+            ? products.filter((p) => p.company_id === li.company_id)
+            : products;
           if (li.deleted) {
             return <span className="text-muted-foreground line-through">{li.product_name || '-'}</span>;
           }
@@ -528,6 +579,7 @@ function InvoiceForm() {
                   product_id: prod ? prod.id : null,
                   product_name: prod?.product_name ?? '',
                   unit_price: prod?.price ?? 0,
+                  company_id: prod?.company_id ?? null,
                 });
               }}
             >
@@ -535,7 +587,7 @@ function InvoiceForm() {
                 <SelectValue placeholder="Select product..." />
               </SelectTrigger>
               <SelectContent>
-                {products.map((p) => (
+                {filteredProducts.map((p) => (
                   <SelectItem key={p.id} value={String(p.id)}>
                     {p.product_id ? `${p.product_id} - ${p.product_name}` : p.product_name}
                   </SelectItem>

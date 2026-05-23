@@ -6,6 +6,7 @@ export interface InvoiceLineItem {
   unit_price: number;
   row_total: number;
   s_no: number;
+  company_id: number | null;
 }
 
 export interface InvoiceSaveParams {
