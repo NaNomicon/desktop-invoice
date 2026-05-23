@@ -1,70 +1,148 @@
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
-import { Sidebar, AuthProvider } from '@/components/Sidebar';
-import Login from '@/pages/auth/Login';
-import InvoiceList from '@/pages/invoice/InvoiceList';
-import InvoiceForm from '@/pages/invoice/InvoiceForm';
-import QuotationList from '@/pages/quotation/QuotationList';
-import QuotationForm from '@/pages/quotation/QuotationForm';
-import ReceiptForm from '@/pages/receipt/ReceiptForm';
-import TransactionHistory from '@/pages/receipt/TransactionHistory';
-import ListOutStanding from '@/pages/outstanding/ListOutStanding';
-import Customer from '@/pages/admin/Customer';
-import Product from '@/pages/admin/Product';
-import ProductType from '@/pages/admin/ProductType';
-import CompanySettings from '@/pages/admin/CompanySettings';
-import User from '@/pages/admin/User';
-import Settings from '@/pages/admin/Settings';
-import EmailTemplates from '@/pages/admin/EmailTemplates';
-import WhatsAppTemplates from '@/pages/admin/WhatsAppTemplates';
-import SalesReport from '@/pages/reports/SalesReport';
-import StatementPreview from '@/pages/reports/StatementPreview';
-import PrintPreview from '@/pages/reports/PrintPreview';
+import { useEffect } from 'react'
+import { check } from '@tauri-apps/plugin-updater'
+import { relaunch } from '@tauri-apps/plugin-process'
+import { initializeCommandSystem } from './lib/commands'
+import { buildAppMenu, setupMenuLanguageListener } from './lib/menu'
+import { initializeLanguage } from './i18n/language-init'
+import { logger } from './lib/logger'
+import { cleanupOldFiles } from './lib/recovery'
+import { commands } from './lib/tauri-bindings'
+import './App.css'
+import { MainWindow } from './components/layout/MainWindow'
+import { ThemeProvider } from './components/ThemeProvider'
+import Login from './pages/auth/Login'
+import { ErrorBoundary } from './components/ErrorBoundary'
+import { useSquareCornersEffect } from './hooks/useSquareCornersEffect'
+import { useAuthStore } from './store/authStore'
+function App() {
+  useSquareCornersEffect()
 
-const queryClient = new QueryClient();
+  const isLoggedIn = useAuthStore((s) => s.isLoggedIn)
+  const setAuth = useAuthStore.setState
+  // Restore session from persisted credentials
+  useEffect(() => {
+    const { user_id_log, user_name, user_id, company_id } =
+      useAuthStore.getState()
+    if (user_id_log) {
+      setAuth({
+        user_id_log,
+        user_name,
+        user_id,
+        company_id,
+        isLoggedIn: true,
+      })
+    }
+  }, [setAuth])
+  // Initialize command system and cleanup on app startup
+  useEffect(() => {
+    logger.info('🚀 Frontend application starting up')
+    initializeCommandSystem()
+    logger.debug('Command system initialized')
 
-function PrintPreviewWrapper() {
-  const { invoiceId } = useParams<{ invoiceId: string }>();
-  return <PrintPreview invoice_id={Number(invoiceId)} />;
-}
+    // Initialize language based on saved preference or system locale
+    const initLanguageAndMenu = async () => {
+      try {
+        // Load preferences to get saved language
+        const result = await commands.loadPreferences()
+        const savedLanguage =
+          result.status === 'ok' ? result.data.language : null
 
-export default function App() {
+        // Initialize language (will use system locale if no preference)
+        await initializeLanguage(savedLanguage)
+
+        // Build the application menu with the initialized language
+        await buildAppMenu()
+        logger.debug('Application menu built')
+        setupMenuLanguageListener()
+      } catch (error) {
+        logger.warn('Failed to initialize language or menu', { error })
+      }
+    }
+
+    initLanguageAndMenu()
+
+    // Clean up old recovery files on startup
+    cleanupOldFiles().catch(error => {
+      logger.warn('Failed to cleanup old recovery files', { error })
+    })
+
+    // Example of logging with context
+    logger.info('App environment', {
+      isDev: import.meta.env.DEV,
+      mode: import.meta.env.MODE,
+    })
+
+    // Auto-updater logic - check for updates 5 seconds after app loads
+    const checkForUpdates = async () => {
+      try {
+        const update = await check()
+        if (update) {
+          logger.info(`Update available: ${update.version}`)
+
+          // Show confirmation dialog
+          const shouldUpdate = confirm(
+            `Update available: ${update.version}\n\nWould you like to install this update now?`
+          )
+
+          if (shouldUpdate) {
+            try {
+              // Download and install with progress logging
+              await update.downloadAndInstall(event => {
+                switch (event.event) {
+                  case 'Started':
+                    logger.info(`Downloading ${event.data.contentLength} bytes`)
+                    break
+                  case 'Progress':
+                    logger.info(`Downloaded: ${event.data.chunkLength} bytes`)
+                    break
+                  case 'Finished':
+                    logger.info('Download complete, installing...')
+                    break
+                }
+              })
+
+              // Ask if user wants to restart now
+              const shouldRestart = confirm(
+                'Update completed successfully!\n\nWould you like to restart the app now to use the new version?'
+              )
+
+              if (shouldRestart) {
+                await relaunch()
+              }
+            } catch (updateError) {
+              logger.error(`Update installation failed: ${String(updateError)}`)
+              alert(
+                `Update failed: There was a problem with the automatic download.\n\n${String(updateError)}`
+              )
+            }
+          }
+        }
+      } catch (checkError) {
+        logger.error(`Update check failed: ${String(checkError)}`)
+        // Silent fail for update checks - don't bother user with network issues
+      }
+    }
+
+    // Check for updates 5 seconds after app loads
+    const updateTimer = setTimeout(checkForUpdates, 5000)
+    return () => clearTimeout(updateTimer)
+  }, [])
+
+  if (!isLoggedIn) {
+    return (
+      <ThemeProvider>
+        <Login />
+      </ThemeProvider>
+    )
+  }
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <BrowserRouter>
-          <div className="flex h-screen">
-            <Sidebar />
-            <main className="flex-1 overflow-auto">
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/invoices" element={<InvoiceList />} />
-                <Route path="/invoices/new" element={<InvoiceForm />} />
-                <Route path="/invoices/:id" element={<InvoiceForm />} />
-                <Route path="/quotations" element={<QuotationList />} />
-                <Route path="/quotations/new" element={<QuotationForm />} />
-                <Route path="/quotations/:id" element={<QuotationForm />} />
-                <Route path="/receipts/new" element={<ReceiptForm />} />
-                <Route path="/receipts/:id" element={<ReceiptForm />} />
-                <Route path="/outstanding" element={<ListOutStanding />} />
-                <Route path="/history" element={<TransactionHistory />} />
-                <Route path="/customers" element={<Customer />} />
-                <Route path="/products" element={<Product />} />
-                <Route path="/product-types" element={<ProductType />} />
-                <Route path="/companies" element={<CompanySettings />} />
-                <Route path="/users" element={<User />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/email-templates" element={<EmailTemplates />} />
-                <Route path="/whatsapp-templates" element={<WhatsAppTemplates />} />
-                <Route path="/reports/sales" element={<SalesReport />} />
-                <Route path="/reports/statement" element={<StatementPreview />} />
-                <Route path="/reports/print/:invoiceId" element={<PrintPreviewWrapper />} />
-                <Route path="/" element={<InvoiceList />} />
-              </Routes>
-            </main>
-          </div>
-        </BrowserRouter>
-      </AuthProvider>
-    </QueryClientProvider>
-  );
+    <ErrorBoundary>
+      <ThemeProvider>
+        <MainWindow />
+      </ThemeProvider>
+    </ErrorBoundary>
+  )
 }
+
+export default App
