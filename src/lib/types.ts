@@ -8,12 +8,22 @@
 export interface Company {
   id: number;
   company_name: string | null;
+  company_short_name: string | null;
+  company_code: string | null;
   contact_person: string | null;
   address: string | null;
+  city: string | null;
   telephone: string | null;
   email: string | null;
+  facebook_url: string | null;
   brn: string | null;
   vat: string | null;
+  note1: string | null;
+  note2: string | null;
+  note3: string | null;
+  thanks1: string | null;
+  thanks2: string | null;
+  currency: string | null;
   bank_name: string | null;
   bank_account: string | null;
   bank_branch: string | null;
