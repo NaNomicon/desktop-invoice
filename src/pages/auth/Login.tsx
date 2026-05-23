@@ -53,7 +53,8 @@ function Login() {
     try {
       const ok = await login(selectedUser, password);
       if (!ok) {
-        setError('Invalid password or user ID');
+        setPassword('');
+        setError('Password Is Not Valid');
       }
     } catch {
       setError('Login failed. Please try again.');

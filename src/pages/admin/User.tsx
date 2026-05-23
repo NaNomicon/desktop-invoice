@@ -45,7 +45,7 @@ function UserPage() {
   const [form, setForm] = useState({
     user_id: '',
     password: '',
-    des: '',
+    des: 'USER',
   });
 
   const loadData = useCallback(async () => {
@@ -110,7 +110,7 @@ function UserPage() {
 
   const openNew = () => {
     setEditingId(null);
-    setForm({ user_id: '', password: '', des: '' });
+    setForm({ user_id: '', password: '', des: 'USER' });
     setDialogOpen(true);
   };
 
@@ -261,15 +261,16 @@ function UserPage() {
                 placeholder="Enter password"
               />
             </div>
-            <div className="space-y-1">
-              <Label htmlFor="user-des">Description</Label>
-              <Input
-                id="user-des"
-                value={form.des}
-                onChange={(e) => setForm({ ...form, des: e.target.value })}
-                placeholder="Full name or role"
-              />
-            </div>
+             <div className="space-y-1">
+               <Label htmlFor="user-des">Role</Label>
+               <Input
+                 id="user-des"
+                 value={form.des}
+                 onChange={(e) => setForm({ ...form, des: e.target.value.toUpperCase() })}
+                 placeholder="ADMIN or USER"
+               />
+             </div>
+
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setDialogOpen(false)}>

@@ -39,8 +39,8 @@ export const useAuthStore = create<AuthState>()(
           }
 
           set({
-            user_id_log: user.user_id,
-            user_name: user.des ?? userId,
+            user_id_log: user.des?.trim() || 'USER',
+            user_name: user.user_id,
             user_id: user.id,
             company_id: user.company_id,
             isLoggedIn: true,
@@ -57,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
           user_id_log: '',
           user_name: '',
           user_id: 0,
+          company_id: 1,
           isLoggedIn: false,
         }),
     }),
