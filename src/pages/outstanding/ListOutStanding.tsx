@@ -1,7 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { format } from 'date-fns';
 import { query } from '@/lib/db';
+import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-output';
 import type { Company, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -39,21 +39,21 @@ function dollars(c: number): string {
   return (c / 100).toFixed(2);
 }
 
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 function customerDisplayName(row: OutstandingRow): string {
   return [row.title_name?.trim(), row.customer_name.trim()].filter(Boolean).join(' ');
 }
 
 function createOutstandingReportHtml(rows: OutstandingRow[]): string {
-  const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
+
+  const generatedAt = new Date().toLocaleString('en-GB', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).replace(',', '');
   const totalDue = rows
     .filter((row) => row.due_amount > 0)
     .reduce((sum, row) => sum + row.due_amount, 0);
@@ -225,19 +225,12 @@ function ListOutStanding() {
       }
 
       const html = createOutstandingReportHtml(filtered);
-      const reportWindow = window.open('', '_blank', 'noopener,noreferrer');
-      if (!reportWindow) {
-        window.alert('Unable to open report preview window');
-        return;
-      }
-
-      reportWindow.document.open();
-      reportWindow.document.write(html);
-      reportWindow.document.close();
-      reportWindow.focus();
-      if (mode === 'pdf') {
-        reportWindow.print();
-      }
+      openPrintableReport({
+        html,
+        mode,
+        requirePath: mode === 'pdf',
+        configuredPath: settings?.report_path ?? null,
+      });
     },
     [filtered, settings],
   );
@@ -248,42 +241,19 @@ function ListOutStanding() {
       return;
     }
 
-    const workbook = `<?xml version="1.0"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-  <Worksheet ss:Name="Outstanding Report">
-    <Table>
-      <Row>
-        <Cell><Data ss:Type="String">CUSTOMER NAME</Data></Cell>
-        <Cell><Data ss:Type="String">AMOUNT</Data></Cell>
-        <Cell><Data ss:Type="String">STATUS</Data></Cell>
-      </Row>
-      ${filtered
-        .map((row) => {
-          const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
-          return `
-      <Row>
-        <Cell><Data ss:Type="String">${escapeHtml(customerDisplayName(row))}</Data></Cell>
-        <Cell><Data ss:Type="String">${escapeHtml(`${amountPrefix}${dollars(Math.abs(row.due_amount))}`)}</Data></Cell>
-        <Cell><Data ss:Type="String">${escapeHtml(row.ad_due)}</Data></Cell>
-      </Row>`;
-        })
-        .join('')}
-    </Table>
-  </Worksheet>
-</Workbook>`;
-
-    const blob = new Blob([workbook], {
-      type: 'application/vnd.ms-excel;charset=utf-8;',
+    downloadExcelXml({
+      filenamePrefix: 'outstanding-report',
+      worksheetName: 'Outstanding Report',
+      headers: ['CUSTOMER NAME', 'AMOUNT', 'STATUS'],
+      rows: filtered.map((row) => {
+        const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
+        return [
+          customerDisplayName(row),
+          `${amountPrefix}${dollars(Math.abs(row.due_amount))}`,
+          row.ad_due,
+        ];
+      }),
     });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `outstanding-report-${format(new Date(), 'yyyy-MM-dd')}.xls`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }, [filtered]);
 
   const columns = useMemo<ColumnDef<OutstandingRow>[]>(

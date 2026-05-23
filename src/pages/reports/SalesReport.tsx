@@ -1,6 +1,7 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
+import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-output';
 import type { Company, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -66,15 +67,6 @@ function formatDisplayDate(date: string): string {
   }
 
   return format(parsed, 'dd-MM-yyyy');
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }
 
 function createSalesReportHtml(options: {
@@ -319,19 +311,12 @@ function SalesReport() {
         searchTerm: searchTerm.trim(),
       });
 
-      const reportWindow = window.open('', '_blank', 'noopener,noreferrer');
-      if (!reportWindow) {
-        window.alert('Unable to open report preview window');
-        return;
-      }
-
-      reportWindow.document.open();
-      reportWindow.document.write(html);
-      reportWindow.document.close();
-      reportWindow.focus();
-      if (mode === 'pdf') {
-        reportWindow.print();
-      }
+      openPrintableReport({
+        html,
+        mode,
+        requirePath: mode === 'pdf',
+        configuredPath: settings[0]?.report_path ?? null,
+      });
     },
     [companyLabel, rangeLabel, salesData, searchTerm, settings],
   );
@@ -342,49 +327,28 @@ function SalesReport() {
       return;
     }
 
-    const workbook = `<?xml version="1.0"?>
-<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
- xmlns:o="urn:schemas-microsoft-com:office:office"
- xmlns:x="urn:schemas-microsoft-com:office:excel"
- xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
-  <Worksheet ss:Name="Sales Report">
-    <Table>
-      <Row>
-        <Cell><Data ss:Type="String">CUSTOMER NAME</Data></Cell>
-        <Cell><Data ss:Type="String">CUSTOMER TYPE</Data></Cell>
-        <Cell><Data ss:Type="String">INVOICE NO</Data></Cell>
-        <Cell><Data ss:Type="String">INVOICE DATE</Data></Cell>
-        <Cell><Data ss:Type="String">DISCOUNT</Data></Cell>
-        <Cell><Data ss:Type="String">SUB TOTAL</Data></Cell>
-        <Cell><Data ss:Type="String">CHECKLIST NO</Data></Cell>
-      </Row>
-      ${salesData
-        .map(
-          (row) => `
-      <Row>
-        <Cell><Data ss:Type="String">${escapeHtml(row.customer_name)}</Data></Cell>
-        <Cell><Data ss:Type="String">${escapeHtml(row.customer_type ?? '')}</Data></Cell>
-        <Cell><Data ss:Type="String">${escapeHtml(row.invoice_no)}</Data></Cell>
-        <Cell><Data ss:Type="String">${escapeHtml(formatDisplayDate(row.invoice_date))}</Data></Cell>
-        <Cell><Data ss:Type="Number">${dollars(row.discount)}</Data></Cell>
-        <Cell><Data ss:Type="Number">${dollars(row.bill_amount)}</Data></Cell>
-        <Cell><Data ss:Type="String">${escapeHtml(row.checklist_no ?? '')}</Data></Cell>
-      </Row>`,
-        )
-        .join('')}
-    </Table>
-  </Worksheet>
-</Workbook>`;
-
-    const blob = new Blob([workbook], {
-      type: 'application/vnd.ms-excel;charset=utf-8;',
+    downloadExcelXml({
+      filenamePrefix: 'sales-report',
+      worksheetName: 'Sales Report',
+      headers: [
+        'CUSTOMER NAME',
+        'CUSTOMER TYPE',
+        'INVOICE NO',
+        'INVOICE DATE',
+        'DISCOUNT',
+        'SUB TOTAL',
+        'CHECKLIST NO',
+      ],
+      rows: salesData.map((row) => [
+        row.customer_name,
+        row.customer_type ?? '',
+        row.invoice_no,
+        formatDisplayDate(row.invoice_date),
+        dollars(row.discount),
+        dollars(row.bill_amount),
+        row.checklist_no ?? '',
+      ]),
     });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = `sales-report-${format(new Date(), 'yyyy-MM-dd')}.xls`;
-    anchor.click();
-    URL.revokeObjectURL(url);
   }, [salesData]);
 
   const columns = useMemo<ColumnDef<SalesRow>[]>(

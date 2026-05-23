@@ -1,13 +1,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
-import {
-  getInvoicePdfPath,
-} from '@/lib/pdf/path';
-import type {
-  Company,
-  Customer,
-} from '@/lib/types';
+import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-output';
+import type { Company, Customer, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -43,6 +38,101 @@ interface StatementRow {
   amount: number; // INTEGER cents — positive for invoices, negative display for receipts
 }
 
+function createStatementReportHtml(options: {
+  customerName: string;
+  companyLabel: string;
+  rangeLabel: string;
+  openingBalance: number;
+  closingBalance: number;
+  rows: StatementRow[];
+}): string {
+  const {
+    customerName,
+    companyLabel,
+    rangeLabel,
+    openingBalance,
+    closingBalance,
+    rows,
+  } = options;
+  const generatedAt = new Date().toLocaleString('en-GB', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  }).replace(',', '');
+
+  const tableRows = rows
+    .map((row) => {
+      const sign = row.type === 'Receipt' ? '-' : '';
+      return `
+        <tr>
+          <td>${escapeHtml(row.ref_no)}</td>
+          <td>${escapeHtml(row.date)}</td>
+          <td>${escapeHtml(row.type)}</td>
+          <td class="amount">${escapeHtml(`${sign}$${dollars(row.amount)}`)}</td>
+        </tr>`;
+    })
+    .join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Statement Report</title>
+  <style>
+    @page { margin: 14mm; size: A4 portrait; }
+    body { font-family: Arial, sans-serif; color: #111827; margin: 0; }
+    main { padding: 24px; }
+    .header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+    .title { margin: 0; font-size: 24px; }
+    .meta { color: #4b5563; font-size: 12px; line-height: 1.5; }
+    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+    .label { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .value { font-size: 16px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 12px; text-align: left; }
+    th { background: #e0f2fe; }
+    .amount { text-align: right; font-variant-numeric: tabular-nums; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="header">
+      <div>
+        <h1 class="title">Statement Report</h1>
+        <div class="meta">Generated: ${escapeHtml(generatedAt)}</div>
+      </div>
+      <div class="meta">
+        <div><strong>Customer:</strong> ${escapeHtml(customerName)}</div>
+        <div><strong>Company:</strong> ${escapeHtml(companyLabel)}</div>
+        <div><strong>Date range:</strong> ${escapeHtml(rangeLabel)}</div>
+      </div>
+    </div>
+    <div class="summary">
+      <div class="card"><div class="label">Opening Balance</div><div class="value">${escapeHtml(`${openingBalance > 0 ? '' : '-'}$${dollars(Math.abs(openingBalance))}`)}</div></div>
+      <div class="card"><div class="label">Transactions</div><div class="value">${rows.length}</div></div>
+      <div class="card"><div class="label">Closing Balance</div><div class="value">${escapeHtml(`${closingBalance > 0 ? '' : '-'}$${dollars(Math.abs(closingBalance))}`)}</div></div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Ref #</th>
+          <th>Date</th>
+          <th>Type</th>
+          <th>Amount</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  </main>
+</body>
+</html>`;
+}
+
 function dollars(c: number): string {
   return (c / 100).toFixed(2);
 }
@@ -63,8 +153,14 @@ function StatementPreview() {
     staleTime: 5 * 60_000,
   });
 
+  const { data: settings = [] } = useQuery({
+    queryKey: ['statementSettings'],
+    queryFn: () => query<Setting>('SELECT report_path FROM tbl_setting LIMIT 1'),
+    staleTime: 5 * 60_000,
+  });
+
   const { data: customers = [] } = useQuery({
-    queryKey: ['customers', companyFilter],
+    queryKey: ['statementCustomers', companyFilter],
     queryFn: () =>
       query<Customer>(
         `SELECT id, customer_name, due_amount, company_id
@@ -76,6 +172,15 @@ function StatementPreview() {
       ),
     staleTime: 30_000,
   });
+
+  const companyLabel = useMemo(() => {
+    if (companyFilter === 'ALL') {
+      return 'All Companies';
+    }
+
+    const company = companies.find((entry) => String(entry.id) === companyFilter);
+    return company?.company_name ?? `Company ${companyFilter}`;
+  }, [companies, companyFilter]);
 
   const selectedCustomer = useMemo(
     () => customers.find((c) => String(c.id) === customerId),
@@ -219,39 +324,63 @@ function StatementPreview() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const handleExportPdf = useCallback(() => {
-    if (!transactions.length || !selectedCustomer) return;
-      getInvoicePdfPath({
-        id: 0,
-        customer_id: selectedCustomer.id,
-        invoice_no: `STATEMENT_${selectedCustomer.customer_name}`,
-        invoice_date: new Date().toISOString().split('T')[0] ?? new Date().toISOString(),
-
-      company_id: selectedCustomer.company_id,
-      sub_total: 0,
-      amount_due: 0,
-      vat: 0,
-      discount: 0,
-      total: 0,
-      per: 0,
-      case_debit: null,
-      paid_amount: 0,
-      balance: 0,
-      no: null,
-      cr_dr: null,
-      identify: null,
-      print_due: null,
-      is_deleted: 0,
-      checklist_no: null,
-    }).then((path) => {
-      console.log('Statement PDF path (placeholder):', path);
-    });
-  }, [transactions, selectedCustomer]);
-
   const isLoading = loadingInvoices || loadingReceipts;
   const rangeLabel = dateRange?.from
     ? `${format(dateRange.from, 'MMM d, yyyy')}${dateRange.to ? ` – ${format(dateRange.to, 'MMM d, yyyy')}` : ''}`
     : 'All dates';
+
+  const handleOpenPrintableReport = useCallback(
+    (mode: 'print' | 'pdf') => {
+      if (!transactions.length || !selectedCustomer) {
+        window.alert('No Data Selected');
+        return;
+      }
+
+      const html = createStatementReportHtml({
+        customerName: selectedCustomer.customer_name,
+        companyLabel,
+        rangeLabel,
+        openingBalance,
+        closingBalance,
+        rows: transactions,
+      });
+
+      openPrintableReport({
+        html,
+        mode,
+        requirePath: mode === 'pdf',
+        configuredPath: settings[0]?.report_path ?? null,
+      });
+    },
+    [
+      closingBalance,
+      companyLabel,
+      openingBalance,
+      rangeLabel,
+      selectedCustomer,
+      settings,
+      transactions,
+    ],
+  );
+
+  const handleExportExcel = useCallback(() => {
+    if (!transactions.length || !selectedCustomer) {
+      window.alert('No Data Selected');
+      return;
+    }
+
+    downloadExcelXml({
+      filenamePrefix: 'statement-report',
+      worksheetName: 'Statement Report',
+      headers: ['REF #', 'DATE', 'TYPE', 'AMOUNT'],
+      rows: transactions.map((row) => [
+        row.ref_no,
+        row.date,
+        row.type,
+        `${row.type === 'Receipt' ? '-' : ''}${dollars(row.amount)}`,
+      ]),
+    });
+  }, [selectedCustomer, transactions]);
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
@@ -260,14 +389,32 @@ function StatementPreview() {
           <FileText className="size-5" />
           <h1 className="text-2xl font-semibold">Statement Preview</h1>
         </div>
-        <Button
-          variant="outline"
-          onClick={handleExportPdf}
-          disabled={transactions.length === 0}
-        >
-          <Download className="mr-2 size-4" />
-          Export PDF
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => handleOpenPrintableReport('print')}
+            disabled={transactions.length === 0}
+          >
+            <FileText className="mr-2 size-4" />
+            Print
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => handleOpenPrintableReport('pdf')}
+            disabled={transactions.length === 0}
+          >
+            <Download className="mr-2 size-4" />
+            Export PDF
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handleExportExcel}
+            disabled={transactions.length === 0}
+          >
+            <Download className="mr-2 size-4" />
+            Export Excel
+          </Button>
+        </div>
       </div>
 
       <Card>
