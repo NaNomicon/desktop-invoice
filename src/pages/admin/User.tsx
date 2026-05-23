@@ -82,7 +82,7 @@ function UserPage() {
       },
       {
         accessorKey: 'des',
-        header: 'Description',
+        header: 'Role',
         cell: (info) => (info.getValue() as string) ?? '-',
       },
       {

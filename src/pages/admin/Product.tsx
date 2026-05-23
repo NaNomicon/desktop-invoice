@@ -98,7 +98,11 @@ function ProductPage() {
     let rows = products;
     if (search) {
       const s = search.toLowerCase();
-      rows = rows.filter((p) => p.product_name.toLowerCase().includes(s));
+      rows = rows.filter(
+        (p) =>
+          p.product_name.toLowerCase().includes(s) ||
+          (p.product_id ?? '').toLowerCase().includes(s),
+      );
     }
     if (companyFilter !== 'all') {
       rows = rows.filter((p) => p.company_id === parseInt(companyFilter));

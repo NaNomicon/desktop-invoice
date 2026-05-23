@@ -206,12 +206,12 @@ function SettingsPage() {
             />
           </div>
           <div className="space-y-1 md:col-span-2">
-            <Label htmlFor="legacy-back-path">Legacy Backup Path</Label>
+            <Label htmlFor="background-path">HOME Background Path</Label>
             <Input
-              id="legacy-back-path"
+              id="background-path"
               value={settings.back_path ?? ''}
               onChange={(e) => updateField('back_path', e.target.value)}
-              placeholder="Optional legacy backup location"
+              placeholder="Optional image path for the HOME background"
             />
           </div>
         </CardContent>
