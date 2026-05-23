@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import type { Company } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
   Select,
@@ -18,13 +20,17 @@ import {
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
-import { FileText, Search } from 'lucide-react';
+import { ArrowRightLeft, FileText, Search } from 'lucide-react';
 
 interface QuotationRow {
   id: number;
+  customer_id: number;
   quo_no: string;
   quo_date: string;
   customer_name: string;
+  checklist_no?: string | null;
+  no?: string | null;
+  per: number;
   sub_total: number;
   vat: number;
   discount: number;
@@ -33,11 +39,21 @@ interface QuotationRow {
   company_id: number;
 }
 
+interface QuotationLineRow {
+  main_id: number;
+  product_id: number | null;
+  qty: number;
+  unit_price: number;
+  row_total: number;
+  s_no: number;
+}
+
 function dollars(c: number): string {
   return (c / 100).toFixed(2);
 }
 
 function QuotationList() {
+  const navigate = useNavigate();
   const [quotations, setQuotations] = useState<QuotationRow[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -49,8 +65,8 @@ function QuotationList() {
     setLoading(true);
     const [quoRows, compRows] = await Promise.all([
       query<QuotationRow>(
-        `SELECT qm.id, qm.quo_no, qm.quo_date, qm.sub_total, qm.vat,
-                qm.discount, qm.total, qm.identify, qm.company_id,
+        `SELECT qm.id, qm.customer_id, qm.quo_no, qm.quo_date, qm.sub_total, qm.vat,
+                qm.discount, qm.total, qm.identify, qm.company_id, qm.checklist_no, qm.no, qm.per,
                 c.customer_name
          FROM tbl_quotation_main qm
          JOIN tbl_customer c ON qm.customer_id = c.id
@@ -85,6 +101,38 @@ function QuotationList() {
     }
     return rows;
   }, [quotations, search, companyFilter]);
+
+  const handleConvertToInvoice = useCallback(
+    async (quotation: QuotationRow) => {
+      const lineRows = await query<QuotationLineRow>(
+        `SELECT main_id, product_id, qty, unit_price, row_total, s_no
+         FROM tbl_quotation_sub
+         WHERE main_id = ? AND is_deleted = 0
+         ORDER BY s_no`,
+        [quotation.id],
+      );
+
+      navigate('/invoices/new', {
+        state: {
+          customerId: quotation.customer_id,
+          companyId: quotation.company_id,
+          checklistNo: quotation.checklist_no ?? '',
+          refNo: quotation.no ?? '',
+          per: quotation.per,
+          sourceQuotationId: quotation.id,
+          sourceQuotationNo: quotation.quo_no,
+          lineItems: lineRows.map((item) => ({
+            product_id: item.product_id,
+            qty: item.qty,
+            unit_price: item.unit_price,
+            row_total: item.row_total,
+            s_no: item.s_no,
+          })),
+        },
+      });
+    },
+    [navigate],
+  );
 
   const columns = useMemo<ColumnDef<QuotationRow>[]>(
     () => [
@@ -126,8 +174,24 @@ function QuotationList() {
           );
         },
       },
+      {
+        id: 'actions',
+        header: '',
+        cell: (info) => (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="justify-start gap-1 text-sky-700 hover:text-sky-800"
+            onClick={() => void handleConvertToInvoice(info.row.original)}
+          >
+            <ArrowRightLeft className="size-3.5" />
+            Convert
+          </Button>
+        ),
+      },
     ],
-    [],
+    [handleConvertToInvoice],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable helpers

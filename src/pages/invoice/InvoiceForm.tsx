@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import type { Customer, Company, Product, Setting } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -45,6 +46,23 @@ interface LineItem {
   deleted: boolean;
 }
 
+interface InvoicePrefillState {
+  customerId?: number;
+  companyId?: number;
+  checklistNo?: string | null;
+  refNo?: string | null;
+  per?: number;
+  lineItems?: {
+    product_id: number | null;
+    qty: number;
+    unit_price: number;
+    row_total: number;
+    s_no: number;
+  }[];
+  sourceQuotationId?: number;
+  sourceQuotationNo?: string;
+}
+
 let _uid = 1;
 function nextUid(): string {
   return `li-${_uid++}`;
@@ -79,7 +97,9 @@ function nextBlankLineItems(): LineItem[] {
 
 function InvoiceForm() {
   const navigate = useNavigate();
+  const location = useLocation();
   const authCompanyId = useAuthStore((s) => s.company_id);
+  const invoicePrefill = location.state as InvoicePrefillState | null;
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -96,6 +116,7 @@ function InvoiceForm() {
   const [refNo, setRefNo] = useState('');
   const [checklistNo, setChecklistNo] = useState('');
   const [per, setPer] = useState('');
+  const [printDue, setPrintDue] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>(nextBlankLineItems);
   const [saving, setSaving] = useState(false);
 
@@ -217,17 +238,73 @@ function InvoiceForm() {
       setRefNo('');
       setChecklistNo('');
       setPer('');
+      setPrintDue(false);
       setLineItems(nextBlankLineItems());
       if (nextInvoiceNumber) {
         setInvoiceNumber(nextInvoiceNumber);
       }
+      navigate(location.pathname, { replace: true, state: null });
     },
-    [authCompanyId],
+    [authCompanyId, location.pathname, navigate],
   );
+
+  useEffect(() => {
+    if (!invoicePrefill || customers.length === 0 || products.length === 0) {
+      return;
+    }
+
+    if (invoicePrefill.customerId) {
+      setCustomerId(invoicePrefill.customerId);
+    }
+    if (invoicePrefill.companyId) {
+      setCompanyId(invoicePrefill.companyId);
+    }
+    setChecklistNo(invoicePrefill.checklistNo ?? '');
+    setRefNo(invoicePrefill.refNo ?? invoicePrefill.sourceQuotationNo ?? '');
+    setPer(
+      invoicePrefill.per !== undefined && invoicePrefill.per !== null
+        ? String(invoicePrefill.per)
+        : '',
+    );
+
+    if (invoicePrefill.lineItems?.length) {
+      setLineItems(
+        invoicePrefill.lineItems.map((item, index) => {
+          const product = products.find((entry) => entry.id === item.product_id);
+          return {
+            uid: nextUid(),
+            qty: item.qty,
+            product_id: item.product_id,
+            product_name: product?.product_name ?? '',
+            unit_price: item.unit_price,
+            row_total: item.row_total,
+            s_no: item.s_no || index + 1,
+            deleted: false,
+          };
+        }),
+      );
+    }
+
+    if (invoicePrefill.sourceQuotationId) {
+      toast.success(
+        `Quotation ${invoicePrefill.sourceQuotationNo ?? invoicePrefill.sourceQuotationId} loaded into invoice`,
+      );
+    }
+
+    navigate(location.pathname, { replace: true, state: null });
+  }, [customers, invoicePrefill, location.pathname, navigate, products]);
 
   const persistInvoice = useCallback(async () => {
     if (!customerId) {
       toast.error('Please select a customer');
+      return null;
+    }
+    if (!caseDebit) {
+      toast.error('Please select case debit');
+      return null;
+    }
+    if (!checklistNo.trim()) {
+      toast.error('Checklist No is required');
       return null;
     }
     if (lineItems.filter((li) => !li.deleted).length === 0) {
@@ -248,12 +325,12 @@ function InvoiceForm() {
           discount: calResult.discount,
           total: calResult.total,
           per: parseFloat(per || '0'),
-          paid_amount: cents(paidAmount),
-          balance,
+          paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+          balance: caseDebit === 'CREDIT' ? calResult.total : balance,
           case_debit: caseDebit || null,
           no: refNo || null,
           identify: 'Invoice',
-          print_due: null,
+          print_due: printDue ? 'YES' : null,
           checklist_no: checklistNo || null,
           line_items: activeItems.map((li, i) => ({
             qty: li.qty,
@@ -293,6 +370,7 @@ function InvoiceForm() {
     loadData,
     paidAmount,
     per,
+    printDue,
     refNo,
     selectedCustomer,
     subTotal,
@@ -578,7 +656,7 @@ function InvoiceForm() {
           </div>
 
           <div className="space-y-1">
-            <Label>Case Debit</Label>
+            <Label>Case Debit *</Label>
             <Select value={caseDebit} onValueChange={setCaseDebit}>
               <SelectTrigger>
                 <SelectValue />
@@ -591,7 +669,7 @@ function InvoiceForm() {
           </div>
 
           <div className="space-y-1">
-            <Label>Checklist No</Label>
+            <Label>Checklist No *</Label>
             <Input
               value={checklistNo}
               onChange={(e) => setChecklistNo(e.target.value)}
@@ -604,6 +682,13 @@ function InvoiceForm() {
               value={refNo}
               onChange={(e) => setRefNo(e.target.value)}
             />
+          </div>
+
+          <div className="flex items-end">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox checked={printDue} onCheckedChange={(checked) => setPrintDue(checked === true)} />
+              Print due amount on invoice
+            </label>
           </div>
 
           {selectedCustomer && (
@@ -640,6 +725,7 @@ function InvoiceForm() {
               value={paidAmount}
               onChange={(e) => setPaidAmount(e.target.value)}
               placeholder="0.00"
+              disabled={caseDebit === 'CREDIT'}
             />
           </div>
         </CardContent>
@@ -745,7 +831,7 @@ function InvoiceForm() {
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Balance</Label>
-            <p className="text-lg font-medium">${dollars(balance)}</p>
+            <p className="text-lg font-medium">${dollars(caseDebit === 'CREDIT' ? calResult.total : balance)}</p>
           </div>
         </CardContent>
       </Card>

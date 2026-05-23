@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { deleteInvoice } from '@/lib/invoice/delete';
 import type { InvoiceMain, Company } from '@/lib/types';
@@ -23,7 +24,7 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import { toast } from 'sonner';
-import { FileText, Search } from 'lucide-react';
+import { Eye, FileText, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -42,6 +43,7 @@ function dollars(c: number): string {
 }
 
 function InvoiceList() {
+  const navigate = useNavigate();
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
 
@@ -157,6 +159,21 @@ function InvoiceList() {
         },
       },
       {
+        id: 'preview',
+        header: '',
+        cell: (info) => (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => navigate(`/reports/print/${info.row.original.id}`)}
+            aria-label={`Preview invoice ${info.row.original.invoice_no}`}
+          >
+            <Eye className="size-3.5" />
+          </Button>
+        ),
+      },
+      {
         id: 'actions',
         header: '',
         cell: (info) =>
@@ -185,7 +202,7 @@ function InvoiceList() {
           ) : null,
       },
     ],
-    [admin],
+    [admin, navigate],
   );
 
   const table = useReactTable({

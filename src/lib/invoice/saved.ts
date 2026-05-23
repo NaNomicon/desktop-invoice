@@ -29,16 +29,21 @@ export interface InvoiceSaveParams {
   isAdvance: boolean;
 }
 
-/**
- * Invoice save with customer balance update, wrapped in a transaction.
- * cr_dr: paid_amount > 0 → "Cr.", else → "Dr."
- * Dr. → ADD total to customer.due_amount (customer owes more)
- * Cr. → SUBTRACT total from customer.due_amount (customer credit)
- * str1 initialized to "" before conditional assignment.
- */
 export interface InvoiceSaveResult {
   id: number;
   invoice_no: string;
+}
+
+function toSignedBalance(adDue: string | null | undefined, amount: number): number {
+  return adDue === 'Advance' ? -amount : amount;
+}
+
+function fromSignedBalance(balance: number): { due_amount: number; ad_due: 'Advance' | 'Due' } {
+  if (balance < 0) {
+    return { due_amount: Math.abs(balance), ad_due: 'Advance' };
+  }
+
+  return { due_amount: balance, ad_due: 'Due' };
 }
 
 export async function saved(
@@ -47,26 +52,18 @@ export async function saved(
 ): Promise<InvoiceSaveResult> {
   const db = await getDb();
 
-  let str1 = '';
-  if (params.paid_amount > 0) {
-    str1 = 'Cr.';
-  } else {
-    str1 = 'Dr.';
-  }
-
   await db.execute('BEGIN TRANSACTION');
 
   try {
     let invoice_no = params.invoice_no;
+    const custRows = await db.select<
+      { ad_due: string; due_amount: number }[]
+    >('SELECT ad_due, due_amount FROM tbl_customer WHERE id = ?', [
+      params.customer_id,
+    ]);
+    const customer = custRows[0];
 
     if (!invoice_no) {
-      const custRows = await db.select<
-        { ad_due: string; due_amount: number }[]
-      >('SELECT ad_due, due_amount FROM tbl_customer WHERE id = ?', [
-        params.customer_id,
-      ]);
-      const customer = custRows[0];
-
       await db.execute(
         'UPDATE tbl_numbers SET invoice_no = invoice_no + 1',
         [],
@@ -76,16 +73,20 @@ export async function saved(
         [],
       );
       invoice_no = String(numRows[0]?.invoice_no ?? 0);
+    }
 
-      if (params.isAdvance && customer) {
-        const remainingAdvance = customer.due_amount - params.total;
-        if (remainingAdvance <= 0) {
-          await db.execute(
-            'UPDATE tbl_customer SET ad_due = ? WHERE id = ?',
-            ['Due', params.customer_id],
-          );
-        }
-      }
+    const startingSignedBalance = customer
+      ? toSignedBalance(customer.ad_due, customer.due_amount)
+      : 0;
+    const netInvoiceDelta = params.total - params.paid_amount;
+    const endingSignedBalance = startingSignedBalance + netInvoiceDelta;
+    const nextCustomerBalance = fromSignedBalance(endingSignedBalance);
+
+    let cr_dr: string | null = null;
+    if (netInvoiceDelta > 0) {
+      cr_dr = 'Dr.';
+    } else if (netInvoiceDelta < 0) {
+      cr_dr = 'Cr.';
     }
 
     await db.execute(
@@ -110,7 +111,7 @@ export async function saved(
         params.paid_amount,
         params.balance,
         params.no ?? null,
-        str1,
+        cr_dr,
         params.identify ?? 'Invoice',
         params.print_due ?? null,
       ],
@@ -138,17 +139,14 @@ export async function saved(
       );
     }
 
-    if (str1 === 'Cr.') {
-      await db.execute(
-        'UPDATE tbl_customer SET due_amount = due_amount - ? WHERE id = ?',
-        [params.total, params.customer_id],
-      );
-    } else {
-      await db.execute(
-        'UPDATE tbl_customer SET due_amount = due_amount + ? WHERE id = ?',
-        [params.total, params.customer_id],
-      );
-    }
+    await db.execute(
+      'UPDATE tbl_customer SET due_amount = ?, ad_due = ? WHERE id = ?',
+      [
+        nextCustomerBalance.due_amount,
+        nextCustomerBalance.ad_due,
+        params.customer_id,
+      ],
+    );
 
     await db.execute('COMMIT');
     return { id: main_id, invoice_no };
