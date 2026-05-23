@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { initializeCommandSystem } from './lib/commands'
@@ -12,10 +12,12 @@ import { MainWindow } from './components/layout/MainWindow'
 import { ThemeProvider } from './components/ThemeProvider'
 import Login from './pages/auth/Login'
 import { ErrorBoundary } from './components/ErrorBoundary'
+import { SplashScreen } from './components/SplashScreen'
 import { useSquareCornersEffect } from './hooks/useSquareCornersEffect'
 import { useAuthStore } from './store/authStore'
 function App() {
   useSquareCornersEffect()
+  const [isInitializing, setIsInitializing] = useState(true)
 
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn)
   const setAuth = useAuthStore.setState
@@ -39,6 +41,9 @@ function App() {
     initializeCommandSystem()
     logger.debug('Command system initialized')
 
+    let isMounted = true
+    let removeMenuLanguageListener: (() => void) | undefined
+
     // Initialize language based on saved preference or system locale
     const initLanguageAndMenu = async () => {
       try {
@@ -53,13 +58,17 @@ function App() {
         // Build the application menu with the initialized language
         await buildAppMenu()
         logger.debug('Application menu built')
-        setupMenuLanguageListener()
+        removeMenuLanguageListener = setupMenuLanguageListener()
       } catch (error) {
         logger.warn('Failed to initialize language or menu', { error })
+      } finally {
+        if (isMounted) {
+          setIsInitializing(false)
+        }
       }
     }
 
-    initLanguageAndMenu()
+    void initLanguageAndMenu()
 
     // Clean up old recovery files on startup
     cleanupOldFiles().catch(error => {
@@ -125,8 +134,20 @@ function App() {
 
     // Check for updates 5 seconds after app loads
     const updateTimer = setTimeout(checkForUpdates, 5000)
-    return () => clearTimeout(updateTimer)
+    return () => {
+      isMounted = false
+      removeMenuLanguageListener?.()
+      clearTimeout(updateTimer)
+    }
   }, [])
+
+  if (isInitializing) {
+    return (
+      <ThemeProvider>
+        <SplashScreen />
+      </ThemeProvider>
+    )
+  }
 
   if (!isLoggedIn) {
     return (
