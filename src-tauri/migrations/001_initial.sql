@@ -1,17 +1,22 @@
--- XPress Billing SQLite Schema
--- Money fields: INTEGER cents (e.g., 125000 = $1,250.00)
--- Date fields: TEXT ISO 8601 (YYYY-MM-DD)
-
--- tbl_company
 CREATE TABLE IF NOT EXISTS tbl_company (
     id INTEGER PRIMARY KEY,
     company_name TEXT,
+    company_short_name TEXT,
+    company_code TEXT,
     contact_person TEXT,
     address TEXT,
+    city TEXT,
     telephone TEXT,
     email TEXT,
+    facebook_url TEXT,
     brn TEXT,
     vat TEXT,
+    note1 TEXT,
+    note2 TEXT,
+    note3 TEXT,
+    thanks1 TEXT,
+    thanks2 TEXT,
+    currency TEXT,
     bank_name TEXT,
     bank_account TEXT,
     bank_branch TEXT,
@@ -20,7 +25,6 @@ CREATE TABLE IF NOT EXISTS tbl_company (
     is_active INTEGER DEFAULT 1
 );
 
--- tbl_user
 CREATE TABLE IF NOT EXISTS tbl_user (
     id INTEGER PRIMARY KEY,
     user_id TEXT UNIQUE NOT NULL,
@@ -30,23 +34,23 @@ CREATE TABLE IF NOT EXISTS tbl_user (
     is_deleted INTEGER DEFAULT 0
 );
 
--- tbl_setting
 CREATE TABLE IF NOT EXISTS tbl_setting (
     id INTEGER PRIMARY KEY,
-    isvat INTEGER DEFAULT 0,
-    vat_per INTEGER DEFAULT 0,
-    invoice_days TEXT,
+    isvat INTEGER DEFAULT 1,
+    vat_per INTEGER DEFAULT 5,
     invoice_path TEXT,
     quo_path TEXT,
     report_path TEXT,
+    invoice_days TEXT,
     back_path TEXT,
     backup_path TEXT,
     cash TEXT,
     cheque TEXT,
-    other TEXT
+    other TEXT,
+    wa_access_token TEXT,
+    wa_phone_number_id TEXT
 );
 
--- tbl_numbers
 CREATE TABLE IF NOT EXISTS tbl_numbers (
     id INTEGER PRIMARY KEY,
     invoice_no INTEGER DEFAULT 1,
@@ -54,18 +58,17 @@ CREATE TABLE IF NOT EXISTS tbl_numbers (
     receipt_no INTEGER DEFAULT 1
 );
 
--- tbl_product_type
 CREATE TABLE IF NOT EXISTS tbl_product_type (
     id INTEGER PRIMARY KEY,
     type_name TEXT NOT NULL,
     is_deleted INTEGER DEFAULT 0
 );
 
--- tbl_customer
 CREATE TABLE IF NOT EXISTS tbl_customer (
     id INTEGER PRIMARY KEY,
     customer_name TEXT NOT NULL,
     contact TEXT,
+    customer_type TEXT,
     telephone TEXT,
     address TEXT,
     email TEXT,
@@ -79,9 +82,8 @@ CREATE TABLE IF NOT EXISTS tbl_customer (
     is_deleted INTEGER DEFAULT 0
 );
 
-CREATE INDEX idx_customer_name ON tbl_customer(customer_name);
+CREATE INDEX IF NOT EXISTS idx_customer_name ON tbl_customer(customer_name);
 
--- tbl_product
 CREATE TABLE IF NOT EXISTS tbl_product (
     id INTEGER PRIMARY KEY,
     product_id TEXT,
@@ -92,10 +94,9 @@ CREATE TABLE IF NOT EXISTS tbl_product (
     is_deleted INTEGER DEFAULT 0
 );
 
-CREATE INDEX idx_product_type ON tbl_product(type_id);
-CREATE INDEX idx_product_company ON tbl_product(company_id);
+CREATE INDEX IF NOT EXISTS idx_product_type ON tbl_product(type_id);
+CREATE INDEX IF NOT EXISTS idx_product_company ON tbl_product(company_id);
 
--- tbl_invoice_main
 CREATE TABLE IF NOT EXISTS tbl_invoice_main (
     id INTEGER PRIMARY KEY,
     customer_id INTEGER REFERENCES tbl_customer(id),
@@ -119,11 +120,10 @@ CREATE TABLE IF NOT EXISTS tbl_invoice_main (
     is_deleted INTEGER DEFAULT 0
 );
 
-CREATE INDEX idx_invoice_cust ON tbl_invoice_main(customer_id);
-CREATE INDEX idx_invoice_company ON tbl_invoice_main(company_id);
-CREATE INDEX idx_invoice_date ON tbl_invoice_main(invoice_date);
+CREATE INDEX IF NOT EXISTS idx_invoice_cust ON tbl_invoice_main(customer_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_company ON tbl_invoice_main(company_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_date ON tbl_invoice_main(invoice_date);
 
--- tbl_invoice_sub
 CREATE TABLE IF NOT EXISTS tbl_invoice_sub (
     id INTEGER PRIMARY KEY,
     main_id INTEGER REFERENCES tbl_invoice_main(id),
@@ -136,11 +136,13 @@ CREATE TABLE IF NOT EXISTS tbl_invoice_sub (
     is_deleted INTEGER DEFAULT 0
 );
 
--- tbl_quotation_main
+CREATE INDEX IF NOT EXISTS idx_invoice_sub_main ON tbl_invoice_sub(main_id);
+
 CREATE TABLE IF NOT EXISTS tbl_quotation_main (
     id INTEGER PRIMARY KEY,
     customer_id INTEGER REFERENCES tbl_customer(id),
     quo_no TEXT NOT NULL,
+    checklist_no TEXT,
     company_id INTEGER DEFAULT 1,
     sub_total INTEGER DEFAULT 0,
     amount_due INTEGER DEFAULT 0,
@@ -158,7 +160,8 @@ CREATE TABLE IF NOT EXISTS tbl_quotation_main (
     is_deleted INTEGER DEFAULT 0
 );
 
--- tbl_quotation_sub
+CREATE INDEX IF NOT EXISTS idx_quotation_cust ON tbl_quotation_main(customer_id);
+
 CREATE TABLE IF NOT EXISTS tbl_quotation_sub (
     id INTEGER PRIMARY KEY,
     main_id INTEGER REFERENCES tbl_quotation_main(id),
@@ -170,30 +173,58 @@ CREATE TABLE IF NOT EXISTS tbl_quotation_sub (
     is_deleted INTEGER DEFAULT 0
 );
 
--- tbl_receipt
 CREATE TABLE IF NOT EXISTS tbl_receipt (
     id INTEGER PRIMARY KEY,
     receipt_no TEXT NOT NULL,
+    receipt_date TEXT,
     customer_id INTEGER REFERENCES tbl_customer(id),
+    company_id INTEGER DEFAULT 1,
+    due_amount INTEGER DEFAULT 0,
     amount_received INTEGER DEFAULT 0,
-    payment_mode TEXT,
     cheque_no TEXT,
+    no TEXT,
+    balance INTEGER DEFAULT 0,
+    cr_dr TEXT,
+    invoice_no TEXT,
+    pre_load TEXT,
+    cash TEXT DEFAULT '0',
+    cheque TEXT DEFAULT '0',
+    other TEXT DEFAULT '0',
+    payment_mode TEXT,
     bank_name TEXT,
     invoice_reference TEXT,
-    cr_dr TEXT,
-    receipt_date TEXT,
-    notes TEXT,
-    company_id INTEGER DEFAULT 1
+    notes TEXT
 );
 
-CREATE INDEX idx_receipt_cust ON tbl_receipt(customer_id);
+CREATE INDEX IF NOT EXISTS idx_receipt_cust ON tbl_receipt(customer_id);
+CREATE INDEX IF NOT EXISTS idx_receipt_company ON tbl_receipt(company_id);
+CREATE INDEX IF NOT EXISTS idx_receipt_date ON tbl_receipt(receipt_date);
 
--- tbl_email
 CREATE TABLE IF NOT EXISTS tbl_email (
     id INTEGER PRIMARY KEY,
-    template_type TEXT NOT NULL,
+    template_type TEXT,
     subject TEXT,
     body TEXT,
     sender_email TEXT,
-    sender_pass TEXT
+    sender_pass TEXT,
+    client_email TEXT,
+    sender TEXT,
+    identify TEXT,
+    sub_subject TEXT
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_email_template_type ON tbl_email(template_type);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_email_identify ON tbl_email(identify);
+
+CREATE TABLE IF NOT EXISTS tbl_wa_template (
+    id INTEGER PRIMARY KEY,
+    template_name TEXT NOT NULL,
+    template_id TEXT NOT NULL,
+    body TEXT,
+    status TEXT DEFAULT 'PENDING',
+    created_at TEXT DEFAULT (datetime('now')),
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_template_name ON tbl_wa_template(template_name);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_template_id ON tbl_wa_template(template_id);

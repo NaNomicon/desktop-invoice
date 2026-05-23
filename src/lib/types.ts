@@ -4,7 +4,6 @@
  * All date fields: TEXT ISO 8601 (YYYY-MM-DD)
  */
 
-// tbl_company: Company settings
 export interface Company {
   id: number;
   company_name: string | null;
@@ -32,7 +31,6 @@ export interface Company {
   is_active: number;
 }
 
-// tbl_user: Users
 export interface User {
   id: number;
   user_id: string;
@@ -42,7 +40,6 @@ export interface User {
   is_deleted: number;
 }
 
-// tbl_setting: App settings
 export interface Setting {
   id: number;
   isvat: number;
@@ -56,9 +53,10 @@ export interface Setting {
   cash: string | null;
   cheque: string | null;
   other: string | null;
+  wa_access_token?: string | null;
+  wa_phone_number_id?: string | null;
 }
 
-// tbl_numbers: Auto-increment counters
 export interface NumberSequence {
   id: number;
   invoice_no: number;
@@ -66,140 +64,144 @@ export interface NumberSequence {
   receipt_no: number;
 }
 
-// tbl_product_type: Product categories
 export interface ProductType {
   id: number;
   type_name: string;
   is_deleted: number;
 }
 
-// tbl_customer: Customer master
 export interface Customer {
   id: number;
   customer_name: string;
   contact: string | null;
+  customer_type?: string | null;
   telephone: string | null;
   address: string | null;
   email: string | null;
-  due_amount: number; // INTEGER cents
+  due_amount: number;
   title_name: string | null;
-  reg_date: string | null; // ISO 8601
-  ad_due: string; // 'Advance' | 'Due' | ''
+  reg_date: string | null;
+  ad_due: string;
   brn: string | null;
   vat: string | null;
   company_id: number;
   is_deleted: number;
 }
 
-// tbl_product: Products/Services
 export interface Product {
   id: number;
   product_id: string | null;
   product_name: string;
   type_id: number | null;
   company_id: number;
-  price: number; // INTEGER cents
+  price: number;
   is_deleted: number;
 }
 
-// tbl_invoice_main: Invoice header
 export interface InvoiceMain {
   id: number;
   customer_id: number;
   invoice_no: string;
   checklist_no: string | null;
   company_id: number;
-  sub_total: number; // INTEGER cents
-  amount_due: number; // INTEGER cents
-  vat: number; // INTEGER cents
-  discount: number; // INTEGER cents
-  total: number; // INTEGER cents
+  sub_total: number;
+  amount_due: number;
+  vat: number;
+  discount: number;
+  total: number;
   per: number;
-  invoice_date: string; // ISO 8601
+  invoice_date: string;
   case_debit: string | null;
-  paid_amount: number; // INTEGER cents
-  balance: number; // INTEGER cents
+  paid_amount: number;
+  balance: number;
   no: string | null;
-  cr_dr: string | null; // 'Cr.' | 'Dr.' | null
+  cr_dr: string | null;
   identify: string | null;
   print_due: string | null;
   is_deleted: number;
 }
 
-// tbl_invoice_sub: Invoice line items
 export interface InvoiceSub {
   id: number;
   main_id: number;
   qty: number;
   product_id: number | null;
-  unit_price: number; // INTEGER cents
-  row_total: number; // INTEGER cents
+  unit_price: number;
+  row_total: number;
   s_no: number;
   company_id: number;
   is_deleted: number;
 }
 
-// tbl_quotation_main: Quotation header
 export interface QuotationMain {
   id: number;
   customer_id: number;
   quo_no: string;
+  checklist_no?: string | null;
   company_id: number;
-  sub_total: number; // INTEGER cents
-  amount_due: number; // INTEGER cents
-  vat: number; // INTEGER cents
-  discount: number; // INTEGER cents
-  total: number; // INTEGER cents
+  sub_total: number;
+  amount_due: number;
+  vat: number;
+  discount: number;
+  total: number;
   per: number;
-  quo_date: string; // ISO 8601
+  quo_date: string;
   case_debit: string | null;
-  paid_amount: number; // INTEGER cents
-  balance: number; // INTEGER cents
+  paid_amount: number;
+  balance: number;
   no: string | null;
   cr_dr: string | null;
   identify: string | null;
   is_deleted: number;
 }
 
-// tbl_quotation_sub: Quotation line items
 export interface QuotationSub {
   id: number;
   main_id: number;
   qty: number;
   product_id: number | null;
-  unit_price: number; // INTEGER cents
-  row_total: number; // INTEGER cents
+  unit_price: number;
+  row_total: number;
   s_no: number;
   is_deleted: number;
 }
 
-// tbl_receipt: Payment receipts
 export interface Receipt {
   id: number;
   receipt_no: string;
+  receipt_date: string;
   customer_id: number;
-  amount_received: number; // INTEGER cents
-  payment_mode: string | null;
+  company_id: number;
+  due_amount?: number;
+  amount_received: number;
   cheque_no: string | null;
+  no?: string | null;
+  balance?: number;
+  cr_dr: string | null;
+  invoice_no?: string | null;
+  pre_load?: string | null;
+  cash?: string | null;
+  cheque?: string | null;
+  other?: string | null;
+  payment_mode: string | null;
   bank_name: string | null;
   invoice_reference: string | null;
-  cr_dr: string | null;
-  receipt_date: string; // ISO 8601
   notes: string | null;
-  company_id: number;
 }
 
-// tbl_email: Email templates
 export interface EmailTemplate {
   id: number;
-  template_type: string;
+  template_type: string | null;
   subject: string | null;
   body: string | null;
   sender_email: string | null;
   sender_pass: string | null;
+  client_email?: string | null;
+  sender?: string | null;
+  identify?: string | null;
+  sub_subject?: string | null;
 }
 
-// tbl_wa_template: WhatsApp templates
 export interface WhatsAppTemplate {
   id: number;
   template_name: string;
