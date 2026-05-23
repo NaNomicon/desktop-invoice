@@ -5,6 +5,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useUIStore, type HomeTabItem } from '@/store/ui-store'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { isAdmin } from '@/lib/rbac'
 
 interface NavItem {
   title: string
@@ -97,7 +98,7 @@ export function Sidebar() {
     () =>
       NAV_GROUPS.map(group => ({
         ...group,
-        items: group.items.filter(item => !(item.adminOnly && role !== 'admin')),
+        items: group.items.filter(item => !(item.adminOnly && !isAdmin(role))),
       })),
     [role]
   )
