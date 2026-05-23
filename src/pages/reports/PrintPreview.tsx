@@ -3,10 +3,11 @@ import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
 import { getInvoicePdfPath } from '@/lib/pdf/path';
-import type { InvoiceMain } from '@/lib/types';
+import type { Customer, InvoiceMain } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Printer, FileText } from 'lucide-react';
+import { Printer, FileText, MessageCircle } from 'lucide-react';
+import { WhatsAppSendDialog } from '@/components/whatsapp/WhatsAppSendDialog';
 
 const ZOOM_LEVELS = [50, 75, 100, 125, 150] as const;
 
@@ -23,7 +24,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
   const resolvedInvoiceId = params.invoiceId ? parseInt(params.invoiceId, 10) : invoice_id;
   const [zoom, setZoom] = useState(() => (resolvedInvoiceId ? 100 : 100));
 
-  const { data: invoice, isLoading } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['printPreviewInvoice', resolvedInvoiceId],
     queryFn: async () => {
       const rows = await query<InvoiceMain>(
@@ -39,7 +40,11 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
       } catch {
         /* PDF not ready yet */
       }
-      return inv;
+      const customerRows = await query<Customer>(
+        'SELECT * FROM tbl_customer WHERE id = ?',
+        [inv.customer_id],
+      );
+      return { invoice: inv, customer: customerRows[0] ?? null };
     },
     staleTime: 30_000,
   });
@@ -52,6 +57,8 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
     window.print();
   }, []);
 
+  const [waOpen, setWaOpen] = useState(false);
+
   if (isLoading) {
     return (
       <div className="flex h-full items-center justify-center p-6">
@@ -60,7 +67,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
     );
   }
 
-  if (!invoice) {
+  if (!data) {
     return (
       <div className="flex h-full items-center justify-center p-6">
         <p className="text-muted-foreground">Invoice not found</p>
@@ -68,13 +75,19 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
     );
   }
 
+  const waVariables: Record<number, string> = {
+    1: data.invoice.invoice_no ?? '',
+    2: data.customer?.customer_name ?? '',
+    3: (Number(data.invoice.balance) / 100).toFixed(2),
+  };
+
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="size-5" />
           <h1 className="text-2xl font-semibold">
-            Print Preview: {invoice.invoice_no}
+            Print Preview: {data.invoice.invoice_no}
           </h1>
         </div>
         <div className="flex items-center gap-3">
@@ -91,6 +104,10 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
               </Button>
             ))}
           </div>
+          <Button variant="outline" onClick={() => setWaOpen(true)}>
+            <MessageCircle className="mr-2 size-4" />
+            WhatsApp
+          </Button>
           <Button onClick={handlePrint}>
             <Printer className="mr-2 size-4" />
             Print
@@ -117,7 +134,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                   Tax Invoice
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  Invoice #{invoice.invoice_no}
+                  Invoice #{data.invoice.invoice_no}
                 </p>
               </div>
 
@@ -127,7 +144,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                     Customer
                   </p>
                   <p className="mt-1 text-sm font-medium">
-                    Customer #{invoice.customer_id}
+                    Customer #{data.invoice.customer_id}
                   </p>
                 </div>
                 <div className="text-right">
@@ -135,7 +152,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                     Date
                   </p>
                   <p className="mt-1 text-sm font-medium">
-                    {invoice.invoice_date}
+                    {data.invoice.invoice_date}
                   </p>
                 </div>
               </div>
@@ -156,39 +173,39 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                     <tr className="border-b">
                       <td className="px-4 py-2.5">Sub Total</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">
-                        ${dollars(invoice.sub_total)}
+                        ${dollars(data.invoice.sub_total)}
                       </td>
                     </tr>
-                    {invoice.discount > 0 && (
+                    {data.invoice.discount > 0 && (
                       <tr className="border-b">
                         <td className="px-4 py-2.5 text-green-700">
                           Discount
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-green-700">
-                          -${dollars(invoice.discount)}
+                          -${dollars(data.invoice.discount)}
                         </td>
                       </tr>
                     )}
-                    {invoice.vat > 0 && (
+                    {data.invoice.vat > 0 && (
                       <tr className="border-b">
                         <td className="px-4 py-2.5">
-                          VAT ({invoice.per}%)
+                          VAT ({data.invoice.per}%)
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums">
-                          ${dollars(invoice.vat)}
+                          ${dollars(data.invoice.vat)}
                         </td>
                       </tr>
                     )}
                     <tr className="border-b bg-muted/20 font-semibold">
                       <td className="px-4 py-2.5">Total</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">
-                        ${dollars(invoice.total)}
+                        ${dollars(data.invoice.total)}
                       </td>
                     </tr>
                     <tr className="border-b">
                       <td className="px-4 py-2.5 text-green-700">Paid</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-green-700">
-                        ${dollars(invoice.paid_amount)}
+                        ${dollars(data.invoice.paid_amount)}
                       </td>
                     </tr>
                     <tr>
@@ -197,10 +214,10 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                       </td>
                       <td
                         className={`px-4 py-2.5 text-right tabular-nums font-semibold ${
-                          invoice.balance > 0 ? 'text-destructive' : ''
+                          data.invoice.balance > 0 ? 'text-destructive' : ''
                         }`}
                       >
-                        ${dollars(invoice.balance)}
+                        ${dollars(data.invoice.balance)}
                       </td>
                     </tr>
                   </tbody>
@@ -215,6 +232,15 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
           </Card>
         </div>
       </div>
+      <WhatsAppSendDialog
+        open={waOpen}
+        onOpenChange={setWaOpen}
+        phone={data.customer?.telephone ?? null}
+        customerName={data.customer?.customer_name ?? ''}
+        documentNo={data.invoice.invoice_no}
+        documentType="INVOICE"
+        variables={waVariables}
+      />
     </div>
   );
 }

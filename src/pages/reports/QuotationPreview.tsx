@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from 'react';
+import { useMemo, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
@@ -6,9 +6,10 @@ import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-
 import type { Company, Customer, QuotationMain, QuotationSub, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { FileText, Download, Mail, PencilLine } from 'lucide-react';
+import { FileText, Download, Mail, MessageCircle, PencilLine } from 'lucide-react';
 import { sendEmail } from '@/lib/email/send';
 import { toast } from 'sonner';
+import { WhatsAppSendDialog } from '@/components/whatsapp/WhatsAppSendDialog';
 
 interface QuotationPreviewState {
   quotationId?: number;
@@ -123,6 +124,8 @@ function QuotationPreview() {
   const quotationId = state?.quotationId ?? 0;
   const autoPrintMode = state?.autoPrint ?? false;
 
+  const [waOpen, setWaOpen] = useState(false);
+
   const { data, isLoading } = useQuery({
     queryKey: ['quotationPreview', quotationId],
     queryFn: async () => {
@@ -231,6 +234,12 @@ function QuotationPreview() {
     toast.success(`Quotation ${data.quotation.quo_no} emailed to ${data.customer.customer_name}`);
   };
 
+  const waVariables: Record<number, string> = {
+    1: data?.quotation?.quo_no ?? '',
+    2: data?.customer?.customer_name ?? '',
+    3: (Number(data?.quotation?.total ?? 0) / 100).toFixed(2),
+  };
+
   if (isLoading) {
     return <div className="flex h-full items-center justify-center p-6"><p className="text-muted-foreground">Loading quotation...</p></div>;
   }
@@ -250,6 +259,10 @@ function QuotationPreview() {
           <Button variant="outline" onClick={() => navigate('/quotations/new', { state: { quotationId } })}>
             <PencilLine className="mr-2 size-4" />
             Edit
+          </Button>
+          <Button variant="outline" onClick={() => setWaOpen(true)}>
+            <MessageCircle className="mr-2 size-4" />
+            WhatsApp
           </Button>
           <Button variant="outline" onClick={handleSend}>
             <Mail className="mr-2 size-4" />
@@ -338,6 +351,16 @@ function QuotationPreview() {
           </div>
         </CardContent>
       </Card>
+
+      <WhatsAppSendDialog
+        open={waOpen}
+        onOpenChange={setWaOpen}
+        phone={data.customer?.telephone ?? null}
+        customerName={data.customer?.customer_name ?? ''}
+        documentNo={data.quotation?.quo_no ?? ''}
+        documentType="QUOTATION"
+        variables={waVariables}
+      />
     </div>
   );
 }
