@@ -543,6 +543,19 @@ function QuotationForm() {
     });
   }, [navigate, persistQuotation]);
 
+  const handleSaveAndPrint = useCallback(async () => {
+    const result = await persistQuotation();
+    if (!result) {
+      return;
+    }
+    const quoId = 'id' in result ? result.id : result.quotation1_id;
+    const quoNo = 'quo_no' in result ? result.quo_no : `${result.quotation1_no} & ${result.quotation2_no}`;
+    toast.success(`Quotation ${quoNo} saved`);
+    navigate('/reports/quotations', {
+      state: { quotationId: quoId, quotationNo: quoNo, autoPrint: true },
+    });
+  }, [navigate, persistQuotation]);
+
   const openCustomers = useCallback(() => {
     navigate('/customers');
   }, [navigate]);
@@ -726,6 +739,10 @@ function QuotationForm() {
           <Button variant="outline" onClick={() => void handlePreview()} disabled={saving}>
             <Printer className="size-4" />
             Preview
+          </Button>
+          <Button variant="default" onClick={() => void handleSaveAndPrint()} disabled={saving}>
+            <Printer className="size-4" />
+            Save & Print
           </Button>
           <Button onClick={() => void handleSave()} disabled={saving}>
             <Save className="size-4" />

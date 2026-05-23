@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 interface QuotationPreviewState {
   quotationId?: number;
   quotationNo?: string;
+  autoPrint?: boolean;
 }
 
 interface QuotationLineRow extends QuotationSub {
@@ -120,6 +121,7 @@ function QuotationPreview() {
   const navigate = useNavigate();
   const state = (location.state as QuotationPreviewState | null) ?? null;
   const quotationId = state?.quotationId ?? 0;
+  const autoPrintMode = state?.autoPrint ?? false;
 
   const { data, isLoading } = useQuery({
     queryKey: ['quotationPreview', quotationId],
@@ -162,6 +164,15 @@ function QuotationPreview() {
       lines: data.lines,
     });
   }, [data]);
+
+  useEffect(() => {
+    if (autoPrintMode && reportHtml && !isLoading) {
+      const timer = setTimeout(() => {
+        window.print();
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrintMode, reportHtml, isLoading]);
 
   const handlePrintable = (mode: 'print' | 'pdf') => {
     if (!reportHtml) {
