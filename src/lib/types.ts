@@ -195,7 +195,7 @@ export interface WhatsAppTemplate {
   template_name: string;
   template_id: string;
   body: string | null;
-  status: string; // 'PENDING' | 'APPROVED' | 'REJECTED'
-  created_at: string | null;
-  updated_at: string | null;
+  status: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }

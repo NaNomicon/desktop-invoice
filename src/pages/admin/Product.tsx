@@ -37,6 +37,7 @@ interface ProductRow {
   product_id: string | null;
   product_name: string;
   type_id: number | null;
+  type_name?: string | null;
   company_id: number;
   price: number;
   is_deleted: number;
@@ -120,10 +121,7 @@ function ProductPage() {
       {
         id: 'type_name',
         header: 'Type',
-        cell: (info) => {
-          const row = info.row.original as ProductRow & { type_name?: string };
-          return (row as any).type_name ?? '-';
-        },
+        cell: (info) => info.row.original.type_name ?? '-',
       },
       {
         accessorKey: 'price',

@@ -21,7 +21,7 @@ function ReceiptForm() {
   useAuthStore((s) => s.company_id);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
-  useState<Company[]>([]);
+  const [, setCompanies] = useState<Company[]>([]);
   const [settings, setSettings] = useState<Setting | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -30,7 +30,7 @@ function ReceiptForm() {
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().slice(0, 10));
   const [customerId, setCustomerId] = useState<number>(0);
   const [customerSearch, setCustomerSearch] = useState('');
-  useState(0);
+  const [dueAmount, setDueAmount] = useState(0);
   const [adDueStatus, setAdDueStatus] = useState('');
   const [loadDuaAmount, setLoadDuaAmount] = useState(0);
   const [amountReceived, setAmountReceived] = useState('');
@@ -200,7 +200,7 @@ function ReceiptForm() {
                 <div className="space-y-1">
                   <Label>{adDueStatus === 'Advance' ? 'Advance Amount' : 'Due Amount'}</Label>
                   <Input
-                    value={loadDuaAmount < 0 ? `-$${dollars(Math.abs(loadDuaAmount))}` : `$${dollars(loadDuaAmount)}`}
+                    value={`$${dollars(dueAmount)}`}
                     readOnly
                     className="bg-muted"
                   />

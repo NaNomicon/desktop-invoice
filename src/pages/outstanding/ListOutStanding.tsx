@@ -98,6 +98,7 @@ function ListOutStanding() {
     [],
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable helpers
   const table = useReactTable({
     data: filtered,
     columns,

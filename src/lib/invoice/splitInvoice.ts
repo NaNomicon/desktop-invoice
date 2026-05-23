@@ -1,5 +1,4 @@
 import { getDb } from '@/lib/db';
-import type { InvoiceMain } from '@/lib/types';
 
 interface LineItemWithCompany {
   qty: number;
@@ -71,9 +70,14 @@ export async function splitInvoice(
     );
   }
 
-  const [c1, c2] = companyIds;
-  const items1 = groups.get(c1)!;
-  const items2 = groups.get(c2)!;
+  const c1 = companyIds[0];
+  const c2 = companyIds[1];
+  if (c1 === undefined || c2 === undefined) {
+    throw new Error('Unable to resolve both company groups for split invoice');
+  }
+
+  const items1 = groups.get(c1) ?? [];
+  const items2 = groups.get(c2) ?? [];
 
   const sub1 = items1.reduce((s, i) => s + i.row_total, 0);
   const sub2 = items2.reduce((s, i) => s + i.row_total, 0);
@@ -161,6 +165,9 @@ export async function splitInvoice(
 
     for (let i = 0; i < items1.length; i++) {
       const item = items1[i];
+      if (!item) {
+        throw new Error('Missing line item while creating first split invoice');
+      }
       await db.execute(
         `INSERT INTO tbl_invoice_sub (main_id, qty, product_id, unit_price, row_total, s_no, company_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -212,6 +219,9 @@ export async function splitInvoice(
 
     for (let i = 0; i < items2.length; i++) {
       const item = items2[i];
+      if (!item) {
+        throw new Error('Missing line item while creating second split invoice');
+      }
       await db.execute(
         `INSERT INTO tbl_invoice_sub (main_id, qty, product_id, unit_price, row_total, s_no, company_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,

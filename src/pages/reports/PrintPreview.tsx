@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
 import { getInvoicePdfPath } from '@/lib/pdf/path';
@@ -18,11 +18,7 @@ function dollars(c: number): string {
 }
 
 function PrintPreview({ invoice_id }: PrintPreviewProps) {
-  const [zoom, setZoom] = useState(100);
-
-  useEffect(() => {
-    setZoom(100);
-  }, [invoice_id]);
+  const [zoom, setZoom] = useState(() => (invoice_id ? 100 : 100));
 
   const { data: invoice, isLoading } = useQuery({
     queryKey: ['printPreviewInvoice', invoice_id],
@@ -34,6 +30,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
       if (rows.length === 0) return null;
 
       const inv = rows[0];
+      if (!inv) return null;
       try {
         void (await getInvoicePdfPath(inv));
       } catch {

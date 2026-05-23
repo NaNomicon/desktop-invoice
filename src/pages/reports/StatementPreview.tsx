@@ -209,6 +209,7 @@ function StatementPreview() {
     [],
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable helpers
   const table = useReactTable({
     data: transactions,
     columns,
@@ -220,11 +221,12 @@ function StatementPreview() {
 
   const handleExportPdf = useCallback(() => {
     if (!transactions.length || !selectedCustomer) return;
-    getInvoicePdfPath({
-      id: 0,
-      customer_id: selectedCustomer.id,
-      invoice_no: `STATEMENT_${selectedCustomer.customer_name}`,
-      invoice_date: new Date().toISOString().split('T')[0],
+      getInvoicePdfPath({
+        id: 0,
+        customer_id: selectedCustomer.id,
+        invoice_no: `STATEMENT_${selectedCustomer.customer_name}`,
+        invoice_date: new Date().toISOString().split('T')[0] ?? new Date().toISOString(),
+
       company_id: selectedCustomer.company_id,
       sub_total: 0,
       amount_due: 0,

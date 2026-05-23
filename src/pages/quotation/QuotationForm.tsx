@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { query, execute } from '@/lib/db';
 import { quoCal } from '@/lib/quotation/cal';
 import type { Customer, Product } from '@/lib/types';
@@ -41,43 +41,35 @@ export default function QuotationForm() {
   const [isvat, setIsvat] = useState(0);
   const [vatPer, setVatPer] = useState(0);
   const [per, setPer] = useState(0);
-  const [discount, setDiscount] = useState(0);
-  const [total, setTotal] = useState(0);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    loadCustomers();
-    loadProducts();
-    loadSettings();
-  }, []);
+    const loadInitialData = async () => {
+      const [customerRows, productRows, settingRows] = await Promise.all([
+        query<Customer>('SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name'),
+        query<Product>('SELECT * FROM tbl_product WHERE is_deleted = 0 AND company_id = ?', [company_id]),
+        query<{ isvat: number; vat_per: number }>('SELECT isvat, vat_per FROM tbl_setting WHERE id = 1'),
+      ]);
 
-  const loadCustomers = async () => {
-    const rows = await query<Customer>('SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name');
-    setCustomers(rows);
-  };
+      setCustomers(customerRows);
+      setProducts(productRows);
+      const settings = settingRows[0];
+      if (settings) {
+        setIsvat(settings.isvat);
+        setVatPer(settings.vat_per);
+      }
+    };
 
-  const loadProducts = async () => {
-    const rows = await query<Product>('SELECT * FROM tbl_product WHERE is_deleted = 0 AND company_id = ?', [company_id]);
-    setProducts(rows);
-  };
+    void loadInitialData();
+  }, [company_id]);
 
-  const loadSettings = async () => {
-    const rows = await query<{ isvat: number; vat_per: number }>('SELECT isvat, vat_per FROM tbl_setting WHERE id = 1');
-    if (rows[0]) {
-      setIsvat(rows[0].isvat);
-      setVatPer(rows[0].vat_per);
-    }
-  };
+  const totals = useMemo(
+    () => quoCal({ sub_total: subTotal, isvat, vat_per: vatPer, per }),
+    [subTotal, isvat, vatPer, per]
+  );
 
-  const recalc = useCallback(() => {
-    const result = quoCal({ sub_total: subTotal, isvat, vat_per: vatPer, per });
-    setDiscount(result.discount);
-    setTotal(result.total);
-  }, [subTotal, isvat, vatPer, per]);
-
-  useEffect(() => {
-    recalc();
-  }, [recalc]);
+  const discount = totals.discount;
+  const total = totals.total;
 
   const addLine = () => {
     setLineItems(prev => [
@@ -150,7 +142,7 @@ export default function QuotationForm() {
 
       toast.success('Quotation saved');
       setDialogOpen(false);
-    } catch (e) {
+    } catch {
       toast.error('Failed to save quotation');
     }
     setSaving(false);

@@ -4,7 +4,7 @@ import { query } from '@/lib/db';
 import type { InvoiceMain } from '@/lib/types';
 
 function sanitizeFilename(filename: string): string {
-  return filename.replace(/[\/\\:*?"<>|]/g, '_');
+  return filename.replace(/[\\/:*?"<>|]/g, '_');
 }
 
 function formatDateForFilename(date: string): string {
@@ -15,7 +15,7 @@ function formatDateForFilename(date: string): string {
   if (isNaN(d.getTime())) {
     return date;
   }
-  return d.toISOString().split('T')[0];
+  return d.toISOString().split('T')[0] ?? date;
 }
 
 async function ensureDir(dir: string): Promise<void> {
@@ -30,8 +30,9 @@ async function getCompanyPath(invoice: InvoiceMain): Promise<string> {
     'SELECT invoice_path FROM tbl_setting LIMIT 1',
   );
 
-  if (settings.length > 0 && settings[0].invoice_path) {
-    return settings[0].invoice_path;
+  const configuredInvoicePath = settings[0]?.invoice_path;
+  if (configuredInvoicePath) {
+    return configuredInvoicePath;
   }
 
   const companies = await query<{ path: string | null }>(
@@ -39,8 +40,9 @@ async function getCompanyPath(invoice: InvoiceMain): Promise<string> {
     [invoice.company_id],
   );
 
-  if (companies.length > 0 && companies[0].path) {
-    return companies[0].path;
+  const companyPath = companies[0]?.path;
+  if (companyPath) {
+    return companyPath;
   }
 
   const p = await platform();

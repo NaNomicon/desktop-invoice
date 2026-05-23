@@ -115,7 +115,10 @@ function SalesReport() {
           key = 'other';
       }
       if (!groups.has(key)) groups.set(key, []);
-      groups.get(key)!.push(row);
+      const bucket = groups.get(key);
+      if (bucket) {
+        bucket.push(row);
+      }
     }
     const entries = Array.from(groups.entries());
     entries.sort(([a], [b]) => a.localeCompare(b));
@@ -177,6 +180,7 @@ function SalesReport() {
     [],
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable helpers
   const table = useReactTable({
     data: salesData,
     columns,

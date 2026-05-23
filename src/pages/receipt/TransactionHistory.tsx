@@ -17,7 +17,7 @@ import {
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
-import { History, Search } from 'lucide-react';
+import { History } from 'lucide-react';
 
 interface TransactionRow {
   extra: string;
@@ -49,10 +49,6 @@ function TransactionHistory() {
 
   const loadTransactions = useCallback(async () => {
     setLoading(true);
-    const whereClause =
-      customerFilter !== 'all'
-        ? ` WHERE tbl_invoice_main.customer_id = ? OR tbl_receipt.customer_id = ?`
-        : '';
     const params = customerFilter !== 'all' ? [parseInt(customerFilter), parseInt(customerFilter)] : [];
 
     const sql = `
@@ -153,6 +149,7 @@ function TransactionHistory() {
     [],
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable helpers
   const table = useReactTable({
     data: transactions,
     columns,
