@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { query, execute } from '@/lib/db';
+import type { Company } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { isAdmin } from '@/lib/rbac';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,6 +14,13 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   flexRender,
   getCoreRowModel,
@@ -36,6 +44,7 @@ function UserPage() {
   const admin = isAdmin(currentUserId);
 
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -46,14 +55,17 @@ function UserPage() {
     user_id: '',
     password: '',
     des: 'USER',
+    company_id: 1,
   });
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const rows = await query<UserRow>(
-      'SELECT * FROM tbl_user WHERE is_deleted = 0 ORDER BY user_id',
-    );
-    setUsers(rows);
+    const [userRows, companyRows] = await Promise.all([
+      query<UserRow>('SELECT * FROM tbl_user WHERE is_deleted = 0 ORDER BY user_id'),
+      query<Company>('SELECT id, company_name FROM tbl_company WHERE is_active = 1 ORDER BY company_name'),
+    ]);
+    setUsers(userRows);
+    setCompanies(companyRows);
     setLoading(false);
   }, []);
 
@@ -110,7 +122,7 @@ function UserPage() {
 
   const openNew = () => {
     setEditingId(null);
-    setForm({ user_id: '', password: '', des: 'USER' });
+    setForm({ user_id: '', password: '', des: 'USER', company_id: companies[0]?.id ?? 1 });
     setDialogOpen(true);
   };
 
@@ -119,7 +131,8 @@ function UserPage() {
     setForm({
       user_id: u.user_id,
       password: u.password,
-      des: u.des ?? '',
+      des: u.des ?? 'USER',
+      company_id: u.company_id,
     });
     setDialogOpen(true);
   };
@@ -138,8 +151,8 @@ function UserPage() {
     try {
       if (editingId) {
         await execute(
-          'UPDATE tbl_user SET user_id = ?, password = ?, des = ? WHERE id = ?',
-          [form.user_id, form.password, form.des || null, editingId],
+          'UPDATE tbl_user SET user_id = ?, password = ?, des = ?, company_id = ? WHERE id = ?',
+          [form.user_id, form.password, form.des || null, form.company_id, editingId],
         );
         toast.success('User updated');
       } else {
@@ -153,8 +166,8 @@ function UserPage() {
           return;
         }
         await execute(
-          'INSERT INTO tbl_user (user_id, password, des) VALUES (?, ?, ?)',
-          [form.user_id, form.password, form.des || null],
+          'INSERT INTO tbl_user (user_id, password, des, company_id) VALUES (?, ?, ?, ?)',
+          [form.user_id, form.password, form.des || null, form.company_id],
         );
         toast.success('User created');
       }
@@ -261,15 +274,34 @@ function UserPage() {
                 placeholder="Enter password"
               />
             </div>
-             <div className="space-y-1">
-               <Label htmlFor="user-des">Role</Label>
-               <Input
-                 id="user-des"
-                 value={form.des}
-                 onChange={(e) => setForm({ ...form, des: e.target.value.toUpperCase() })}
-                 placeholder="ADMIN or USER"
-               />
-             </div>
+            <div className="space-y-1">
+              <Label htmlFor="user-des">Role</Label>
+              <Input
+                id="user-des"
+                value={form.des}
+                onChange={(e) => setForm({ ...form, des: e.target.value.toUpperCase() })}
+                placeholder="ADMIN or USER"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="user-company">Company</Label>
+              <Select
+                value={String(form.company_id)}
+                onValueChange={(value) => setForm({ ...form, company_id: parseInt(value) })}
+              >
+                <SelectTrigger id="user-company">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {companies.map((company) => (
+                    <SelectItem key={company.id} value={String(company.id)}>
+                      {company.company_name ?? `Company ${company.id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+ 
 
           </div>
           <DialogFooter>

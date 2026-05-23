@@ -69,19 +69,22 @@ function EmailTemplatesPage() {
     body: string;
     sender_email: string;
     sender_pass: string;
+    sub_subject: string;
   }>({
     template_type: TEMPLATE_TYPES[0],
     subject: '',
     body: '',
     sender_email: '',
     sender_pass: '',
+    sub_subject: '',
   });
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const rows = await query<EmailTemplate>(
-      'SELECT * FROM tbl_email ORDER BY template_type',
-    );
+      const rows = await query<EmailTemplate>(
+        'SELECT *, COALESCE(template_type, identify) AS template_type FROM tbl_email ORDER BY COALESCE(template_type, identify)',
+      );
+
     setTemplates(rows);
     setLoading(false);
   }, []);
@@ -183,6 +186,7 @@ function EmailTemplatesPage() {
       body: '',
       sender_email: '',
       sender_pass: '',
+      sub_subject: '',
     });
     setDialogOpen(true);
   };
@@ -190,11 +194,12 @@ function EmailTemplatesPage() {
   const openEdit = (t: EmailTemplate) => {
     setEditingId(t.id);
     setForm({
-      template_type: t.template_type as typeof TEMPLATE_TYPES[number],
+      template_type: (t.template_type ?? t.identify ?? TEMPLATE_TYPES[0]) as typeof TEMPLATE_TYPES[number],
       subject: t.subject ?? '',
       body: t.body ?? '',
       sender_email: t.sender_email ?? '',
       sender_pass: t.sender_pass ?? '',
+      sub_subject: t.sub_subject ?? '',
     });
     setDialogOpen(true);
   };
@@ -212,20 +217,22 @@ function EmailTemplatesPage() {
     try {
       if (editingId) {
         await execute(
-          `UPDATE tbl_email SET template_type = ?, subject = ?, body = ?, sender_email = ?, sender_pass = ? WHERE id = ?`,
+          `UPDATE tbl_email SET template_type = ?, identify = ?, subject = ?, body = ?, sender_email = ?, sender_pass = ?, sub_subject = ? WHERE id = ?`,
           [
+            form.template_type,
             form.template_type,
             normalizedSubject || null,
             normalizedBody || null,
             form.sender_email || null,
             form.sender_pass || null,
+            form.sub_subject || null,
             editingId,
           ],
         );
         toast.success('Template updated');
       } else {
         const exists = await query<{ cnt: number }>(
-          'SELECT COUNT(*) as cnt FROM tbl_email WHERE template_type = ?',
+          'SELECT COUNT(*) as cnt FROM tbl_email WHERE COALESCE(template_type, identify) = ?',
           [form.template_type],
         );
         if ((exists[0]?.cnt ?? 0) > 0) {
@@ -234,13 +241,15 @@ function EmailTemplatesPage() {
           return;
         }
         await execute(
-          `INSERT INTO tbl_email (template_type, subject, body, sender_email, sender_pass) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO tbl_email (template_type, identify, subject, body, sender_email, sender_pass, sub_subject) VALUES (?, ?, ?, ?, ?, ?, ?)`,
           [
+            form.template_type,
             form.template_type,
             normalizedSubject || null,
             normalizedBody || null,
             form.sender_email || null,
             form.sender_pass || null,
+            form.sub_subject || null,
           ],
         );
         toast.success('Template created');
@@ -414,6 +423,16 @@ function EmailTemplatesPage() {
                   onChange={(e) => setForm({ ...form, sender_pass: e.target.value })}
                 />
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="tmpl-attachments">Attachment Path(s)</Label>
+              <Input
+                id="tmpl-attachments"
+                value={form.sub_subject}
+                onChange={(e) => setForm({ ...form, sub_subject: e.target.value })}
+                placeholder="Optional default attachment path list"
+              />
             </div>
           </div>
           <DialogFooter>

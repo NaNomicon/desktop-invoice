@@ -35,6 +35,8 @@ import { Plus, Pencil, Trash2, Users } from 'lucide-react';
 interface CustomerRow {
   id: number;
   customer_name: string;
+  title_name: string | null;
+  customer_type: string | null;
   contact: string | null;
   telephone: string | null;
   address: string | null;
@@ -43,14 +45,20 @@ interface CustomerRow {
   ad_due: string;
   brn: string | null;
   vat: string | null;
+  reg_date: string | null;
   company_id: number;
   is_deleted: number;
 }
 
-type CustomerFormData = Omit<CustomerRow, 'id' | 'is_deleted' | 'due_amount'>;
+type CustomerFormData = Omit<CustomerRow, 'id' | 'is_deleted' | 'due_amount' | 'reg_date'>;
+
+const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Dr'] as const;
+const CUSTOMER_TYPE_OPTIONS = ['Individual', 'Corporate'] as const;
 
 const emptyForm: CustomerFormData = {
   customer_name: '',
+  title_name: 'Mr',
+  customer_type: 'Individual',
   contact: '',
   telephone: '',
   address: '',
@@ -116,9 +124,17 @@ function Customer() {
   const columns = useMemo<ColumnDef<CustomerRow>[]>(
     () => [
       {
-        accessorKey: 'customer_name',
+        id: 'display_name',
         header: 'Name',
-        cell: (info) => info.getValue<string>(),
+        cell: (info) => {
+          const { title_name, customer_name } = info.row.original;
+          return [title_name, customer_name].filter(Boolean).join(' ');
+        },
+      },
+      {
+        accessorKey: 'customer_type',
+        header: 'Type',
+        cell: (info) => (info.getValue() as string) ?? '-',
       },
       {
         accessorKey: 'contact',
@@ -196,6 +212,8 @@ function Customer() {
     setEditingId(c.id);
     setForm({
       customer_name: c.customer_name,
+      title_name: c.title_name ?? 'Mr',
+      customer_type: c.customer_type ?? 'Individual',
       contact: c.contact ?? '',
       telephone: c.telephone ?? '',
       address: c.address ?? '',
@@ -216,9 +234,24 @@ function Customer() {
     return (rows[0]?.cnt ?? 0) > 0;
   };
 
+  const isValidEmail = (value: string): boolean =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+
   const handleSave = useCallback(async () => {
     if (!form.customer_name.trim()) {
       toast.error('Customer name is required');
+      return;
+    }
+
+    if (!form.customer_type) {
+      toast.error('Customer type is required');
+      return;
+    }
+
+    const trimmedEmail = form.email?.trim() ?? '';
+
+    if (form.customer_type === 'Corporate' && trimmedEmail && !isValidEmail(trimmedEmail)) {
+      toast.error('Please enter a valid email address for corporate customers');
       return;
     }
 
@@ -234,11 +267,13 @@ function Customer() {
       if (editingId) {
         await execute(
           `UPDATE tbl_customer SET
-            customer_name = ?, contact = ?, telephone = ?, address = ?, email = ?,
+            customer_name = ?, title_name = ?, customer_type = ?, contact = ?, telephone = ?, address = ?, email = ?,
             ad_due = ?, brn = ?, vat = ?, company_id = ?
            WHERE id = ?`,
           [
             form.customer_name.trim(),
+            form.title_name || null,
+            form.customer_type || null,
             form.contact || null,
             form.telephone || null,
             form.address || null,
@@ -253,10 +288,12 @@ function Customer() {
         toast.success('Customer updated');
       } else {
         await execute(
-          `INSERT INTO tbl_customer (customer_name, contact, telephone, address, email, due_amount, ad_due, brn, vat, company_id)
-           VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?)`,
+          `INSERT INTO tbl_customer (customer_name, title_name, customer_type, contact, telephone, address, email, due_amount, reg_date, ad_due, brn, vat, company_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, date('now'), ?, ?, ?, ?)`,
           [
             form.customer_name.trim(),
+            form.title_name || null,
+            form.customer_type || null,
             form.contact || null,
             form.telephone || null,
             form.address || null,
@@ -382,6 +419,42 @@ function Customer() {
             <DialogTitle>{editingId ? 'Edit Customer' : 'Add Customer'}</DialogTitle>
           </DialogHeader>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="cust-title">Title</Label>
+              <Select
+                value={form.title_name ?? 'Mr'}
+                onValueChange={(value) => setForm({ ...form, title_name: value })}
+              >
+                <SelectTrigger id="cust-title">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TITLE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cust-type">Customer Type *</Label>
+              <Select
+                value={form.customer_type ?? 'Individual'}
+                onValueChange={(value) => setForm({ ...form, customer_type: value })}
+              >
+                <SelectTrigger id="cust-type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CUSTOMER_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option} value={option}>
+                      {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1 md:col-span-2">
               <Label htmlFor="cust-name">Customer Name *</Label>
               <Input

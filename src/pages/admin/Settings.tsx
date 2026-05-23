@@ -33,35 +33,46 @@ function SettingsPage() {
       );
 
       const existsCnt = exists[0];
-      if (existsCnt && existsCnt.cnt > 0) {
-        await execute(
-          `UPDATE tbl_setting SET
-            isvat = ?, vat_per = ?, invoice_days = ?,
-            cash = ?, cheque = ?, other = ?
-           WHERE id = 1`,
-          [
-            settings.isvat ?? 0,
-            settings.vat_per ?? 0,
-            settings.invoice_days ?? null,
-            settings.cash ?? null,
-            settings.cheque ?? null,
-            settings.other ?? null,
-          ],
-        );
-      } else {
-        await execute(
-          `INSERT INTO tbl_setting (id, isvat, vat_per, invoice_days, cash, cheque, other)
-           VALUES (1, ?, ?, ?, ?, ?, ?)`,
-          [
-            settings.isvat ?? 0,
-            settings.vat_per ?? 0,
-            settings.invoice_days ?? null,
-            settings.cash ?? null,
-            settings.cheque ?? null,
-            settings.other ?? null,
-          ],
-        );
-      }
+        if (existsCnt && existsCnt.cnt > 0) {
+          await execute(
+            `UPDATE tbl_setting SET
+              isvat = ?, vat_per = ?, invoice_path = ?, quo_path = ?, report_path = ?, invoice_days = ?,
+              back_path = ?, backup_path = ?, cash = ?, cheque = ?, other = ?
+             WHERE id = 1`,
+            [
+              settings.isvat ?? 0,
+              settings.vat_per ?? 0,
+              settings.invoice_path ?? null,
+              settings.quo_path ?? null,
+              settings.report_path ?? null,
+              settings.invoice_days ?? null,
+              settings.back_path ?? null,
+              settings.backup_path ?? null,
+              settings.cash ?? null,
+              settings.cheque ?? null,
+              settings.other ?? null,
+            ],
+          );
+        } else {
+          await execute(
+            `INSERT INTO tbl_setting (id, isvat, vat_per, invoice_path, quo_path, report_path, invoice_days, back_path, backup_path, cash, cheque, other)
+             VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              settings.isvat ?? 0,
+              settings.vat_per ?? 0,
+              settings.invoice_path ?? null,
+              settings.quo_path ?? null,
+              settings.report_path ?? null,
+              settings.invoice_days ?? null,
+              settings.back_path ?? null,
+              settings.backup_path ?? null,
+              settings.cash ?? null,
+              settings.cheque ?? null,
+              settings.other ?? null,
+            ],
+          );
+        }
+
 
       toast.success('Settings saved');
     } catch (err) {
@@ -155,7 +166,60 @@ function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Payment Mode Defaults</CardTitle>
+          <CardTitle>Document & Backup Paths</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="space-y-1">
+            <Label htmlFor="invoice-path">Invoice Path</Label>
+            <Input
+              id="invoice-path"
+              value={settings.invoice_path ?? ''}
+              onChange={(e) => updateField('invoice_path', e.target.value)}
+              placeholder="/path/to/invoices"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="quotation-path">Quotation Path</Label>
+            <Input
+              id="quotation-path"
+              value={settings.quo_path ?? ''}
+              onChange={(e) => updateField('quo_path', e.target.value)}
+              placeholder="/path/to/quotations"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="report-path">Report Path</Label>
+            <Input
+              id="report-path"
+              value={settings.report_path ?? ''}
+              onChange={(e) => updateField('report_path', e.target.value)}
+              placeholder="/path/to/reports"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="backup-path">Backup Path</Label>
+            <Input
+              id="backup-path"
+              value={settings.backup_path ?? ''}
+              onChange={(e) => updateField('backup_path', e.target.value)}
+              placeholder="/path/to/backups"
+            />
+          </div>
+          <div className="space-y-1 md:col-span-2">
+            <Label htmlFor="legacy-back-path">Legacy Backup Path</Label>
+            <Input
+              id="legacy-back-path"
+              value={settings.back_path ?? ''}
+              onChange={(e) => updateField('back_path', e.target.value)}
+              placeholder="Optional legacy backup location"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Payment Labels</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-3">
           <div className="space-y-1">

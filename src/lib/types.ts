@@ -40,6 +40,11 @@ export interface User {
   is_deleted: number;
 }
 
+export interface UserRoleOption {
+  value: 'admin' | 'USER';
+  label: string;
+}
+
 export interface Setting {
   id: number;
   isvat: number;
