@@ -22,6 +22,7 @@ import SalesReport from '@/pages/reports/SalesReport'
 import StatementPreview from '@/pages/reports/StatementPreview'
 import PrintPreview from '@/pages/reports/PrintPreview'
 import QuotationPreview from '@/pages/reports/QuotationPreview'
+import OutstandingReport from '@/pages/reports/OutstandingReport'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -301,12 +302,7 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             />
             <Route
               path="/reports/outstanding"
-              element={
-                <PlaceholderPage
-                  title="Outstanding Report"
-                  description="This HOME entry is available for navigation. The full outstanding report behavior will be completed in later outstanding/report specs."
-                />
-              }
+              element={<OutstandingReport />}
             />
             <Route path="/home/backup" element={<BackupDatabase />} />
             <Route

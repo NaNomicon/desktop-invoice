@@ -1,12 +1,19 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { query } from '@/lib/db';
-import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-output';
-import type { Company, Setting } from '@/lib/types';
+import { downloadExcelXml, openPrintableReport } from '@/lib/report-output';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
+import { useUIStore } from '@/store/ui-store';
+import {
+  createOutstandingReportHtml,
+  customerDisplayName,
+  dollars,
+  filterOutstandingRows,
+  loadOutstandingData,
+  type OutstandingRow,
+} from './outstanding-report-helpers';
 import {
   flexRender,
   getCoreRowModel,
@@ -23,120 +30,15 @@ import {
   Printer,
   Receipt,
   Search,
+  X,
 } from 'lucide-react';
-
-interface OutstandingRow {
-  id: number;
-  customer_name: string;
-  title_name?: string | null;
-  customer_type?: string | null;
-  due_amount: number;
-  ad_due: string;
-  company_id: number;
-}
-
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
-
-function customerDisplayName(row: OutstandingRow): string {
-  return [row.title_name?.trim(), row.customer_name.trim()].filter(Boolean).join(' ');
-}
-
-function createOutstandingReportHtml(rows: OutstandingRow[]): string {
-
-  const generatedAt = new Date().toLocaleString('en-GB', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  }).replace(',', '');
-  const totalDue = rows
-    .filter((row) => row.due_amount > 0)
-    .reduce((sum, row) => sum + row.due_amount, 0);
-  const totalAdvance = rows
-    .filter((row) => row.due_amount < 0)
-    .reduce((sum, row) => sum + Math.abs(row.due_amount), 0);
-
-  const tableRows = rows
-    .map((row) => {
-      const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
-      const amount = `${amountPrefix}$${dollars(Math.abs(row.due_amount))}`;
-      const statusClass = row.ad_due === 'Advance' ? 'advance' : 'due';
-      return `
-        <tr>
-          <td>${escapeHtml(customerDisplayName(row))}</td>
-          <td class="amount ${statusClass}">${escapeHtml(amount)}</td>
-          <td class="${statusClass}">${escapeHtml(row.ad_due)}</td>
-        </tr>`;
-    })
-    .join('');
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>Outstanding Report</title>
-  <style>
-    @page { margin: 14mm; size: A4 portrait; }
-    body { font-family: Arial, sans-serif; color: #111827; margin: 0; }
-    main { padding: 24px; }
-    .header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
-    .title { margin: 0; font-size: 24px; }
-    .meta { color: #4b5563; font-size: 12px; line-height: 1.5; }
-    .summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-    .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
-    .label { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
-    .value { font-size: 16px; font-weight: 700; }
-    table { width: 100%; border-collapse: collapse; }
-    th, td { border: 1px solid #d1d5db; padding: 8px 10px; font-size: 12px; text-align: left; }
-    th { background: #e0f2fe; }
-    .amount { text-align: right; font-variant-numeric: tabular-nums; }
-    .due { color: #dc2626; font-weight: 600; }
-    .advance { color: #16a34a; font-weight: 600; }
-  </style>
-</head>
-<body>
-  <main>
-    <div class="header">
-      <div>
-        <h1 class="title">Outstanding Report</h1>
-        <div class="meta">Generated: ${escapeHtml(generatedAt)}</div>
-      </div>
-      <div class="meta">
-        <div><strong>Customers:</strong> ${rows.length}</div>
-        <div><strong>Total Due:</strong> $${dollars(totalDue)}</div>
-        <div><strong>Total Advance:</strong> $${dollars(totalAdvance)}</div>
-      </div>
-    </div>
-    <div class="summary">
-      <div class="card"><div class="label">Customers</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Total Due</div><div class="value">$${dollars(totalDue)}</div></div>
-      <div class="card"><div class="label">Total Advance</div><div class="value">$${dollars(totalAdvance)}</div></div>
-    </div>
-    <table>
-      <thead>
-        <tr>
-          <th>Customer Name</th>
-          <th>Amount</th>
-          <th>Status</th>
-        </tr>
-      </thead>
-      <tbody>${tableRows}</tbody>
-    </table>
-  </main>
-</body>
-</html>`;
-}
 
 function ListOutStanding() {
   const navigate = useNavigate();
+  const closeHomeTab = useUIStore((state) => state.closeHomeTab);
   const [customers, setCustomers] = useState<OutstandingRow[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
-  const [settings, setSettings] = useState<Setting | null>(null);
+  const [companies, setCompanies] = useState<Array<{ id: number; company_name: string | null }>>([]);
+  const [settings, setSettings] = useState<{ report_path: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState<string>('all');
@@ -145,19 +47,11 @@ function ListOutStanding() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [custRows, compRows, setRows] = await Promise.all([
-      query<OutstandingRow>(
-        `SELECT id, customer_name, title_name, customer_type, due_amount, ad_due, company_id
-         FROM tbl_customer
-         WHERE is_deleted = 0 AND due_amount != 0
-         ORDER BY customer_name`,
-      ),
-      query<Company>('SELECT id, company_name FROM tbl_company WHERE is_active = 1'),
-      query<Setting>('SELECT report_path FROM tbl_setting WHERE id = 1 LIMIT 1'),
-    ]);
-    setCustomers(custRows);
-    setCompanies(compRows);
-    setSettings(setRows[0] ?? null);
+    const { customers: customerRows, companies: companyRows, settings: currentSettings } =
+      await loadOutstandingData();
+    setCustomers(customerRows);
+    setCompanies(companyRows);
+    setSettings(currentSettings);
     setLoading(false);
   }, []);
 
@@ -165,17 +59,10 @@ function ListOutStanding() {
     void loadData();
   }, [loadData]);
 
-  const filtered = useMemo(() => {
-    let rows = customers;
-    if (search) {
-      const s = search.toLowerCase();
-      rows = rows.filter((c) => c.customer_name.toLowerCase().includes(s));
-    }
-    if (companyFilter !== 'all') {
-      rows = rows.filter((c) => c.company_id === parseInt(companyFilter));
-    }
-    return rows;
-  }, [customers, search, companyFilter]);
+  const filtered = useMemo(
+    () => filterOutstandingRows(customers, search, companyFilter),
+    [companyFilter, customers, search],
+  );
 
   useEffect(() => {
     if (!filtered.length) {
@@ -333,6 +220,10 @@ function ListOutStanding() {
           <Button variant="outline" onClick={handleExportExcel}>
             <Download className="mr-2 size-4" />
             Export
+          </Button>
+          <Button variant="outline" onClick={() => closeHomeTab('/outstanding')}>
+            <X className="mr-2 size-4" />
+            Cancel
           </Button>
         </div>
       </div>
