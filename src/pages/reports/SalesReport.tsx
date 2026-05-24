@@ -1,7 +1,8 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
 import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-output';
+import { useUIStore } from '@/store/ui-store';
 import type { Company, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -175,6 +176,19 @@ function SalesReport() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const closeHomeTab = useUIStore(state => state.closeHomeTab);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeHomeTab('/reports/sales');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [closeHomeTab]);
+
+  const handleClose = () => closeHomeTab('/reports/sales');
 
   const { data: companies = [] } = useQuery({
     queryKey: ['companies'],
@@ -221,7 +235,7 @@ function SalesReport() {
           tbl_invoice_main.sub_total + tbl_invoice_main.vat - tbl_invoice_main.discount AS bill_amount,
           tbl_invoice_main.checklist_no
         FROM tbl_invoice_main
-        LEFT JOIN tbl_customer ON tbl_invoice_main.customer_id = tbl_customer.id
+        INNER JOIN tbl_customer ON tbl_invoice_main.customer_id = tbl_customer.id
         WHERE tbl_invoice_main.invoice_date BETWEEN ? AND ?
           AND (tbl_invoice_main.company_id = ? OR ? = 'ALL')
           AND (
@@ -421,6 +435,12 @@ function SalesReport() {
           <h1 className="text-2xl font-semibold">Sales Report</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={handleClose}
+          >
+            Cancel
+          </Button>
           <Button
             variant="outline"
             onClick={() => handleOpenPrintableReport('print')}

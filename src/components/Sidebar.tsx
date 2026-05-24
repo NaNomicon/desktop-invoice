@@ -43,7 +43,6 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { title: 'Add Invoice', path: '/invoices/new' },
       { title: 'View Invoice', path: '/invoices', closable: false },
-      { title: 'Sales Report', path: '/reports/sales' },
     ],
   },
   {
