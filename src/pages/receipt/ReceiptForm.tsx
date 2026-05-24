@@ -137,6 +137,7 @@ function ReceiptForm() {
         cr_dr: calResult.cr_dr,
         ad_due: calResult.ad_due,
         load_dua_amount: loadDuaAmount,
+        pre_load_status: null,
       });
       toast.success('Receipt saved');
       await loadData();

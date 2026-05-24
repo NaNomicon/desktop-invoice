@@ -23,8 +23,7 @@ import {
 } from '@tanstack/react-table';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
-import 'react-day-picker/style.css';
+import { format, startOfMonth } from 'date-fns';import 'react-day-picker/style.css';
 import {
   Download,
   BarChart3,
@@ -167,7 +166,10 @@ function createSalesReportHtml(options: {
 type GroupBy = 'none' | 'date' | 'customer' | 'company';
 
 function SalesReport() {
-  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [dateRange, setDateRange] = useState<DateRange | undefined>({
+    from: startOfMonth(new Date()),
+    to: new Date(),
+  });
   const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
   const [searchTerm, setSearchTerm] = useState('');

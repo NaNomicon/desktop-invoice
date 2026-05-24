@@ -13,7 +13,7 @@ export interface ReceiptSaveInput {
   cr_dr: string;
   ad_due: string;
   load_dua_amount: number;
-  pre_load_status: string | null;
+  pre_load_status?: string | null;
 }
 
 export async function saved(input: ReceiptSaveInput): Promise<void> {
