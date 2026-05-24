@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { Building2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { query } from '@/lib/db'
 import { logger } from '@/lib/logger'
@@ -17,6 +16,8 @@ const LOADING_FRAMES = [
   'Loading....',
   'Loading.....',
 ] as const
+
+const LEGACY_SPLASH_IMAGE_PATH = '/Icon512.png'
 
 export function SplashScreen() {
   const [frameIndex, setFrameIndex] = useState(0)
@@ -57,31 +58,18 @@ export function SplashScreen() {
   }, [])
 
   const title = branding?.company_short_name || branding?.company_name || 'XPress Billing'
+  const splashImageSrc = branding?.logo || LEGACY_SPLASH_IMAGE_PATH
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background px-6">
       <Card className="w-full max-w-[385px] overflow-hidden border-border/70 shadow-xl">
         <CardContent className="p-0">
-          <div className="flex h-[193px] items-center justify-center bg-linear-to-br from-slate-100 via-sky-50 to-slate-200 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
-            {branding?.logo ? (
-              <img
-                src={branding.logo}
-                alt={title}
-                className="h-full w-full object-contain"
-              />
-            ) : (
-              <div className="flex flex-col items-center gap-3 text-center text-slate-700 dark:text-slate-100">
-                <div className="flex size-16 items-center justify-center rounded-full bg-white/70 shadow-sm dark:bg-slate-800/80">
-                  <Building2 className="size-8" />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold">{title}</p>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Starting application
-                  </p>
-                </div>
-              </div>
-            )}
+          <div className="flex h-[193px] items-center justify-center bg-black/5">
+            <img
+              src={splashImageSrc}
+              alt={title}
+              className="h-full w-full object-contain"
+            />
           </div>
 
           <div className="flex h-[41px] items-center justify-center border-t bg-background px-4">

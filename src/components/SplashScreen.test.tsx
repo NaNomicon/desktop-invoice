@@ -78,4 +78,21 @@ describe('SplashScreen', () => {
       await screen.findByRole('img', { name: 'XPress' })
     ).toHaveAttribute('src', '/branding/p1.gif')
   })
+
+  it('falls back to the bundled splash image when no company logo is available', async () => {
+    queryMock.mockReset()
+    queryMock.mockResolvedValue([
+      {
+        company_name: 'XPress Billing',
+        company_short_name: 'XPress',
+        logo: null,
+      },
+    ])
+
+    render(<SplashScreen />)
+
+    expect(
+      await screen.findByRole('img', { name: 'XPress' })
+    ).toHaveAttribute('src', '/Icon512.png')
+  })
 })
