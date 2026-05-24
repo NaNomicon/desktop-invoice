@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Building2 } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import { query } from '@/lib/db'
@@ -19,7 +19,7 @@ const LOADING_FRAMES = [
 ] as const
 
 export function SplashScreen() {
-  const [frameIndex, setFrameIndex] = useState(2)
+  const [frameIndex, setFrameIndex] = useState(0)
   const [branding, setBranding] = useState<CompanyBranding | null>(null)
 
   useEffect(() => {
@@ -56,11 +56,7 @@ export function SplashScreen() {
     }
   }, [])
 
-  const title = useMemo(() => {
-    return (
-      branding?.company_short_name || branding?.company_name || 'XPress Billing'
-    )
-  }, [branding])
+  const title = branding?.company_short_name || branding?.company_name || 'XPress Billing'
 
   return (
     <div className="flex h-screen w-full items-center justify-center bg-background px-6">
@@ -89,7 +85,7 @@ export function SplashScreen() {
           </div>
 
           <div className="flex h-[41px] items-center justify-center border-t bg-background px-4">
-            <p className="text-center font-serif text-2xl font-semibold italic text-sky-700 dark:text-sky-300">
+            <p className="text-center font-[Monotype_Corsiva,Georgia,Times_New_Roman,serif] text-[21px] font-bold italic text-[#0067c0] dark:text-[#60cdff]">
               {LOADING_FRAMES[frameIndex]}
             </p>
           </div>

@@ -15,6 +15,9 @@ import { ErrorBoundary } from './components/ErrorBoundary'
 import { SplashScreen } from './components/SplashScreen'
 import { useSquareCornersEffect } from './hooks/useSquareCornersEffect'
 import { useAuthStore } from './store/authStore'
+
+const MIN_SPLASH_DURATION_MS = 2500
+
 function App() {
   useSquareCornersEffect()
   const [isInitializing, setIsInitializing] = useState(true)
@@ -44,8 +47,9 @@ function App() {
     let isMounted = true
     let removeMenuLanguageListener: (() => void) | undefined
 
-    // Initialize language based on saved preference or system locale
     const initLanguageAndMenu = async () => {
+      const startedAt = Date.now()
+
       try {
         // Load preferences to get saved language
         const result = await commands.loadPreferences()
@@ -62,6 +66,15 @@ function App() {
       } catch (error) {
         logger.warn('Failed to initialize language or menu', { error })
       } finally {
+        const remainingDelay = Math.max(
+          0,
+          MIN_SPLASH_DURATION_MS - (Date.now() - startedAt)
+        )
+
+        if (remainingDelay > 0) {
+          await new Promise(resolve => window.setTimeout(resolve, remainingDelay))
+        }
+
         if (isMounted) {
           setIsInitializing(false)
         }
