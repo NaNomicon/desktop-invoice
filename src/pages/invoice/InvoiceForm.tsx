@@ -1,13 +1,23 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { sendEmail } from '@/lib/email/send';
 import { getInvoicePdfPath } from '@/lib/pdf/path';
-import type { Customer, Company, Product, Setting } from '@/lib/types';
+import type {
+  Customer,
+  Company,
+  Product,
+  ProductType,
+  Setting,
+  InvoiceMain,
+  InvoiceSub,
+  NumberSequence,
+} from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { cal } from '@/lib/invoice/cal';
 import { saved } from '@/lib/invoice/saved';
 import { splitInvoice } from '@/lib/invoice/splitInvoice';
+import { canEditInvoice } from '@/lib/invoice/editLock';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,10 +40,12 @@ import {
   Trash2,
   FileText,
   RotateCcw,
+  Search,
 } from 'lucide-react';
 
 interface LineItem {
   uid: string;
+  id: number;
   qty: number;
   product_id: number | null;
   product_name: string;
@@ -46,6 +58,7 @@ interface LineItem {
 }
 
 interface InvoicePrefillState {
+  invoiceId?: number;
   customerId?: number;
   companyId?: number;
   checklistNo?: string | null;
@@ -60,6 +73,11 @@ interface InvoicePrefillState {
   }[];
   sourceQuotationId?: number;
   sourceQuotationNo?: string;
+}
+
+interface InvoiceLineRow extends InvoiceSub {
+  product_name: string | null;
+  product_company_id: number | null;
 }
 
 let _uid = 1;
@@ -83,6 +101,7 @@ function nextBlankLineItems(): LineItem[] {
   return [
     {
       uid: nextUid(),
+      id: 0,
       qty: 1,
       product_id: null,
       product_name: '',
@@ -103,11 +122,17 @@ function InvoiceForm() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [productTypes, setProductTypes] = useState<ProductType[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [settings, setSettings] = useState<Setting | null>(null);
   const [loading, setLoading] = useState(true);
+  const discountInputRef = useRef<HTMLInputElement | null>(null);
 
   const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSearchIndex, setCustomerSearchIndex] = useState(0);
+  const [editingId, setEditingId] = useState<number | null>(invoicePrefill?.invoiceId ?? null);
+  const [deletedLineItemIds, setDeletedLineItemIds] = useState<number[]>([]);
   const [companyId, setCompanyId] = useState(authCompanyId);
   const [invoiceNumber, setInvoiceNumber] = useState('0');
   const [invoiceDate, setInvoiceDate] = useState(today());
@@ -115,6 +140,9 @@ function InvoiceForm() {
   const [caseDebit, setCaseDebit] = useState('CREDIT');
   const [refNo, setRefNo] = useState('');
   const [checklistNo, setChecklistNo] = useState('');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [productSearch, setProductSearch] = useState('');
+  const [productSearchIndex, setProductSearchIndex] = useState(0);
   const [per, setPer] = useState('');
   const [printDue, setPrintDue] = useState(false);
   const [lineItems, setLineItems] = useState<LineItem[]>(nextBlankLineItems);
@@ -161,16 +189,71 @@ function InvoiceForm() {
     return `${prefix}$${dollars(selectedCustomer.due_amount)}`;
   }, [selectedCustomer]);
 
+  const filteredProducts = useMemo(() => {
+    const search = productSearch.trim().toLowerCase();
+    return products.filter((product) => {
+      if (typeFilter !== 'all' && product.type_id !== parseInt(typeFilter, 10)) {
+        return false;
+      }
+      if (!search) {
+        return true;
+      }
+      return (
+        (product.product_name ?? '').toLowerCase().includes(search) ||
+        (product.product_id ?? '').toLowerCase().includes(search)
+      );
+    });
+  }, [productSearch, products, typeFilter]);
+
+  const filteredCustomers = useMemo(() => {
+    const search = customerSearch.trim().toLowerCase();
+    if (!search) {
+      return customers;
+    }
+
+    return customers.filter((customer) => {
+      const name = customer.customer_name?.toLowerCase() ?? '';
+      const title = customer.title_name?.toLowerCase() ?? '';
+      const telephone = customer.telephone?.toLowerCase() ?? '';
+      const email = customer.email?.toLowerCase() ?? '';
+      const address = customer.address?.toLowerCase() ?? '';
+      return [name, title, telephone, email, address].some((value) => value.includes(search));
+    });
+  }, [customerSearch, customers]);
+
+  useEffect(() => {
+    setCustomerSearchIndex(0);
+  }, [customerSearch]);
+
+  useEffect(() => {
+    if (customerSearchIndex >= filteredCustomers.length) {
+      setCustomerSearchIndex(0);
+    }
+  }, [customerSearchIndex, filteredCustomers.length]);
+
+  useEffect(() => {
+    setProductSearchIndex(0);
+  }, [productSearch]);
+
+  useEffect(() => {
+    if (productSearchIndex >= filteredProducts.length) {
+      setProductSearchIndex(0);
+    }
+  }, [filteredProducts.length, productSearchIndex]);
+
   const isAdvance = selectedCustomer?.ad_due === 'Advance';
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [custRows, prodRows, compRows, setRows, seqRows] = await Promise.all([
+    const [custRows, prodRows, typeRows, compRows, setRows, seqRows] = await Promise.all([
       query<Customer>(
         'SELECT id, customer_name, due_amount, ad_due, email, title_name FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
       ),
       query<Product>(
-        'SELECT id, product_id, product_name, price, company_id FROM tbl_product WHERE is_deleted = 0 ORDER BY product_name',
+        'SELECT id, product_id, product_name, type_id, price, company_id FROM tbl_product WHERE is_deleted = 0 ORDER BY product_name',
+      ),
+      query<ProductType>(
+        'SELECT * FROM tbl_product_type WHERE is_deleted = 0 ORDER BY type_name',
       ),
       query<Company>(
         'SELECT id, company_name FROM tbl_company WHERE is_active = 1',
@@ -180,6 +263,7 @@ function InvoiceForm() {
     ]);
     setCustomers(custRows);
     setProducts(prodRows);
+    setProductTypes(typeRows);
     setCompanies(compRows);
     setSettings(setRows[0] ?? null);
     setInvoiceNumber(String(seqRows[0]?.invoice_no ?? 0));
@@ -196,31 +280,209 @@ function InvoiceForm() {
         prev.map((li) => {
           if (li.uid !== uid) return li;
           const updated = { ...li, ...patch };
-          updated.row_total = updated.qty * updated.unit_price;
+          const shouldRecalculate =
+            patch.qty !== undefined ||
+            patch.unit_price !== undefined ||
+            patch.product_id !== undefined;
+          if (shouldRecalculate) {
+            updated.row_total = updated.qty * updated.unit_price;
+          }
+          if (patch.product_id !== undefined) {
+            const product = products.find((entry) => entry.id === patch.product_id) ?? null;
+            updated.product_name = product?.product_name ?? '';
+            updated.unit_price = product?.price ?? updated.unit_price;
+            updated.company_id = product?.company_id ?? updated.company_id;
+            updated.row_total = updated.qty * updated.unit_price;
+          }
           return updated;
         }),
       );
     },
+    [products],
+  );
+
+  const addLineItem = useCallback((nextCompanyId?: number | null) => {
+    setLineItems((prev) => [
+      ...prev,
+      {
+        uid: nextUid(),
+        id: 0,
+        qty: 1,
+        product_id: null,
+        product_name: '',
+        unit_price: 0,
+        row_total: 0,
+        s_no: prev.length + 1,
+        deleted: false,
+        company_id: nextCompanyId ?? null,
+      },
+    ]);
+  }, []);
+
+  const handleProductPick = useCallback(
+    (product: Product) => {
+      const emptyTarget = lineItems.find((item) => !item.deleted && !item.product_id) ?? null;
+      if (emptyTarget) {
+        updateLineItem(emptyTarget.uid, {
+          product_id: product.id,
+          product_name: product.product_name,
+          unit_price: product.price,
+          company_id: product.company_id,
+        });
+        setProductSearch('');
+        setProductSearchIndex(0);
+        return;
+      }
+
+      const fallbackItem = {
+        uid: nextUid(),
+        id: 0,
+        qty: 1,
+        product_id: product.id,
+        product_name: product.product_name,
+        unit_price: product.price,
+        row_total: product.price,
+        s_no: lineItems.length + 1,
+        deleted: false,
+        company_id: product.company_id,
+      };
+      setLineItems((prev) => [...prev, fallbackItem]);
+      setProductSearch('');
+      setProductSearchIndex(0);
+    },
+    [lineItems, updateLineItem],
+  );
+
+  const handleProductSearchKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'ArrowDown') {
+        if (filteredProducts.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        setProductSearchIndex((current) => Math.min(current + 1, filteredProducts.length - 1));
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        if (filteredProducts.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        setProductSearchIndex((current) => Math.max(current - 1, 0));
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const selectedMatch = filteredProducts[productSearchIndex] ?? filteredProducts[0];
+        if (selectedMatch) {
+          handleProductPick(selectedMatch);
+        }
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setProductSearch('');
+        return;
+      }
+
+      if (event.key === 'Tab' && !event.shiftKey) {
+        event.preventDefault();
+        discountInputRef.current?.focus();
+      }
+    },
+    [filteredProducts, handleProductPick, productSearchIndex],
+  );
+
+  const selectCustomer = useCallback((customer: Customer) => {
+    setCustomerId(customer.id);
+    setCustomerSearch('');
+    setCustomerSearchIndex(0);
+  }, []);
+
+  const handleCustomerSearchKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'ArrowDown') {
+        if (filteredCustomers.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        setCustomerSearchIndex((current) => Math.min(current + 1, filteredCustomers.length - 1));
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        if (filteredCustomers.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        setCustomerSearchIndex((current) => Math.max(current - 1, 0));
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const selectedMatch = filteredCustomers[customerSearchIndex] ?? filteredCustomers[0];
+        if (selectedMatch) {
+          selectCustomer(selectedMatch);
+        }
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setCustomerSearch('');
+        return;
+      }
+    },
+    [customerSearchIndex, filteredCustomers, selectCustomer],
+  );
+
+  const toggleDeleteLineItem = useCallback(
+    (uid: string) => {
+      setLineItems((prev) => {
+        const target = prev.find((li) => li.uid === uid);
+        if (!target) {
+          return prev;
+        }
+
+        if (target.id > 0 && !target.deleted) {
+          setDeletedLineItemIds((ids) => [...new Set([...ids, target.id])]);
+        }
+        if (target.id > 0 && target.deleted) {
+          setDeletedLineItemIds((ids) => ids.filter((id) => id !== target.id));
+        }
+
+        const next = prev.map((li) =>
+          li.uid === uid ? { ...li, deleted: !li.deleted } : li,
+        );
+        const activeCount = next.filter((li) => !li.deleted).length;
+        if (activeCount === 0) {
+          return nextBlankLineItems();
+        }
+        return next;
+      });
+    },
     [],
   );
 
-  const toggleDeleteLineItem = useCallback((uid: string) => {
-    setLineItems((prev) =>
-      prev.map((li) =>
-        li.uid === uid ? { ...li, deleted: !li.deleted } : li,
-      ),
-    );
-  }, []);
-
   const resetForm = useCallback(
     (nextInvoiceNumber?: string) => {
+      setEditingId(null);
+      setDeletedLineItemIds([]);
       setCustomerId(null);
+      setCustomerSearch('');
+      setCustomerSearchIndex(0);
       setCompanyId(authCompanyId);
       setInvoiceDate(today());
       setPaidAmount('');
       setCaseDebit('CREDIT');
       setRefNo('');
       setChecklistNo('');
+      setTypeFilter('all');
+      setProductSearch('');
       setPer('');
       setPrintDue(false);
       setLineItems(nextBlankLineItems());
@@ -232,10 +494,88 @@ function InvoiceForm() {
     [authCompanyId, location.pathname, navigate],
   );
 
+  const loadInvoice = useCallback(
+    async (invoiceId: number) => {
+      const lockState = await canEditInvoice(invoiceId);
+      if (!lockState.canEdit) {
+        toast.error(lockState.message ?? 'Invoice cannot be edited');
+        navigate('/invoices', { replace: true });
+        return;
+      }
+
+      const [invoiceRows, lineRows] = await Promise.all([
+        query<InvoiceMain>('SELECT * FROM tbl_invoice_main WHERE id = ? LIMIT 1', [invoiceId]),
+        query<InvoiceLineRow>(
+          `SELECT ins.*, p.product_name, p.company_id AS product_company_id
+           FROM tbl_invoice_sub ins
+           LEFT JOIN tbl_product p ON ins.product_id = p.id
+           WHERE ins.main_id = ?
+           ORDER BY ins.s_no`,
+          [invoiceId],
+        ),
+      ]);
+
+      const invoice = invoiceRows[0];
+      if (!invoice) {
+        toast.error('Invoice not found');
+        navigate('/invoices', { replace: true });
+        return;
+      }
+
+      setEditingId(invoice.id);
+      setDeletedLineItemIds([]);
+      setCustomerSearch('');
+      setCustomerSearchIndex(0);
+      setCustomerId(invoice.customer_id);
+      setCompanyId(invoice.company_id);
+      setInvoiceNumber(invoice.invoice_no);
+      setInvoiceDate(invoice.invoice_date || today());
+      setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : dollars(invoice.paid_amount ?? 0));
+      setCaseDebit(invoice.case_debit ?? 'CREDIT');
+      setRefNo(invoice.no ?? '');
+      setChecklistNo(invoice.checklist_no ?? '');
+      setPer(String(invoice.per ?? 0));
+      setTypeFilter('all');
+      setProductSearch('');
+      setPrintDue(invoice.print_due === 'YES');
+      setLineItems(
+        lineRows.length > 0
+          ? lineRows.map((item, index) => ({
+              uid: nextUid(),
+              id: item.id,
+              qty: item.qty,
+              product_id: item.product_id,
+              product_name: item.product_name ?? '',
+              unit_price: item.unit_price,
+              row_total: item.row_total,
+              s_no: item.s_no || index + 1,
+              deleted: false,
+              company_id: item.company_id ?? item.product_company_id ?? null,
+            }))
+          : nextBlankLineItems(),
+      );
+      navigate(location.pathname, { replace: true, state: null });
+    },
+    [location.pathname, navigate],
+  );
+
   useEffect(() => {
-    if (!invoicePrefill || customers.length === 0 || products.length === 0) {
+    if (!invoicePrefill || loading || customers.length === 0 || products.length === 0) {
       return;
     }
+
+    if (invoicePrefill.invoiceId) {
+      void loadInvoice(invoicePrefill.invoiceId);
+      return;
+    }
+
+    setEditingId(null);
+    setDeletedLineItemIds([]);
+    setCustomerSearch('');
+    setCustomerSearchIndex(0);
+    setTypeFilter('all');
+    setProductSearch('');
+    setProductSearchIndex(0);
 
     if (invoicePrefill.customerId) {
       setCustomerId(invoicePrefill.customerId);
@@ -257,6 +597,7 @@ function InvoiceForm() {
           const product = products.find((entry) => entry.id === item.product_id);
           return {
             uid: nextUid(),
+            id: 0,
             qty: item.qty,
             product_id: item.product_id,
             product_name: product?.product_name ?? '',
@@ -264,7 +605,7 @@ function InvoiceForm() {
             row_total: item.row_total,
             s_no: item.s_no || index + 1,
             deleted: false,
-            company_id: null,
+            company_id: product?.company_id ?? invoicePrefill.companyId ?? null,
           };
         }),
       );
@@ -277,7 +618,7 @@ function InvoiceForm() {
     }
 
     navigate(location.pathname, { replace: true, state: null });
-  }, [customers, invoicePrefill, location.pathname, navigate, products]);
+  }, [customers, invoicePrefill, loadInvoice, loading, location.pathname, navigate, products]);
 
   const persistInvoice = useCallback(async () => {
     if (!customerId) {
@@ -300,7 +641,9 @@ function InvoiceForm() {
     setSaving(true);
     try {
       const activeItems = lineItems.filter((li) => !li.deleted && li.product_id !== null);
-      const activeCompanyIds = [...new Set(activeItems.map((li) => li.company_id).filter((cid): cid is number => cid !== null))];
+      const activeCompanyIds = [
+        ...new Set(activeItems.map((li) => li.company_id).filter((cid): cid is number => cid !== null)),
+      ];
       const hasSplit = activeCompanyIds.length >= 2;
 
       const resolveCompanyId = (cid: number | null): number => {
@@ -308,6 +651,11 @@ function InvoiceForm() {
         if (activeCompanyIds.length === 1) return activeCompanyIds[0]!;
         return companyId;
       };
+
+      if (editingId && hasSplit) {
+        toast.error('Editing split invoices is not supported yet');
+        return null;
+      }
 
       if (hasSplit) {
         const result = await splitInvoice({
@@ -332,9 +680,7 @@ function InvoiceForm() {
             company_id: li.company_id!,
           })),
         });
-        const nextRows = await query<{ invoice_no: number }>(
-          'SELECT invoice_no FROM tbl_numbers WHERE id = 1',
-        );
+        const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
         const nextInvoiceNumber = String(nextRows[0]?.invoice_no ?? 0);
         await loadData();
         return { ...result, nextInvoiceNumber };
@@ -342,7 +688,9 @@ function InvoiceForm() {
 
       const result = await saved(
         {
+          invoice_id: editingId,
           customer_id: customerId,
+          invoice_no: invoiceNumber,
           invoice_date: invoiceDate,
           sub_total: subTotal,
           amount_due: selectedCustomer?.due_amount ?? 0,
@@ -358,6 +706,7 @@ function InvoiceForm() {
           print_due: printDue ? 'YES' : null,
           checklist_no: checklistNo || null,
           line_items: activeItems.map((li, i) => ({
+            id: li.id > 0 ? li.id : undefined,
             qty: li.qty,
             product_id: li.product_id,
             unit_price: li.unit_price,
@@ -365,14 +714,15 @@ function InvoiceForm() {
             s_no: i + 1,
             company_id: li.company_id,
           })),
+          deleted_line_item_ids: deletedLineItemIds,
           isAdvance,
         },
         resolveCompanyId(activeItems[0]?.company_id ?? null),
       );
-      const nextRows = await query<{ invoice_no: number }>(
-        'SELECT invoice_no FROM tbl_numbers WHERE id = 1',
+      const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
+      const nextInvoiceNumber = String(
+        editingId ? nextRows[0]?.invoice_no ?? Number(invoiceNumber) : nextRows[0]?.invoice_no ?? result.invoice_no,
       );
-      const nextInvoiceNumber = String(nextRows[0]?.invoice_no ?? result.invoice_no);
       await loadData();
       return { ...result, nextInvoiceNumber };
     } catch (err) {
@@ -390,7 +740,10 @@ function InvoiceForm() {
     checklistNo,
     companyId,
     customerId,
+    deletedLineItemIds,
+    editingId,
     invoiceDate,
+    invoiceNumber,
     isAdvance,
     lineItems,
     loadData,
@@ -409,9 +762,9 @@ function InvoiceForm() {
     }
 
     const invNo = 'invoice_no' in result ? result.invoice_no : `${result.invoice1_no} & ${result.invoice2_no}`;
-    toast.success(`Invoice ${invNo} saved`);
+    toast.success(editingId ? `Invoice ${invNo} updated` : `Invoice ${invNo} saved`);
     resetForm(result.nextInvoiceNumber);
-  }, [persistInvoice, resetForm]);
+  }, [editingId, persistInvoice, resetForm]);
 
   const handlePrint = useCallback(async () => {
     const result = await persistInvoice();
@@ -534,6 +887,13 @@ function InvoiceForm() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.ctrlKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        const activeCompanyId = [...lineItems].reverse().find((item) => !item.deleted)?.company_id ?? null;
+        addLineItem(activeCompanyId);
+        return;
+      }
+
       if (e.ctrlKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         const activeRow = [...lineItems].reverse().find((item) => !item.deleted);
@@ -545,7 +905,7 @@ function InvoiceForm() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [lineItems, toggleDeleteLineItem]);
+  }, [addLineItem, lineItems, toggleDeleteLineItem]);
 
   if (loading) {
     return (
@@ -560,12 +920,14 @@ function InvoiceForm() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <FileText className="size-5" />
-          <h1 className="text-2xl font-semibold">New Invoice</h1>
+          <h1 className="text-2xl font-semibold">
+            {editingId ? `Edit Invoice ${invoiceNumber}` : 'New Invoice'}
+          </h1>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
             <RotateCcw className="size-4" />
-            Create New Invoice
+            {editingId ? 'Create New Invoice' : 'Clear'}
           </Button>
           <Button variant="outline" onClick={handleCreateReceipt} disabled={saving}>
             <Receipt className="size-4" />
@@ -598,21 +960,38 @@ function InvoiceForm() {
 
           <div className="space-y-1">
             <Label>Customer *</Label>
-            <Select
-              value={customerId ? String(customerId) : ''}
-              onValueChange={(v) => setCustomerId(parseInt(v))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select customer..." />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.customer_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Input
+                value={customerSearch}
+                onChange={(event) => setCustomerSearch(event.target.value)}
+                onKeyDown={handleCustomerSearchKeyDown}
+                placeholder="Search customer by name, phone, email, or address"
+              />
+              <Select
+                value={customerId ? String(customerId) : ''}
+                onValueChange={(v) => {
+                  const selected = customers.find((customer) => customer.id === parseInt(v, 10));
+                  if (selected) {
+                    selectCustomer(selected);
+                    return;
+                  }
+                  setCustomerId(parseInt(v, 10));
+                  setCustomerSearchIndex(0);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select customer..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredCustomers.slice(0, 100).map((c, index) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {index === customerSearchIndex ? '→ ' : ''}
+                      {[c.title_name?.trim(), c.customer_name, c.telephone?.trim()].filter(Boolean).join(' - ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-1">
@@ -651,6 +1030,23 @@ function InvoiceForm() {
               value={refNo}
               onChange={(e) => setRefNo(e.target.value)}
             />
+          </div>
+
+          <div className="space-y-1">
+            <Label>Product Type</Label>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger>
+                <SelectValue placeholder="All types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {productTypes.map((type) => (
+                  <SelectItem key={type.id} value={String(type.id)}>
+                    {type.type_name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="flex items-end">
@@ -700,6 +1096,68 @@ function InvoiceForm() {
         </CardContent>
       </Card>
 
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Search className="size-4" />
+            Product Search
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Input
+            placeholder="Search by product code or name"
+            value={productSearch}
+            onChange={(event) => setProductSearch(event.target.value)}
+            onKeyDown={handleProductSearchKeyDown}
+            className="max-w-md"
+          />
+          <div className="max-h-52 overflow-auto rounded-md border">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted/60">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Code</th>
+                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">Price</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">Company</th>
+                  <th className="px-3 py-2" />
+                </tr>
+              </thead>
+              <tbody>
+                {filteredProducts.slice(0, 12).map((product, index) => (
+                  <tr
+                    key={product.id}
+                    className={index === productSearchIndex ? 'border-t bg-muted/50' : 'border-t hover:bg-muted/30'}
+                  >
+                    <td className="px-3 py-2">{product.product_id ?? '-'}</td>
+                    <td className="px-3 py-2">{product.product_name}</td>
+                    <td className="px-3 py-2 text-right">${dollars(product.price)}</td>
+                    <td className="px-3 py-2 text-right">
+                      {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleProductPick(product)}
+                      >
+                        Use
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {filteredProducts.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
+                      No products match this search
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Vertical Company Sections - one per active company */}
       {companies.map((company) => {
         const companyProducts = products.filter((p) => p.company_id === company.id);
@@ -712,6 +1170,7 @@ function InvoiceForm() {
             ...prev,
             {
               uid: nextUid(),
+              id: 0,
               qty: 1,
               product_id: null,
               product_name: '',
@@ -738,6 +1197,7 @@ function InvoiceForm() {
                           ...prev,
                           {
                             uid: nextUid(),
+                            id: 0,
                             qty: 1,
                             product_id: product.id,
                             product_name: product.product_name,
@@ -904,6 +1364,7 @@ function InvoiceForm() {
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Discount %</Label>
             <Input
+              ref={discountInputRef}
               type="number"
               min="0"
               max="100"

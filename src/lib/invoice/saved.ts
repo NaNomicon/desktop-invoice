@@ -1,6 +1,7 @@
 import { getDb } from '@/lib/db';
 
 export interface InvoiceLineItem {
+  id?: number;
   qty: number;
   product_id: number | null;
   unit_price: number;
@@ -10,6 +11,7 @@ export interface InvoiceLineItem {
 }
 
 export interface InvoiceSaveParams {
+  invoice_id?: number | null;
   customer_id: number;
   invoice_no?: string;
   invoice_date: string;
@@ -27,6 +29,7 @@ export interface InvoiceSaveParams {
   print_due: string | null;
   checklist_no: string | null;
   line_items: InvoiceLineItem[];
+  deleted_line_item_ids?: number[];
   isAdvance: boolean;
 }
 
@@ -56,7 +59,9 @@ export async function saved(
   await db.execute('BEGIN TRANSACTION');
 
   try {
-    let invoice_no = params.invoice_no;
+    const isEditing = Boolean(params.invoice_id);
+    let invoice_no = params.invoice_no?.trim() || '';
+
     const custRows = await db.select<
       { ad_due: string; due_amount: number }[]
     >('SELECT ad_due, due_amount FROM tbl_customer WHERE id = ?', [
@@ -64,7 +69,22 @@ export async function saved(
     ]);
     const customer = custRows[0];
 
-    if (!invoice_no) {
+    let invoiceId = params.invoice_id ?? 0;
+    let previousNetDelta = 0;
+
+    if (isEditing) {
+      const existingRows = await db.select<
+        { invoice_no: string; total: number; paid_amount: number }[]
+      >('SELECT invoice_no, total, paid_amount FROM tbl_invoice_main WHERE id = ?', [
+        invoiceId,
+      ]);
+      const existing = existingRows[0];
+      if (!existing) {
+        throw new Error(`Invoice ${invoiceId} not found`);
+      }
+      invoice_no = invoice_no || existing.invoice_no;
+      previousNetDelta = existing.total - existing.paid_amount;
+    } else if (!invoice_no) {
       await db.execute(
         'UPDATE tbl_numbers SET invoice_no = invoice_no + 1',
         [],
@@ -80,7 +100,7 @@ export async function saved(
       ? toSignedBalance(customer.ad_due, customer.due_amount)
       : 0;
     const netInvoiceDelta = params.total - params.paid_amount;
-    const endingSignedBalance = startingSignedBalance + netInvoiceDelta;
+    const endingSignedBalance = startingSignedBalance - previousNetDelta + netInvoiceDelta;
     const nextCustomerBalance = fromSignedBalance(endingSignedBalance);
 
     let cr_dr: string | null = null;
@@ -90,54 +110,129 @@ export async function saved(
       cr_dr = 'Cr.';
     }
 
-    await db.execute(
-      `INSERT INTO tbl_invoice_main (
-        customer_id, invoice_no, checklist_no, company_id,
-        sub_total, amount_due, vat, discount, total, per,
-        invoice_date, case_debit, paid_amount, balance, no, cr_dr, identify, print_due
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        params.customer_id,
-        invoice_no,
-        params.checklist_no ?? null,
-        companyId,
-        params.sub_total,
-        params.amount_due,
-        params.vat,
-        params.discount,
-        params.total,
-        params.per,
-        params.invoice_date,
-        params.case_debit ?? null,
-        params.paid_amount,
-        params.balance,
-        params.no ?? null,
-        cr_dr,
-        params.identify ?? 'Invoice',
-        params.print_due ?? null,
-      ],
-    );
-
-    const idRows = await db.select<{ id: number }[]>(
-      'SELECT last_insert_rowid() as id',
-      [],
-    );
-    const main_id = idRows[0]?.id ?? 0;
-
-    for (const item of params.line_items) {
+    if (isEditing) {
       await db.execute(
-        `INSERT INTO tbl_invoice_sub (main_id, qty, product_id, unit_price, row_total, s_no, company_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        `UPDATE tbl_invoice_main
+         SET customer_id = ?,
+             invoice_no = ?,
+             checklist_no = ?,
+             company_id = ?,
+             sub_total = ?,
+             amount_due = ?,
+             vat = ?,
+             discount = ?,
+             total = ?,
+             per = ?,
+             invoice_date = ?,
+             case_debit = ?,
+             paid_amount = ?,
+             balance = ?,
+             no = ?,
+             cr_dr = ?,
+             identify = ?,
+             print_due = ?
+         WHERE id = ?`,
         [
-          main_id,
-          item.qty,
-          item.product_id ?? null,
-          item.unit_price,
-          item.row_total,
-          item.s_no,
+          params.customer_id,
+          invoice_no,
+          params.checklist_no ?? null,
           companyId,
+          params.sub_total,
+          params.amount_due,
+          params.vat,
+          params.discount,
+          params.total,
+          params.per,
+          params.invoice_date,
+          params.case_debit ?? null,
+          params.paid_amount,
+          params.balance,
+          params.no ?? null,
+          cr_dr,
+          params.identify ?? 'Invoice',
+          params.print_due ?? null,
+          invoiceId,
         ],
       );
+    } else {
+      await db.execute(
+        `INSERT INTO tbl_invoice_main (
+          customer_id, invoice_no, checklist_no, company_id,
+          sub_total, amount_due, vat, discount, total, per,
+          invoice_date, case_debit, paid_amount, balance, no, cr_dr, identify, print_due
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          params.customer_id,
+          invoice_no,
+          params.checklist_no ?? null,
+          companyId,
+          params.sub_total,
+          params.amount_due,
+          params.vat,
+          params.discount,
+          params.total,
+          params.per,
+          params.invoice_date,
+          params.case_debit ?? null,
+          params.paid_amount,
+          params.balance,
+          params.no ?? null,
+          cr_dr,
+          params.identify ?? 'Invoice',
+          params.print_due ?? null,
+        ],
+      );
+
+      const idRows = await db.select<{ id: number }[]>(
+        'SELECT last_insert_rowid() as id',
+        [],
+      );
+      invoiceId = idRows[0]?.id ?? 0;
+    }
+
+    for (const item of params.line_items) {
+      if (item.id && item.id > 0) {
+        await db.execute(
+          `UPDATE tbl_invoice_sub
+           SET qty = ?,
+               product_id = ?,
+               unit_price = ?,
+               row_total = ?,
+               s_no = ?,
+               company_id = ?,
+               is_deleted = 0
+           WHERE id = ?`,
+          [
+            item.qty,
+            item.product_id ?? null,
+            item.unit_price,
+            item.row_total,
+            item.s_no,
+            item.company_id ?? companyId,
+            item.id,
+          ],
+        );
+      } else {
+        await db.execute(
+          `INSERT INTO tbl_invoice_sub (main_id, qty, product_id, unit_price, row_total, s_no, company_id)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            invoiceId,
+            item.qty,
+            item.product_id ?? null,
+            item.unit_price,
+            item.row_total,
+            item.s_no,
+            item.company_id ?? companyId,
+          ],
+        );
+      }
+    }
+
+    for (const lineId of params.deleted_line_item_ids ?? []) {
+      if (lineId > 0) {
+        await db.execute('DELETE FROM tbl_invoice_sub WHERE id = ?', [lineId]);
+      }
     }
 
     await db.execute(
@@ -150,7 +245,7 @@ export async function saved(
     );
 
     await db.execute('COMMIT');
-    return { id: main_id, invoice_no };
+    return { id: invoiceId, invoice_no };
   } catch (err) {
     await db.execute('ROLLBACK');
     throw err;

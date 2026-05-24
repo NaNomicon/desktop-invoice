@@ -24,7 +24,7 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import { toast } from 'sonner';
-import { Eye, FileText, Search } from 'lucide-react';
+import { Eye, FilePenLine, FileText, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -100,6 +100,13 @@ function InvoiceList() {
     return rows;
   }, [invoices, search, companyFilter]);
 
+  const handleEdit = useCallback(
+    (invoiceId: number) => {
+      navigate('/invoices/new', { state: { invoiceId } });
+    },
+    [navigate],
+  );
+
   const columns = useMemo<ColumnDef<InvoiceRow>[]>(
     () => [
       {
@@ -159,6 +166,21 @@ function InvoiceList() {
         },
       },
       {
+        id: 'edit',
+        header: '',
+        cell: (info) => (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => handleEdit(info.row.original.id)}
+            aria-label={`Edit invoice ${info.row.original.invoice_no}`}
+          >
+            <FilePenLine className="size-3.5" />
+          </Button>
+        ),
+      },
+      {
         id: 'preview',
         header: '',
         cell: (info) => (
@@ -202,7 +224,7 @@ function InvoiceList() {
           ) : null,
       },
     ],
-    [admin, navigate],
+    [admin, handleEdit, navigate],
   );
 
   const table = useReactTable({
