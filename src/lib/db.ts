@@ -198,6 +198,36 @@ const SCHEMA_STATEMENTS = [
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
   )`,
+  `CREATE TABLE IF NOT EXISTS tbl_whatsapp (
+    id INTEGER PRIMARY KEY,
+    identify TEXT NOT NULL,
+    content_sid TEXT NOT NULL,
+    body TEXT NOT NULL,
+    header_type TEXT,
+    header_url TEXT,
+    footer TEXT,
+    status TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS tbl_whatsapp_settings (
+    id INTEGER PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    phone_id TEXT NOT NULL,
+    waba_id TEXT NOT NULL,
+    access_token TEXT NOT NULL,
+    display_name TEXT,
+    is_active INTEGER DEFAULT 1
+  )`,
+  `CREATE TABLE IF NOT EXISTS tbl_whatsapp_log (
+    id INTEGER PRIMARY KEY,
+    customer_id INTEGER,
+    identify TEXT,
+    recipient_phone TEXT NOT NULL,
+    message_sid TEXT,
+    status TEXT,
+    error_code TEXT,
+    error_message TEXT,
+    sent_at TEXT DEFAULT (datetime('now'))
+  )`,
   'CREATE INDEX IF NOT EXISTS idx_customer_name ON tbl_customer(customer_name)',
   'CREATE INDEX IF NOT EXISTS idx_product_type ON tbl_product(type_id)',
   'CREATE INDEX IF NOT EXISTS idx_product_company ON tbl_product(company_id)',
@@ -213,6 +243,9 @@ const SCHEMA_STATEMENTS = [
   'CREATE UNIQUE INDEX IF NOT EXISTS idx_email_identify ON tbl_email(identify)',
   'CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_template_name ON tbl_wa_template(template_name)',
   'CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_template_id ON tbl_wa_template(template_id)',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_identify ON tbl_whatsapp(identify)',
+  'CREATE INDEX IF NOT EXISTS idx_whatsapp_log_customer ON tbl_whatsapp_log(customer_id)',
+  'CREATE INDEX IF NOT EXISTS idx_whatsapp_log_status ON tbl_whatsapp_log(status)',
 ] as const;
 
 interface ColumnSpec {
@@ -401,6 +434,33 @@ const REQUIRED_COLUMNS: Record<string, ColumnSpec[]> = {
     { name: 'created_at', type: "TEXT DEFAULT (datetime('now'))" },
     { name: 'updated_at', type: "TEXT DEFAULT (datetime('now'))" },
   ],
+  tbl_whatsapp: [
+    { name: 'identify', type: 'TEXT NOT NULL' },
+    { name: 'content_sid', type: 'TEXT NOT NULL' },
+    { name: 'body', type: 'TEXT NOT NULL' },
+    { name: 'header_type', type: 'TEXT' },
+    { name: 'header_url', type: 'TEXT' },
+    { name: 'footer', type: 'TEXT' },
+    { name: 'status', type: 'TEXT' },
+  ],
+  tbl_whatsapp_settings: [
+    { name: 'company_id', type: 'INTEGER DEFAULT 1' },
+    { name: 'phone_id', type: 'TEXT NOT NULL' },
+    { name: 'waba_id', type: 'TEXT NOT NULL' },
+    { name: 'access_token', type: 'TEXT NOT NULL' },
+    { name: 'display_name', type: 'TEXT' },
+    { name: 'is_active', type: 'INTEGER DEFAULT 1' },
+  ],
+  tbl_whatsapp_log: [
+    { name: 'customer_id', type: 'INTEGER' },
+    { name: 'identify', type: 'TEXT' },
+    { name: 'recipient_phone', type: 'TEXT NOT NULL' },
+    { name: 'message_sid', type: 'TEXT' },
+    { name: 'status', type: 'TEXT' },
+    { name: 'error_code', type: 'TEXT' },
+    { name: 'error_message', type: 'TEXT' },
+    { name: 'sent_at', type: "TEXT DEFAULT (datetime('now'))" },
+  ],
 };
 
 async function ensureSchema(database: Database): Promise<void> {
@@ -431,17 +491,18 @@ async function seedDefaults(database: Database): Promise<void> {
   );
   await database.execute(
     `INSERT OR IGNORE INTO tbl_numbers (id, invoice_no, quo_no, receipt_no)
-     VALUES (1, 0, 0, 0)`,
+     VALUES (1, 1, 1, 1)`,
   );
+  // Bump existing 0/0/0 to 1/1/1 (migration from prior seed value)
   await database.execute(
     `UPDATE tbl_numbers
-     SET invoice_no = 0,
-         quo_no = 0,
-         receipt_no = 0
+     SET invoice_no = 1,
+         quo_no = 1,
+         receipt_no = 1
      WHERE id = 1
-       AND invoice_no = 1
-       AND quo_no = 1
-       AND receipt_no = 1`,
+       AND invoice_no = 0
+       AND quo_no = 0
+       AND receipt_no = 0`,
   );
   await database.execute(
     `INSERT OR IGNORE INTO tbl_setting (id, isvat, vat_per, cash, cheque, other)

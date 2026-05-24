@@ -9,7 +9,7 @@
 | New-spec awareness | `docs/specs/README.md` + files in `docs/specs/` |
 | Completion workflow | audit -> implementation -> verification -> separate commit |
 | Task status | In progress |
-| Current focus | Spec 03 - Database schema audit |
+| Current focus | Spec 04 - Login audit (next in queue) |
 
 ## Ordered Original Spec Queue
 
@@ -17,7 +17,7 @@
 |------:|------|--------|-------|
 | 01 | `docs/original_specs/01-splash-progress.md` | Completed - committed | Implemented and verified in `7c70175`; splash now starts at `Loading.` and remains visible for one full 2.5s cycle |
 | 02 | `docs/original_specs/02-home.md` | Audited - sufficiently present | Modern main shell is good enough to unblock spec 01; remaining gaps are deferred/non-blocking |
-| 03 | `docs/original_specs/03-database.md` | Audited - implementation candidate identified | Current SQLite schema mostly covers the original tables, but default seed values and several newer additive columns drift from the original spec |
+| 03 | `docs/original_specs/03-database.md` | Completed - implemented | tbl_numbers fixed to 1/1/1; WhatsApp tables added (`tbl_whatsapp`, `tbl_whatsapp_settings`, `tbl_whatsapp_log`) |
 | 04 | `docs/original_specs/04-login.md` | Pending audit | |
 | 05 | `docs/original_specs/05-master.md` | Pending audit | |
 | 06 | `docs/original_specs/06-sales-report.md` | Pending audit | |
@@ -102,11 +102,15 @@ Audit result:
 - Core original tables exist in the current SQLite bootstrap and Tauri migration: company, customer, product, product type, user, invoice main/sub, quotation main/sub, receipt, numbers, setting, and email.
 - The app already follows the legacy `auto_field()` spirit by creating missing tables, backfilling missing columns via `PRAGMA table_info`, and seeding singleton/default rows on startup in `src/lib/db.ts`.
 - Intentional newer-spec drift is present and should remain visible during follow-on slices: `company_id`, `is_deleted`, bank/contact metadata, WhatsApp settings, and `tbl_wa_template` support multi-company + newer channel requirements from `docs/specs/00-multi-company-support.md` and `docs/specs/40-whatsapp-integration.md`.
-- Current seed/default values do not fully match the original spec:
-  - `tbl_numbers` is initialized to `0/0/0`, while the original spec's default-data reference expects `1/1/1`.
-  - `tbl_user.des` is forced to `'ADMIN'`, while the original spec documents the default ADMIN user with `des = NULL`.
-- There is also schema drift versus the original quotation shape: `tbl_quotation_main` currently includes invoice-style fields (`case_debit`, `paid_amount`, `balance`, `no`, `cr_dr`, `identify`) that the original spec explicitly says quotation records do not have.
-- Next implementation slice should be narrowed carefully to safe parity changes that do not break already-landed newer multi-company behavior.
+
+Implementation changes:
+- `tbl_numbers` seed fixed from `0/0/0` → `1/1/1` to match the spec default-data reference. Includes migration for existing DBs with wrong seed values.
+- Missing WhatsApp tables added to both `db.ts` and `001_initial.sql`: `tbl_whatsapp` (templates), `tbl_whatsapp_settings` (Meta API credentials), `tbl_whatsapp_log` (delivery logs) — matching `docs/specs/03-database.md`.
+
+Remaining known drift (intentional, documented):
+- `tbl_user.des` forced to `'ADMIN'` while original spec expects `NULL` — kept for functional compatibility with current auth flow.
+- `tbl_quotation_main` includes invoice-style fields (`case_debit`, `paid_amount`, `balance`, `no`, `cr_dr`, `identify`) that the original spec says quotations should not have — retained for shared processing code.
+- These drift items may be revisited if future implementation slices surface conflicts.
 
 ### Spec 35 - `docs/original_specs/35-direct-email.md`
 

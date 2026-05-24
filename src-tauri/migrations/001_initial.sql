@@ -228,3 +228,41 @@ CREATE TABLE IF NOT EXISTS tbl_wa_template (
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_template_name ON tbl_wa_template(template_name);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_template_id ON tbl_wa_template(template_id);
+
+CREATE TABLE IF NOT EXISTS tbl_whatsapp (
+    id INTEGER PRIMARY KEY,
+    identify TEXT NOT NULL,
+    content_sid TEXT NOT NULL,
+    body TEXT NOT NULL,
+    header_type TEXT,
+    header_url TEXT,
+    footer TEXT,
+    status TEXT
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_identify ON tbl_whatsapp(identify);
+
+CREATE TABLE IF NOT EXISTS tbl_whatsapp_settings (
+    id INTEGER PRIMARY KEY,
+    company_id INTEGER DEFAULT 1,
+    phone_id TEXT NOT NULL,
+    waba_id TEXT NOT NULL,
+    access_token TEXT NOT NULL,
+    display_name TEXT,
+    is_active INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS tbl_whatsapp_log (
+    id INTEGER PRIMARY KEY,
+    customer_id INTEGER,
+    identify TEXT,
+    recipient_phone TEXT NOT NULL,
+    message_sid TEXT,
+    status TEXT,
+    error_code TEXT,
+    error_message TEXT,
+    sent_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_log_customer ON tbl_whatsapp_log(customer_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_log_status ON tbl_whatsapp_log(status);
