@@ -15,6 +15,8 @@ import UserPage from '@/pages/admin/User'
 import EmailTemplatesPage from '@/pages/admin/EmailTemplates'
 import WhatsAppTemplatesPage from '@/pages/admin/WhatsAppTemplates'
 import SettingsPage from '@/pages/admin/Settings'
+import BackupDatabase from '@/pages/admin/BackupDatabase'
+import RestoreDatabase from '@/pages/admin/RestoreDatabase'
 import SalesReport from '@/pages/reports/SalesReport'
 import StatementPreview from '@/pages/reports/StatementPreview'
 import PrintPreview from '@/pages/reports/PrintPreview'
@@ -24,8 +26,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { useUIStore, type HomeTabItem } from '@/store/ui-store'
 import { cn as mergeCn } from '@/lib/utils'
-import { query } from '@/lib/db'
-import type { Setting } from '@/lib/types'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -231,14 +231,7 @@ function HomeTabs() {
 }
 
 export function MainWindowContent({ className }: MainWindowContentProps) {
-  const [backupPath, setBackupPath] = useState<string | null>(null)
   const homeBackground = useUIStore(state => state.homeBackground)
-
-  useEffect(() => {
-    query<Setting>('SELECT backup_path FROM tbl_setting WHERE id = 1 LIMIT 1')
-      .then(rows => setBackupPath(rows[0]?.backup_path ?? null))
-      .catch(() => setBackupPath(null))
-  }, [])
 
   return (
     <div
@@ -321,25 +314,11 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             />
             <Route
               path="/home/backup"
-              element={
-                <PlaceholderPage
-                  title="Backup Database"
-                  description={
-                    backupPath
-                      ? `Configured backup path: ${backupPath}. The HOME shell now exposes the backup destination; the full backup execution flow is still pending a dedicated backup/restore spec pass.`
-                      : 'The HOME shell now exposes the backup destination. Configure backup_path in settings before running the full backup flow in a later spec pass.'
-                  }
-                />
-              }
+              element={<BackupDatabase />}
             />
             <Route
               path="/home/restore"
-              element={
-                <PlaceholderPage
-                  title="Restore Database"
-                  description="The HOME shell now exposes the restore destination. The complete restore workflow will be implemented when the restore database spec is addressed."
-                />
-              }
+              element={<RestoreDatabase />}
             />
             <Route path="*" element={<Navigate to="/invoices" replace />} />
           </Routes>

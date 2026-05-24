@@ -150,6 +150,42 @@ async sendEmail(request: SendEmailRequest) : Promise<Result<SendEmailResponse, s
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Returns the absolute path to the xpress.db file in the app config directory.
+ */
+async getDbPath() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_db_path") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Creates a backup of the active xpress.db to the specified destination path.
+ * Creates parent directories if they don't exist.
+ */
+async backupDatabase(destPath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("backup_database", { destPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+/**
+ * Restores the database by copying a backup file over the active xpress.db.
+ * The caller should call `exit(0)` from `@tauri-apps/plugin-process` after
+ * this command succeeds so the app re-initializes with the restored database.
+ */
+async restoreDatabase(fromPath: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("restore_database", { fromPath }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 

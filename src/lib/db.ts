@@ -496,12 +496,26 @@ export async function getDb(): Promise<Database> {
   if (!initPromise) {
     initPromise = initialize(db).catch((error) => {
       initPromise = null;
+      db = null;
       throw error;
     });
   }
 
   await initPromise;
   return db;
+}
+
+/** Closes the active database connection. Call before restore to release file locks. */
+export async function closeDb(): Promise<void> {
+  if (db) {
+    try {
+      await db.close();
+    } catch {
+      // ignore close errors
+    }
+    db = null;
+    initPromise = null;
+  }
 }
 
 export async function query<T>(sql: string, params: unknown[] = []): Promise<T[]> {

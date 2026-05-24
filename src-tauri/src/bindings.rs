@@ -1,7 +1,7 @@
 use tauri_specta::{collect_commands, Builder};
 
 pub fn generate_bindings() -> Builder<tauri::Wry> {
-    use crate::commands::{email, notifications, preferences, quick_pane, recovery};
+    use crate::commands::{database, email, notifications, preferences, quick_pane, recovery};
 
     Builder::<tauri::Wry>::new().commands(collect_commands![
         preferences::greet,
@@ -17,6 +17,9 @@ pub fn generate_bindings() -> Builder<tauri::Wry> {
         quick_pane::get_default_quick_pane_shortcut,
         quick_pane::update_quick_pane_shortcut,
         email::send_email,
+        database::get_db_path,
+        database::backup_database,
+        database::restore_database,
     ])
 }
 
