@@ -9,15 +9,15 @@
 | New-spec awareness | `docs/specs/README.md` + files in `docs/specs/` |
 | Completion workflow | audit -> implementation -> verification -> separate commit |
 | Task status | In progress |
-| Current focus | Spec 01 - Splash parity implementation |
+| Current focus | Spec 03 - Database schema audit |
 
 ## Ordered Original Spec Queue
 
 | Order | Spec | Status | Notes |
 |------:|------|--------|-------|
-| 01 | `docs/original_specs/01-splash-progress.md` | In implementation | HOME audit confirmed splash is unblocked; aligning startup timing, first frame, and label styling |
+| 01 | `docs/original_specs/01-splash-progress.md` | Completed - committed | Implemented and verified in `7c70175`; splash now starts at `Loading.` and remains visible for one full 2.5s cycle |
 | 02 | `docs/original_specs/02-home.md` | Audited - sufficiently present | Modern main shell is good enough to unblock spec 01; remaining gaps are deferred/non-blocking |
-| 03 | `docs/original_specs/03-database.md` | Pending audit | Cross-check against current SQLite schema |
+| 03 | `docs/original_specs/03-database.md` | Audited - implementation candidate identified | Current SQLite schema mostly covers the original tables, but default seed values and several newer additive columns drift from the original spec |
 | 04 | `docs/original_specs/04-login.md` | Pending audit | |
 | 05 | `docs/original_specs/05-master.md` | Pending audit | |
 | 06 | `docs/original_specs/06-sales-report.md` | Pending audit | |
@@ -76,14 +76,11 @@ Current implementation files:
 - `src/lib/db.ts`
 
 Audit result:
-- Visual splash exists and matches much of the legacy layout/animation.
+- Visual splash exists and matches the legacy layout, animation cadence, label styling, and startup timing.
 - Current splash is rendered inside the main React window during `isInitializing`.
-- Spec 02 audit confirmed the remaining splash gaps are self-contained and can be implemented independently now.
-- Remaining gaps being addressed in this slice:
-  - branding image still comes from DB logo rather than startup `P1.gif`
-  - first frame must start at `Loading.` instead of `Loading...`
-  - font/color should move closer to the legacy label styling
-  - splash must stay visible for at least one full 2.5s animation cycle during startup
+- Active company branding is still preferred when `tbl_company.logo` is available so newer multi-company behavior remains intact.
+- When no company logo is configured, the splash now falls back to a bundled startup-style image instead of the generic placeholder content.
+- Remaining intentional differences are architectural rather than missing parity work:
   - no standalone borderless splash window in the current Tauri shell
   - flow remains splash -> login/main window rather than splash -> HOME by design of the modern app
 
@@ -94,14 +91,24 @@ Audit result:
 - Current implementation coverage centers on `src/components/layout/MainWindow.tsx`, `src/components/layout/MainWindowContent.tsx`, `src/components/Sidebar.tsx`, `src/lib/menu.ts`, and `src/store/ui-store.ts`.
 - Remaining gaps are non-blocking shell differences and placeholder content routes, so spec 01 proceeds now.
 
-### Spec 35 - `docs/original_specs/35-direct-email.md`
+### Spec 03 - `docs/original_specs/03-database.md`
 
 Current implementation files:
-- `src-tauri/src/commands/email.rs`
-- `src/lib/email/send.ts`
-- `src/pages/invoice/InvoiceForm.tsx`
-- `src/pages/reports/QuotationPreview.tsx`
-- `src/pages/admin/EmailTemplates.tsx`
+- `src/lib/db.ts`
+- `src-tauri/migrations/001_initial.sql`
+- `docs/specs/03-database.md`
+
+Audit result:
+- Core original tables exist in the current SQLite bootstrap and Tauri migration: company, customer, product, product type, user, invoice main/sub, quotation main/sub, receipt, numbers, setting, and email.
+- The app already follows the legacy `auto_field()` spirit by creating missing tables, backfilling missing columns via `PRAGMA table_info`, and seeding singleton/default rows on startup in `src/lib/db.ts`.
+- Intentional newer-spec drift is present and should remain visible during follow-on slices: `company_id`, `is_deleted`, bank/contact metadata, WhatsApp settings, and `tbl_wa_template` support multi-company + newer channel requirements from `docs/specs/00-multi-company-support.md` and `docs/specs/40-whatsapp-integration.md`.
+- Current seed/default values do not fully match the original spec:
+  - `tbl_numbers` is initialized to `0/0/0`, while the original spec's default-data reference expects `1/1/1`.
+  - `tbl_user.des` is forced to `'ADMIN'`, while the original spec documents the default ADMIN user with `des = NULL`.
+- There is also schema drift versus the original quotation shape: `tbl_quotation_main` currently includes invoice-style fields (`case_debit`, `paid_amount`, `balance`, `no`, `cr_dr`, `identify`) that the original spec explicitly says quotation records do not have.
+- Next implementation slice should be narrowed carefully to safe parity changes that do not break already-landed newer multi-company behavior.
+
+### Spec 35 - `docs/original_specs/35-direct-email.md`
 
 Audit result:
 - Email capability exists, but as template-driven send actions embedded in invoice/quotation flows.
@@ -124,6 +131,6 @@ Keep a persistent, ordered rollout tracker for the original XPress specs while s
 
 ## Next Slice
 
-1. Finish implementing and verifying spec 01 splash parity.
-2. Create a separate commit containing only the spec 01 slice.
-3. Move to spec 03 database audit after the spec 01 commit is complete.
+1. Narrow the spec 03 database parity changes to a safe implementation set.
+2. Implement and verify that spec 03 slice without regressing newer multi-company behavior.
+3. Create a separate commit for the spec 03 work once complete.
