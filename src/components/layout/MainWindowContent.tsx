@@ -15,6 +15,7 @@ import UserPage from '@/pages/admin/User'
 import EmailTemplatesPage from '@/pages/admin/EmailTemplates'
 import WhatsAppTemplatesPage from '@/pages/admin/WhatsAppTemplates'
 import SettingsPage from '@/pages/admin/Settings'
+import ChangePasswordPage from '@/pages/admin/ChangePassword'
 import BackupDatabase from '@/pages/admin/BackupDatabase'
 import RestoreDatabase from '@/pages/admin/RestoreDatabase'
 import SalesReport from '@/pages/reports/SalesReport'
@@ -268,6 +269,10 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             <Route path="/email-templates" element={<EmailTemplatesPage />} />
             <Route path="/whatsapp-templates" element={<WhatsAppTemplatesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route
+              path="/home/change-password"
+              element={<ChangePasswordPage />}
+            />
             <Route path="/reports/sales" element={<SalesReport />} />
             <Route path="/reports/statement" element={<StatementPreview />} />
             <Route path="/reports/print" element={<PrintPreview invoice_id={0} />} />
@@ -303,19 +308,7 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
                 />
               }
             />
-            <Route
-              path="/home/change-password"
-              element={
-                <PlaceholderPage
-                  title="Change Password"
-                  description="The HOME shell now exposes the legacy Change Password destination. The full password change workflow will be added in a later user-management spec pass."
-                />
-              }
-            />
-            <Route
-              path="/home/backup"
-              element={<BackupDatabase />}
-            />
+            <Route path="/home/backup" element={<BackupDatabase />} />
             <Route
               path="/home/restore"
               element={<RestoreDatabase />}
