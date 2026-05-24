@@ -20,12 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-} from '@tanstack/react-table';
 import { toast } from 'sonner';
 import {
   Mail,
@@ -209,23 +203,6 @@ function InvoiceForm() {
     },
     [],
   );
-
-  const addLineItem = useCallback(() => {
-    setLineItems((prev) => [
-      ...prev,
-      {
-        uid: nextUid(),
-        qty: 1,
-        product_id: null,
-        product_name: '',
-        unit_price: 0,
-        row_total: 0,
-        s_no: prev.length + 1,
-        deleted: false,
-        company_id: null,
-      },
-    ]);
-  }, []);
 
   const toggleDeleteLineItem = useCallback((uid: string) => {
     setLineItems((prev) =>
@@ -442,10 +419,14 @@ function InvoiceForm() {
       return;
     }
 
-    const invId = 'id' in result ? result.id : result.invoice1_id;
-    const invNo = 'invoice_no' in result ? result.invoice_no : `${result.invoice1_no} & ${result.invoice2_no}`;
-    toast.success(`Invoice ${invNo} saved`);
-    navigate(`/reports/print/${invId}`);
+    const isSplit = 'invoice1_id' in result;
+    if (isSplit) {
+      toast.success(`Invoices ${result.invoice1_no} & ${result.invoice2_no} saved`);
+      navigate(`/reports/print/${result.invoice1_id}`);
+    } else {
+      toast.success(`Invoice ${result.invoice_no} saved`);
+      navigate(`/reports/print/${result.id}`);
+    }
   }, [navigate, persistInvoice]);
 
   const handleCreateReceipt = useCallback(() => {
@@ -551,140 +532,8 @@ function InvoiceForm() {
     subTotal,
   ]);
 
-  const columns = useMemo<ColumnDef<LineItem>[]>(
-    () => [
-      {
-        accessorKey: 's_no',
-        header: '#',
-        size: 40,
-        cell: (info) => info.getValue<number>(),
-      },
-      {
-        id: 'product',
-        header: 'Product',
-        cell: (info) => {
-          const li = info.row.original;
-          const filteredProducts = li.company_id
-            ? products.filter((p) => p.company_id === li.company_id)
-            : products;
-          if (li.deleted) {
-            return <span className="text-muted-foreground line-through">{li.product_name || '-'}</span>;
-          }
-          return (
-            <Select
-              value={li.product_id ? String(li.product_id) : ''}
-              onValueChange={(v) => {
-                const prod = products.find((p) => p.id === parseInt(v));
-                updateLineItem(li.uid, {
-                  product_id: prod ? prod.id : null,
-                  product_name: prod?.product_name ?? '',
-                  unit_price: prod?.price ?? 0,
-                  company_id: prod?.company_id ?? null,
-                });
-              }}
-            >
-              <SelectTrigger className="h-8 w-full min-w-[180px]">
-                <SelectValue placeholder="Select product..." />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredProducts.map((p) => (
-                  <SelectItem key={p.id} value={String(p.id)}>
-                    {p.product_id ? `${p.product_id} - ${p.product_name}` : p.product_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          );
-        },
-      },
-      {
-        accessorKey: 'qty',
-        header: 'Qty',
-        size: 80,
-        cell: (info) => {
-          const li = info.row.original;
-          if (li.deleted) return <span className="text-muted-foreground">{li.qty}</span>;
-          return (
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              className="h-8 w-20"
-              value={li.qty}
-              onChange={(e) =>
-                updateLineItem(li.uid, { qty: parseInt(e.target.value) || 0 })
-              }
-            />
-          );
-        },
-      },
-      {
-        accessorKey: 'unit_price',
-        header: 'Price',
-        size: 100,
-        cell: (info) => {
-          const li = info.row.original;
-          if (li.deleted) return <span className="text-muted-foreground">${dollars(li.unit_price)}</span>;
-          return (
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              className="h-8 w-28"
-              value={(li.unit_price / 100).toFixed(2)}
-              onChange={(e) =>
-                updateLineItem(li.uid, { unit_price: cents(e.target.value) })
-              }
-            />
-          );
-        },
-      },
-      {
-        accessorKey: 'row_total',
-        header: 'Total',
-        size: 100,
-        cell: (info) => {
-          const value = info.getValue<number>();
-          return <span className={info.row.original.deleted ? 'text-muted-foreground line-through' : 'font-medium'}>${dollars(value)}</span>;
-        },
-      },
-      {
-        id: 'actions',
-        header: '',
-        size: 40,
-        cell: (info) => (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={
-              info.row.original.deleted
-                ? 'text-destructive'
-                : 'text-muted-foreground hover:text-destructive'
-            }
-            onClick={() => toggleDeleteLineItem(info.row.original.uid)}
-            title="Ctrl+D to toggle delete"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        ),
-      },
-    ],
-    [products, updateLineItem, toggleDeleteLineItem],
-  );
-
-  const table = useReactTable({
-    data: lineItems,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
-
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key.toLowerCase() === 'i') {
-        e.preventDefault();
-        addLineItem();
-      }
-
       if (e.ctrlKey && e.key.toLowerCase() === 'd') {
         e.preventDefault();
         const activeRow = [...lineItems].reverse().find((item) => !item.deleted);
@@ -696,7 +545,7 @@ function InvoiceForm() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [addLineItem, lineItems, toggleDeleteLineItem]);
+  }, [lineItems, toggleDeleteLineItem]);
 
   if (loading) {
     return (
@@ -760,25 +609,6 @@ function InvoiceForm() {
                 {customers.map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>
                     {c.customer_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-1">
-            <Label>Company</Label>
-            <Select
-              value={String(companyId)}
-              onValueChange={(v) => setCompanyId(parseInt(v))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -870,62 +700,183 @@ function InvoiceForm() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle>Line Items</CardTitle>
-            <Button variant="outline" size="sm" onClick={addLineItem}>
-              <Plus className="size-3.5" />
-              Add Row
-            </Button>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead>
-                {table.getHeaderGroups().map((hg) => (
-                  <tr key={hg.id} className="bg-muted/50">
-                    {hg.headers.map((h) => (
-                      <th
-                        key={h.id}
-                        className="px-3 py-2 text-left font-medium text-muted-foreground"
-                        style={{ width: h.column.columnDef.size }}
-                      >
-                        {flexRender(h.column.columnDef.header, h.getContext())}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className={`border-t hover:bg-muted/30 ${row.original.deleted ? 'bg-muted/20 opacity-50' : ''}`}
+      {/* Vertical Company Sections - one per active company */}
+      {companies.map((company) => {
+        const companyProducts = products.filter((p) => p.company_id === company.id);
+        const companyItems = lineItems.filter((li) => li.company_id === company.id);
+        const companySubtotal = companyItems.filter((li) => !li.deleted).reduce((sum, li) => sum + li.row_total, 0);
+        const companyName = company.company_name ?? company.company_code ?? `Company ${company.id}`;
+
+        const addItemToCompany = () => {
+          setLineItems((prev) => [
+            ...prev,
+            {
+              uid: nextUid(),
+              qty: 1,
+              product_id: null,
+              product_name: '',
+              unit_price: 0,
+              row_total: 0,
+              s_no: prev.length + 1,
+              deleted: false,
+              company_id: company.id,
+            },
+          ]);
+        };
+
+        return (
+          <Card key={company.id}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">{companyName}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select
+                    onValueChange={(v: string) => {
+                      const product = companyProducts.find((p) => p.id === parseInt(v, 10));
+                      if (product) {
+                        setLineItems((prev) => [
+                          ...prev,
+                          {
+                            uid: nextUid(),
+                            qty: 1,
+                            product_id: product.id,
+                            product_name: product.product_name,
+                            unit_price: product.price,
+                            row_total: product.price,
+                            s_no: prev.length + 1,
+                            deleted: false,
+                            company_id: company.id,
+                          },
+                        ]);
+                      }
+                    }}
                   >
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-3 py-1.5">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Add product..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyProducts.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.product_name} - ${dollars(p.price)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={addItemToCompany}>
+                    <Plus className="size-3.5" />
+                    Add Row
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {companyItems.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">No items for {companyName}</p>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="w-12 px-3 py-2 text-left font-medium text-muted-foreground">#</th>
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
+                        <th className="w-20 px-3 py-2 text-left font-medium text-muted-foreground">Qty</th>
+                        <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Price</th>
+                        <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Total</th>
+                        <th className="w-10 px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {companyItems.map((li, idx) => (
+                        <tr
+                          key={li.uid}
+                          className={`border-t hover:bg-muted/30 ${li.deleted ? 'bg-muted/20 opacity-50' : ''}`}
+                        >
+                          <td className="px-3 py-1.5 text-muted-foreground">{idx + 1}</td>
+                          <td className="px-3 py-1.5">{li.product_name || '-'}</td>
+                          <td className="px-3 py-1.5">
+                            {li.deleted ? (
+                              <span className="text-muted-foreground">{li.qty}</span>
+                            ) : (
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                className="h-8 w-20"
+                                value={li.qty}
+                                onChange={(e) =>
+                                  updateLineItem(li.uid, { qty: parseInt(e.target.value) || 0 })
+                                }
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {li.deleted ? (
+                              <span className="text-muted-foreground">${dollars(li.unit_price)}</span>
+                            ) : (
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="h-8 w-28"
+                                value={(li.unit_price / 100).toFixed(2)}
+                                onChange={(e) =>
+                                  updateLineItem(li.uid, { unit_price: cents(e.target.value) })
+                                }
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 font-medium">
+                            ${dollars(li.row_total)}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className={li.deleted ? 'text-destructive' : 'text-muted-foreground hover:text-destructive'}
+                              onClick={() => toggleDeleteLineItem(li.uid)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-muted/30">
+                        <td colSpan={4} className="px-3 py-2 text-right font-medium">
+                          Subtotal
+                        </td>
+                        <td className="px-3 py-2 font-semibold">${dollars(companySubtotal)}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
 
       <Card>
         <CardHeader>
           <CardTitle>Totals</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-5">
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Sub Total</Label>
-            <p className="text-lg font-medium">${dollars(subTotal)}</p>
-          </div>
+          {companies.map((company) => {
+            const companySubtotal = lineItems
+              .filter((li) => li.company_id === company.id && !li.deleted)
+              .reduce((sum, li) => sum + li.row_total, 0);
+            if (companySubtotal === 0) return null;
+            return (
+              <div key={company.id} className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  {company.company_name ?? company.company_code ?? `Company ${company.id}`}
+                </Label>
+                <p className="text-lg font-medium">${dollars(companySubtotal)}</p>
+              </div>
+            );
+          })}
           {settings?.isvat === 1 && calResult.vat > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">VAT</Label>

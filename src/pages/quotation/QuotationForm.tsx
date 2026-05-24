@@ -26,12 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-} from '@tanstack/react-table';
+
 import { toast } from 'sonner';
 import {
   ArrowLeftRight,
@@ -564,148 +559,6 @@ function QuotationForm() {
     navigate('/products');
   }, [navigate]);
 
-  const columns = useMemo<ColumnDef<LineItem>[]>(
-    () => [
-      {
-        accessorKey: 's_no',
-        header: '#',
-        size: 40,
-        cell: (info) => info.row.original.deleted ? '' : info.getValue<number>(),
-      },
-      {
-        accessorKey: 'product_name',
-        header: 'Item Name',
-        cell: (info) => {
-          const item = info.row.original;
-          return item.deleted ? (
-            <span className="text-muted-foreground line-through">{item.product_name || '-'}</span>
-          ) : (
-            <Select
-              value={item.product_id ? String(item.product_id) : ''}
-              onValueChange={(value) => {
-                const prod = products.find((p) => p.id === parseInt(value, 10));
-                updateLineItem(item.uid, {
-                  product_id: parseInt(value, 10),
-                  product_name: prod?.product_name ?? item.product_name,
-                  unit_price: prod?.price ?? item.unit_price,
-                  company_id: prod?.company_id ?? item.company_id,
-                });
-              }}
-            >
-              <SelectTrigger className="h-8 min-w-[220px]">
-                <SelectValue placeholder="Select product..." />
-              </SelectTrigger>
-              <SelectContent>
-                {filteredProducts.map((product) => (
-                  <SelectItem key={product.id} value={String(product.id)}>
-                    {product.product_id
-                      ? `${product.product_id} - ${product.product_name}`
-                      : product.product_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          );
-        },
-      },
-      {
-        accessorKey: 'qty',
-        header: 'Qty',
-        cell: (info) => {
-          const item = info.row.original;
-          return item.deleted ? (
-            <span className="text-muted-foreground">{item.qty}</span>
-          ) : (
-            <Input
-              type="number"
-              min="0"
-              step="1"
-              className="h-8 w-20"
-              value={item.qty}
-              onChange={(event) =>
-                updateLineItem(item.uid, { qty: parseInt(event.target.value || '0', 10) || 0 })
-              }
-            />
-          );
-        },
-      },
-      {
-        accessorKey: 'unit_price',
-        header: 'Unit Price',
-        cell: (info) => {
-          const item = info.row.original;
-          return item.deleted ? (
-            <span className="text-muted-foreground">${dollars(item.unit_price)}</span>
-          ) : (
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              className="h-8 w-28"
-              value={dollars(item.unit_price)}
-              onChange={(event) =>
-                updateLineItem(item.uid, { unit_price: cents(event.target.value) })
-              }
-            />
-          );
-        },
-      },
-      {
-        accessorKey: 'row_total',
-        header: 'Total',
-        cell: (info) => {
-          const item = info.row.original;
-          return (
-            <span className={item.deleted ? 'text-muted-foreground line-through' : 'font-medium'}>
-              ${dollars(info.getValue<number>())}
-            </span>
-          );
-        },
-      },
-      {
-        id: 'actions',
-        header: '',
-        cell: (info) => (
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            className={info.row.original.deleted ? 'text-destructive' : 'text-muted-foreground hover:text-destructive'}
-            onClick={() => toggleDeleteLineItem(info.row.original.uid)}
-            title="Ctrl+D to toggle delete"
-          >
-            <Trash2 className="size-3.5" />
-          </Button>
-        ),
-      },
-    ],
-    [filteredProducts, toggleDeleteLineItem, updateLineItem],
-  );
-
-  const table = useReactTable({
-    data: lineItems,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
-
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.ctrlKey && event.key.toLowerCase() === 'i') {
-        event.preventDefault();
-        addLineItem();
-      }
-      if (event.ctrlKey && event.key.toLowerCase() === 'd') {
-        event.preventDefault();
-        const activeRow = [...lineItems].reverse().find((item) => !item.deleted);
-        if (activeRow) {
-          toggleDeleteLineItem(activeRow.uid);
-        }
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [addLineItem, lineItems, toggleDeleteLineItem]);
-
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -783,24 +636,6 @@ function QuotationForm() {
             </Select>
           </div>
           <div className="space-y-1">
-            <Label>Company</Label>
-            <Select
-              value={String(companyId)}
-              onValueChange={(value) => setCompanyId(parseInt(value, 10))}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {companies.map((company) => (
-                  <SelectItem key={company.id} value={String(company.id)}>
-                    {company.company_name ?? `Company ${company.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
             <Label>Checklist No</Label>
             <Input value={checklistNo} onChange={(event) => setChecklistNo(event.target.value)} />
           </div>
@@ -839,18 +674,12 @@ function QuotationForm() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-3">
-            <Input
-              placeholder="Search by product code or name"
-              value={productSearch}
-              onChange={(event) => setProductSearch(event.target.value)}
-              className="max-w-md"
-            />
-            <Button variant="outline" onClick={addLineItem}>
-              <Plus className="size-4" />
-              Add Line
-            </Button>
-          </div>
+          <Input
+            placeholder="Search by product code or name"
+            value={productSearch}
+            onChange={(event) => setProductSearch(event.target.value)}
+            className="max-w-md"
+          />
           <div className="max-h-52 overflow-auto rounded-md border">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-muted/60">
@@ -858,6 +687,7 @@ function QuotationForm() {
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground">Code</th>
                   <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
                   <th className="px-3 py-2 text-right font-medium text-muted-foreground">Price</th>
+                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">Company</th>
                   <th className="px-3 py-2" />
                 </tr>
               </thead>
@@ -867,6 +697,9 @@ function QuotationForm() {
                     <td className="px-3 py-2">{product.product_id ?? '-'}</td>
                     <td className="px-3 py-2">{product.product_name}</td>
                     <td className="px-3 py-2 text-right">${dollars(product.price)}</td>
+                    <td className="px-3 py-2 text-right">
+                      {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
+                    </td>
                     <td className="px-3 py-2 text-right">
                       <Button
                         variant="ghost"
@@ -880,7 +713,7 @@ function QuotationForm() {
                 ))}
                 {filteredProducts.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="px-3 py-6 text-center text-muted-foreground">
+                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
                       No products match this search
                     </td>
                   </tr>
@@ -891,71 +724,217 @@ function QuotationForm() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Line Items</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead>
-                {table.getHeaderGroups().map((group) => (
-                  <tr key={group.id} className="bg-muted/50">
-                    {group.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="px-4 py-2 text-left font-medium text-muted-foreground"
-                      >
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <tr key={row.id} className="border-t">
-                    {row.getVisibleCells().map((cell) => (
-                      <td key={cell.id} className="px-4 py-2 align-middle">
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
+      {companies.map((company) => {
+        const companyProducts = products.filter((p) => p.company_id === company.id);
+        const companyItems = lineItems.filter((li) => li.company_id === company.id);
+        const companySubtotal = companyItems.filter((li) => !li.deleted).reduce((sum, li) => sum + li.row_total, 0);
+        const companyName = company.company_name ?? company.company_code ?? `Company ${company.id}`;
+
+        const addItemToCompany = () => {
+          setLineItems((prev) => [
+            ...prev,
+            {
+              uid: nextUid(),
+              id: 0,
+              qty: 1,
+              product_id: null,
+              product_name: '',
+              unit_price: 0,
+              row_total: 0,
+              s_no: prev.length + 1,
+              deleted: false,
+              company_id: company.id,
+            },
+          ]);
+        };
+
+        return (
+          <Card key={company.id}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base font-semibold">{companyName}</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Select
+                    onValueChange={(v: string) => {
+                      const product = companyProducts.find((p) => p.id === parseInt(v, 10));
+                      if (product) {
+                        setLineItems((prev) => [
+                          ...prev,
+                          {
+                            uid: nextUid(),
+                            id: 0,
+                            qty: 1,
+                            product_id: product.id,
+                            product_name: product.product_name,
+                            unit_price: product.price,
+                            row_total: product.price,
+                            s_no: prev.length + 1,
+                            deleted: false,
+                            company_id: company.id,
+                          },
+                        ]);
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-48">
+                      <SelectValue placeholder="Add product..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {companyProducts.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)}>
+                          {p.product_name} - ${dollars(p.price)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button variant="outline" size="sm" onClick={addItemToCompany}>
+                    <Plus className="size-3.5" />
+                    Add Row
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {companyItems.length === 0 ? (
+                <p className="py-4 text-center text-sm text-muted-foreground">No items for {companyName}</p>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="w-12 px-3 py-2 text-left font-medium text-muted-foreground">#</th>
+                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
+                        <th className="w-20 px-3 py-2 text-left font-medium text-muted-foreground">Qty</th>
+                        <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Price</th>
+                        <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Total</th>
+                        <th className="w-10 px-3 py-2"></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {companyItems.map((li, idx) => (
+                        <tr
+                          key={li.uid}
+                          className={`border-t hover:bg-muted/30 ${li.deleted ? 'bg-muted/20 opacity-50' : ''}`}
+                        >
+                          <td className="px-3 py-1.5 text-muted-foreground">{idx + 1}</td>
+                          <td className="px-3 py-1.5">{li.product_name || '-'}</td>
+                          <td className="px-3 py-1.5">
+                            {li.deleted ? (
+                              <span className="text-muted-foreground">{li.qty}</span>
+                            ) : (
+                              <Input
+                                type="number"
+                                min="0"
+                                step="1"
+                                className="h-8 w-20"
+                                value={li.qty}
+                                onChange={(e) =>
+                                  updateLineItem(li.uid, { qty: parseInt(e.target.value) || 0 })
+                                }
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            {li.deleted ? (
+                              <span className="text-muted-foreground">${dollars(li.unit_price)}</span>
+                            ) : (
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                className="h-8 w-28"
+                                value={(li.unit_price / 100).toFixed(2)}
+                                onChange={(e) =>
+                                  updateLineItem(li.uid, { unit_price: cents(e.target.value) })
+                                }
+                              />
+                            )}
+                          </td>
+                          <td className="px-3 py-1.5 font-medium">
+                            ${dollars(li.row_total)}
+                          </td>
+                          <td className="px-3 py-1.5">
+                            <Button
+                              variant="ghost"
+                              size="icon-sm"
+                              className={li.deleted ? 'text-destructive' : 'text-muted-foreground hover:text-destructive'}
+                              onClick={() => toggleDeleteLineItem(li.uid)}
+                            >
+                              <Trash2 className="size-3.5" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot>
+                      <tr className="bg-muted/30">
+                        <td colSpan={4} className="px-3 py-2 text-right font-medium">
+                          Subtotal
+                        </td>
+                        <td className="px-3 py-2 font-semibold">${dollars(companySubtotal)}</td>
+                        <td></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })}
 
       <Card>
         <CardHeader>
           <CardTitle>Totals</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-5">
+        <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-5">
+          {companies.map((company) => {
+            const companySubtotal = lineItems
+              .filter((li) => li.company_id === company.id && !li.deleted)
+              .reduce((sum, li) => sum + li.row_total, 0);
+            if (companySubtotal === 0) return null;
+            return (
+              <div key={company.id} className="space-y-1">
+                <Label className="text-xs text-muted-foreground">
+                  {company.company_name ?? company.company_code ?? `Company ${company.id}`}
+                </Label>
+                <p className="text-lg font-medium">${dollars(companySubtotal)}</p>
+              </div>
+            );
+          })}
+          {settings?.isvat === 1 && calcResult.vat > 0 && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">VAT</Label>
+              <p className="text-lg font-medium">${dollars(calcResult.vat)}</p>
+            </div>
+          )}
+          {calcResult.discount > 0 && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Discount</Label>
+              <p className="text-lg font-medium text-destructive">
+                -${dollars(calcResult.discount)}
+              </p>
+            </div>
+          )}
           <div className="space-y-1">
-            <Label>Sub Total</Label>
-            <Input value={dollars(subTotal)} disabled className="bg-muted" />
+            <Label className="text-xs text-muted-foreground">New Total</Label>
+            <p className="text-lg font-medium">${dollars(total)}</p>
           </div>
           <div className="space-y-1">
-            <Label>VAT ({settings?.vat_per ?? 0}%)</Label>
-            <Input value={dollars(calcResult.vat)} disabled className="bg-muted" />
-          </div>
-          <div className="space-y-1">
-            <Label>Discount %</Label>
-            <Input value={per} onChange={(event) => setPer(event.target.value || '0')} />
-          </div>
-          <div className="space-y-1">
-            <Label>Discount</Label>
+            <Label className="text-xs text-muted-foreground">Discount %</Label>
             <Input
-              value={parseFloat(per || '0') > 0 ? dollars(calcResult.discount) : manualDiscount}
-              disabled={parseFloat(per || '0') > 0}
-              onChange={(event) => setManualDiscount(event.target.value)}
+              type="number"
+              min="0"
+              max="100"
+              className="h-8 w-24"
+              value={per}
+              onChange={(e) => setPer(e.target.value)}
+              placeholder="0"
             />
           </div>
-          <div className="space-y-1">
-            <Label>Total</Label>
-            <Input value={dollars(total)} disabled className="bg-muted font-semibold" />
+          <div className="space-y-1 md:col-span-2">
+            <Label className="text-xs text-muted-foreground">Grand Total</Label>
+            <p className="text-2xl font-bold">${dollars(total)}</p>
           </div>
         </CardContent>
       </Card>
