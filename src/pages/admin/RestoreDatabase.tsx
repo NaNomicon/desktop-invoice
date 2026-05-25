@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { closeDb } from '@/lib/db'
 import { commands } from '@/lib/bindings'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -33,9 +34,7 @@ function RestoreDatabase() {
           },
         ],
       })
-      if (file) {
-        setSelectedFile(file as string)
-      }
+      setSelectedFile(typeof file === 'string' ? file : null)
     } catch (err) {
       toast.error(`File selection failed: ${String(err)}`)
     }
@@ -46,6 +45,7 @@ function RestoreDatabase() {
     setShowConfirm(false)
     setRestoring(true)
     try {
+      await closeDb()
       const res = await commands.restoreDatabase(selectedFile)
       if (res.status === 'ok') {
         toast.success('Database restored. Relaunching app...')
