@@ -9,6 +9,19 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Printer, FileText, MessageCircle } from 'lucide-react';
 import { WhatsAppSendDialog } from '@/components/whatsapp/WhatsAppSendDialog';
 
+interface InvoiceLineRow {
+  id: number;
+  main_id: number;
+  qty: number;
+  product_id: number | null;
+  unit_price: number;
+  row_total: number;
+  s_no: number;
+  product_name: string | null;
+  type_name: string | null;
+  product_code: string | null;
+}
+
 const ZOOM_LEVELS = [50, 75, 100, 125, 150] as const;
 
 interface PrintPreviewProps {
@@ -40,11 +53,23 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
       } catch {
         /* PDF not ready yet */
       }
-      const customerRows = await query<Customer>(
-        'SELECT * FROM tbl_customer WHERE id = ?',
-        [inv.customer_id],
-      );
-      return { invoice: inv, customer: customerRows[0] ?? null };
+      const [customerRows, lineRows] = await Promise.all([
+        query<Customer>('SELECT * FROM tbl_customer WHERE id = ?', [inv.customer_id]),
+        query<InvoiceLineRow>(
+          `SELECT 
+            isub.*,
+            p.product_name,
+            p.product_id AS product_code,
+            pt.type_name
+          FROM tbl_invoice_sub isub
+          LEFT JOIN tbl_product p ON isub.product_id = p.id
+          LEFT JOIN tbl_product_type pt ON p.type_id = pt.id
+          WHERE isub.main_id = ? AND isub.is_deleted = 0
+          ORDER BY isub.s_no`,
+          [resolvedInvoiceId],
+        ),
+      ]);
+      return { invoice: inv, customer: customerRows[0] ?? null, lines: lineRows };
     },
     staleTime: 30_000,
   });
@@ -155,6 +180,53 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                     {data.invoice.invoice_date}
                   </p>
                 </div>
+              </div>
+
+              <div className="mb-6 overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-muted/30">
+                      <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
+                        #
+                      </th>
+                      <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
+                        Code
+                      </th>
+                      <th className="px-4 py-2.5 text-left font-medium text-muted-foreground">
+                        Product
+                        <span className="text-xs text-muted-foreground/70 block">Type</span>
+                      </th>
+                      <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">
+                        Qty
+                      </th>
+                      <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">
+                        Price
+                      </th>
+                      <th className="px-4 py-2.5 text-right font-medium text-muted-foreground">
+                        Total
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.lines.map((line) => (
+                      <tr key={line.id} className="border-b">
+                        <td className="px-4 py-2.5">{line.s_no}</td>
+                        <td className="px-4 py-2.5">{line.product_code ?? '-'}</td>
+                        <td className="px-4 py-2.5">
+                          {line.product_name ?? 'Unknown Product'}
+                          {line.type_name && (
+                            <span className="block text-xs text-muted-foreground">
+                              {line.type_name}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">{line.qty}</td>
+                        <td className="px-4 py-2.5 text-right">${dollars(line.unit_price)}</td>
+                        <td className="px-4 py-2.5 text-right">${dollars(line.row_total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
 
               <div className="mb-8 rounded-md border">
