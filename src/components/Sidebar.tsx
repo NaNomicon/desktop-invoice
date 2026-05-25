@@ -72,7 +72,12 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'Settings',
-    items: [{ title: 'Application Settings', path: '/settings' }],
+      items: [
+        { title: 'Application Settings', path: '/settings' },
+        { title: 'E-mail Config', path: '/email-templates' },
+        { title: 'Direct Email', path: '/direct-email' },
+        { title: 'WhatsApp Templates', path: '/whatsapp-templates' },
+      ],
   },
 ]
 

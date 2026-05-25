@@ -73,6 +73,7 @@ interface InvoicePrefillState {
   }[];
   sourceQuotationId?: number;
   sourceQuotationNo?: string;
+  duplicateFromLockedInvoice?: boolean;
 }
 
 interface InvoiceLineRow extends InvoiceSub {
@@ -522,6 +523,45 @@ function InvoiceForm() {
         return;
       }
 
+      if (lockState.forceDuplicate) {
+        const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
+        setEditingId(null);
+        setDeletedLineItemIds([]);
+        setCustomerSearch('');
+        setCustomerSearchIndex(0);
+        setCustomerId(invoice.customer_id);
+        setCompanyId(invoice.company_id);
+        setInvoiceNumber(String(nextRows[0]?.invoice_no ?? invoice.invoice_no));
+        setInvoiceDate(today());
+        setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : dollars(invoice.paid_amount ?? 0));
+        setCaseDebit(invoice.case_debit ?? 'CREDIT');
+        setRefNo(invoice.no ?? '');
+        setChecklistNo(invoice.checklist_no ?? '');
+        setPer(String(invoice.per ?? 0));
+        setTypeFilter('all');
+        setProductSearch('');
+        setPrintDue(invoice.print_due === 'YES');
+        setLineItems(
+          lineRows.length > 0
+            ? lineRows.map((item, index) => ({
+                uid: nextUid(),
+                id: 0,
+                qty: item.qty,
+                product_id: item.product_id,
+                product_name: item.product_name ?? '',
+                unit_price: item.unit_price,
+                row_total: item.row_total,
+                s_no: item.s_no || index + 1,
+                deleted: false,
+                company_id: item.company_id ?? item.product_company_id ?? null,
+              }))
+            : nextBlankLineItems(),
+        );
+        toast.info(lockState.message ?? 'Loaded as a new invoice');
+        navigate(location.pathname, { replace: true, state: null });
+        return;
+      }
+
       setEditingId(invoice.id);
       setDeletedLineItemIds([]);
       setCustomerSearch('');
@@ -648,9 +688,25 @@ function InvoiceForm() {
 
       const resolveCompanyId = (cid: number | null): number => {
         if (cid !== null && cid !== undefined) return cid;
-        if (activeCompanyIds.length === 1) return activeCompanyIds[0]!;
+        const onlyCompanyId = activeCompanyIds[0];
+        if (onlyCompanyId !== undefined) return onlyCompanyId;
         return companyId;
       };
+
+      const splitLineItems = activeItems.map((li, i) => {
+        const resolvedCompanyId = li.company_id;
+        if (resolvedCompanyId === null || resolvedCompanyId === undefined) {
+          throw new Error('Split invoice line item is missing company assignment');
+        }
+        return {
+          qty: li.qty,
+          product_id: li.product_id,
+          unit_price: li.unit_price,
+          row_total: li.row_total,
+          s_no: i + 1,
+          company_id: resolvedCompanyId,
+        };
+      });
 
       if (editingId && hasSplit) {
         toast.error('Editing split invoices is not supported yet');
@@ -670,15 +726,8 @@ function InvoiceForm() {
           discount: calResult.discount,
           total: calResult.total,
           amount_due: selectedCustomer?.due_amount ?? 0,
-          cr_dr: calResult.total > cents(paidAmount) ? 'Dr.' : 'Cr.',
-          line_items: activeItems.map((li, i) => ({
-            qty: li.qty,
-            product_id: li.product_id,
-            unit_price: li.unit_price,
-            row_total: li.row_total,
-            s_no: i + 1,
-            company_id: li.company_id!,
-          })),
+          cr_dr: calResult.total > cents(paidAmount) ? 'Cr.' : 'Dr.',
+          line_items: splitLineItems,
         });
         const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
         const nextInvoiceNumber = String(nextRows[0]?.invoice_no ?? 0);

@@ -32,22 +32,21 @@ interface SplitInvoiceResult {
   invoice2_id: number;
 }
 
-/**
- * Split invoice: create two invoices grouped by company_id from line items.
- *
- * Financials recalculated per split:
- * - sub_total = sum of group's row_totals
- * - vat = sub_total * per / 100
- * - discount split proportionally by sub_total ratio
- * - paid_amount split proportionally by sub_total ratio
- * - total = sub_total + vat - discount (per invoice)
- * - amount_due = total - paid_amount (per invoice)
- * - balance = amount_due (per invoice)
- * - cr_dr: paid > 0 → 'Cr.', else → 'Dr.'
- *
- * Both invoices created in a single transaction.
- * Customer due_amount updated for both invoices (Cr. subtracts, Dr. adds).
- */
+function toSignedBalance(adDue: string | null | undefined, amount: number): number {
+  return adDue === 'Advance' ? -amount : amount;
+}
+
+function fromSignedBalance(balance: number): { due_amount: number; ad_due: 'Advance' | 'Due' | '' } {
+  if (balance < 0) {
+    return { due_amount: Math.abs(balance), ad_due: 'Advance' };
+  }
+  if (balance > 0) {
+    return { due_amount: balance, ad_due: 'Due' };
+  }
+
+  return { due_amount: 0, ad_due: '' };
+}
+
 export async function splitInvoice(
   params: SplitInvoiceParams,
 ): Promise<SplitInvoiceResult> {
@@ -82,8 +81,8 @@ export async function splitInvoice(
   const sub1 = items1.reduce((s, i) => s + i.row_total, 0);
   const sub2 = items2.reduce((s, i) => s + i.row_total, 0);
 
-  const vat1 = Math.round((sub1 * params.per) / 100);
-  const vat2 = Math.round((sub2 * params.per) / 100);
+  const vat1 = params.sub_total > 0 ? Math.round((params.vat * sub1) / params.sub_total) : 0;
+  const vat2 = params.vat - vat1;
 
   const disc1 =
     params.sub_total > 0
@@ -103,12 +102,21 @@ export async function splitInvoice(
   const due1 = total1 - paid1;
   const due2 = total2 - paid2;
 
-  const drcr1 = paid1 > 0 ? 'Cr.' : 'Dr.';
-  const drcr2 = paid2 > 0 ? 'Cr.' : 'Dr.';
+  const drcr1 = due1 > 0 ? 'Cr.' : due1 < 0 ? 'Dr.' : null;
+  const drcr2 = due2 > 0 ? 'Cr.' : due2 < 0 ? 'Dr.' : null;
 
   await db.execute('BEGIN TRANSACTION');
 
   try {
+    const customerRows = await db.select<{ due_amount: number; ad_due: string | null }[]>(
+      'SELECT due_amount, ad_due FROM tbl_customer WHERE id = ? LIMIT 1',
+      [params.customer_id],
+    );
+    const customer = customerRows[0];
+    const startingSignedBalance = customer ? toSignedBalance(customer.ad_due, customer.due_amount) : 0;
+    const endingSignedBalance = startingSignedBalance + due1 + due2;
+    const nextCustomerBalance = fromSignedBalance(endingSignedBalance);
+
     await db.execute(
       'UPDATE tbl_numbers SET invoice_no = invoice_no + 1',
       [],
@@ -141,7 +149,7 @@ export async function splitInvoice(
         params.checklist_no ?? null,
         c1,
         sub1,
-        due1,
+        params.amount_due,
         vat1,
         disc1,
         total1,
@@ -149,7 +157,7 @@ export async function splitInvoice(
         params.invoice_date,
         params.case_debit ?? null,
         paid1,
-        due1,
+        Math.abs(due1),
         null,
         drcr1,
         'Invoice',
@@ -195,7 +203,7 @@ export async function splitInvoice(
         params.checklist_no ?? null,
         c2,
         sub2,
-        due2,
+        params.amount_due,
         vat2,
         disc2,
         total2,
@@ -203,7 +211,7 @@ export async function splitInvoice(
         params.invoice_date,
         params.case_debit ?? null,
         paid2,
-        due2,
+        Math.abs(due2),
         null,
         drcr2,
         'Invoice',
@@ -237,29 +245,10 @@ export async function splitInvoice(
       );
     }
 
-    if (drcr1 === 'Cr.') {
-      await db.execute(
-        'UPDATE tbl_customer SET due_amount = due_amount - ? WHERE id = ?',
-        [total1, params.customer_id],
-      );
-    } else {
-      await db.execute(
-        'UPDATE tbl_customer SET due_amount = due_amount + ? WHERE id = ?',
-        [total1, params.customer_id],
-      );
-    }
-
-    if (drcr2 === 'Cr.') {
-      await db.execute(
-        'UPDATE tbl_customer SET due_amount = due_amount - ? WHERE id = ?',
-        [total2, params.customer_id],
-      );
-    } else {
-      await db.execute(
-        'UPDATE tbl_customer SET due_amount = due_amount + ? WHERE id = ?',
-        [total2, params.customer_id],
-      );
-    }
+    await db.execute(
+      'UPDATE tbl_customer SET due_amount = ?, ad_due = ? WHERE id = ?',
+      [nextCustomerBalance.due_amount, nextCustomerBalance.ad_due, params.customer_id],
+    );
 
     await db.execute('COMMIT');
 

@@ -13,6 +13,7 @@ import ProductTypePage from '@/pages/admin/ProductType'
 import CompanySettingsPage from '@/pages/admin/CompanySettings'
 import UserPage from '@/pages/admin/User'
 import EmailTemplatesPage from '@/pages/admin/EmailTemplates'
+import DirectEmailPage from '@/pages/admin/DirectEmail'
 import WhatsAppTemplatesPage from '@/pages/admin/WhatsAppTemplates'
 import SettingsPage from '@/pages/admin/Settings'
 import ChangePasswordPage from '@/pages/admin/ChangePassword'
@@ -62,6 +63,7 @@ const ROUTE_TABS: Record<string, RouteTabDefinition> = {
   '/companies': { title: 'Company Details' },
   '/users': { title: 'User' },
   '/email-templates': { title: 'E-mail Config' },
+  '/direct-email': { title: 'Direct Email' },
   '/whatsapp-templates': { title: 'WhatsApp Templates' },
   '/settings': { title: 'Application Settings' },
   '/reports/sales': { title: 'Sales Report' },
@@ -268,6 +270,7 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             <Route path="/companies" element={<CompanySettingsPage />} />
             <Route path="/users" element={<UserPage />} />
             <Route path="/email-templates" element={<EmailTemplatesPage />} />
+            <Route path="/direct-email" element={<DirectEmailPage />} />
             <Route path="/whatsapp-templates" element={<WhatsAppTemplatesPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route

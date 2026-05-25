@@ -5,12 +5,15 @@ function toSignedBalance(adDue: string | null | undefined, amount: number): numb
   return adDue === 'Advance' ? -amount : amount;
 }
 
-function fromSignedBalance(balance: number): { due_amount: number; ad_due: 'Advance' | 'Due' } {
+function fromSignedBalance(balance: number): { due_amount: number; ad_due: 'Advance' | 'Due' | '' } {
   if (balance < 0) {
     return { due_amount: Math.abs(balance), ad_due: 'Advance' };
   }
+  if (balance > 0) {
+    return { due_amount: balance, ad_due: 'Due' };
+  }
 
-  return { due_amount: balance, ad_due: 'Due' };
+  return { due_amount: 0, ad_due: '' };
 }
 
 export async function deleteInvoice(id: number): Promise<void> {

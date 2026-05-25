@@ -96,6 +96,9 @@ export async function buildAppMenu(): Promise<Menu> {
       text: 'Settings',
       items: [
         await createNavItem('Application Settings', '/settings'),
+        await createNavItem('E-mail Config', '/email-templates'),
+        await createNavItem('Direct Email', '/direct-email'),
+        await createNavItem('WhatsApp Templates', '/whatsapp-templates'),
         await MenuItem.new({
           id: 'preferences',
           text: t('menu.preferences'),

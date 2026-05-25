@@ -1,6 +1,12 @@
 import { query } from '@/lib/db';
 
-export async function canEditInvoice(invoiceId: number): Promise<{ canEdit: boolean; message?: string }> {
+export interface InvoiceEditLockResult {
+  canEdit: boolean;
+  forceDuplicate: boolean;
+  message?: string;
+}
+
+export async function canEditInvoice(invoiceId: number): Promise<InvoiceEditLockResult> {
   const rows = await query<{ invoice_days: string }>('SELECT invoice_days FROM tbl_setting WHERE id = 1');
   const invoiceDays = rows[0]?.invoice_days ?? '7';
   const days = parseInt(invoiceDays, 10) || 7;
@@ -11,7 +17,7 @@ export async function canEditInvoice(invoiceId: number): Promise<{ canEdit: bool
   );
 
   if (!invoices[0]?.invoice_date) {
-    return { canEdit: true };
+    return { canEdit: true, forceDuplicate: false };
   }
 
   const invoiceDate = new Date(invoices[0].invoice_date);
@@ -21,10 +27,11 @@ export async function canEditInvoice(invoiceId: number): Promise<{ canEdit: bool
 
   if (diffDays >= days) {
     return {
-      canEdit: false,
-      message: `Invoice cannot be edited — past edit lock period (${days} days)`,
+      canEdit: true,
+      forceDuplicate: true,
+      message: `Invoice is past edit lock period (${days} days). A new invoice number will be used.`,
     };
   }
 
-  return { canEdit: true };
+  return { canEdit: true, forceDuplicate: false };
 }
