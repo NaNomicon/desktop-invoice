@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { cal } from '@/lib/receipt/cal';
@@ -13,9 +13,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Receipt, Search, DollarSign } from 'lucide-react';
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type SortingState,
+  type ColumnDef,
+} from '@tanstack/react-table';
 
 function dollars(c: number): string {
   return (c / 100).toFixed(2);
+}
+
+interface TransactionRow {
+  extra: string;
+  type: 'Invoice' | 'Receipt';
+  date: string;
+  no: string;
+  amount: number;
+  cr_dr: string | null;
+  balance: number;
 }
 
 function ReceiptForm() {
@@ -45,6 +63,9 @@ function ReceiptForm() {
   const [paymentMode, setPaymentMode] = useState('');
   const [chequeNo, setChequeNo] = useState('');
   const [notes, setNotes] = useState('');
+  const [transactions, setTransactions] = useState<TransactionRow[]>([]);
+  const [transLoading, setTransLoading] = useState(false);
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'extra', desc: true }]);
 
   const calResult = cal({
     load_dua_amount: loadDuaAmount,
@@ -101,6 +122,85 @@ function ReceiptForm() {
     setAmountReceived(String(Math.abs(loadAmount)));
     setCustomerSearch(receiptPrefill.customerName ?? '');
   }, [customers, receiptPrefill, selectCustomer]);
+
+  const loadTransactions = useCallback(async (custId: number) => {
+    if (!custId) return;
+    setTransLoading(true);
+    const sql = `
+      SELECT
+        tbl_invoice_main.no AS extra,
+        'Invoice' AS type,
+        tbl_invoice_main.invoice_date AS date,
+        tbl_invoice_main.invoice_no AS no,
+        tbl_invoice_main.total AS amount,
+        tbl_invoice_main.cr_dr AS cr_dr,
+        tbl_invoice_main.balance
+       FROM tbl_invoice_main
+       WHERE tbl_invoice_main.is_deleted = 0 AND tbl_invoice_main.customer_id = ?
+      UNION ALL
+      SELECT
+        tbl_receipt.no AS extra,
+        'Receipt' AS type,
+        tbl_receipt.receipt_date AS date,
+        tbl_receipt.receipt_no AS no,
+        tbl_receipt.amount_received AS amount,
+        tbl_receipt.cr_dr AS cr_dr,
+        tbl_receipt.balance
+       FROM tbl_receipt
+       WHERE tbl_receipt.customer_id = ?
+      ORDER BY extra DESC
+    `;
+    const rows = await query<TransactionRow>(sql, [custId, custId]);
+    setTransactions(rows);
+    setTransLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (customerId > 0) {
+      loadTransactions(customerId);
+    } else {
+      setTransactions([]);
+    }
+  }, [customerId, loadTransactions]);
+
+  const transColumns = useMemo<ColumnDef<TransactionRow>[]>(() => [
+    { accessorKey: 'date', header: 'Date' },
+    { accessorKey: 'type', header: 'Type', cell: (i) => i.getValue<string>() },
+    { accessorKey: 'no', header: 'No' },
+    {
+      accessorKey: 'amount',
+      header: 'Amount',
+      cell: (info) => {
+        const amt = info.getValue<number>();
+        const row = info.row.original;
+        const prefix = row.cr_dr === 'Cr.' ? '-' : '';
+        return `${prefix}$${dollars(amt)}`;
+      },
+    },
+    {
+      accessorKey: 'cr_dr',
+      header: 'Cr/Dr',
+      cell: (info) => {
+        const v = info.getValue<string | null>();
+        if (!v) return <span className="text-muted-foreground">-</span>;
+        return <span className={v === 'Cr.' ? 'text-green-600' : 'text-red-600'}>{v}</span>;
+      },
+    },
+    {
+      accessorKey: 'balance',
+      header: 'Balance',
+      cell: (info) => `$${dollars(Number(info.getValue()))}`,
+    },
+  ], []);
+
+  const transTable = useReactTable({
+    data: transactions,
+    columns: transColumns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const filteredCustomers = customerSearch
     ? customers.filter((c) =>
@@ -333,9 +433,47 @@ function ReceiptForm() {
               <span className="font-medium">Transaction History</span>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Select a customer to view their transaction history.
-              </p>
+              {customerId === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  Select a customer to view their transaction history.
+                </p>
+              ) : transLoading ? (
+                <p className="py-8 text-center text-muted-foreground">Loading...</p>
+              ) : transactions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No transactions found.</p>
+              ) : (
+                <div className="overflow-x-auto rounded-md border">
+                  <table className="w-full text-sm">
+                    <thead>
+                      {transTable.getHeaderGroups().map((hg) => (
+                        <tr key={hg.id} className="bg-muted/50">
+                          {hg.headers.map((h) => (
+                            <th
+                              key={h.id}
+                              className="cursor-pointer select-none px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground"
+                              onClick={h.column.getToggleSortingHandler()}
+                            >
+                              {flexRender(h.column.columnDef.header, h.getContext())}
+                              {{ asc: ' ↑', desc: ' ↓' }[h.column.getIsSorted() as string] ?? ''}
+                            </th>
+                          ))}
+                        </tr>
+                      ))}
+                    </thead>
+                    <tbody>
+                      {transTable.getRowModel().rows.map((row) => (
+                        <tr key={row.id} className="border-t hover:bg-muted/30">
+                          {row.getVisibleCells().map((cell) => (
+                            <td key={cell.id} className="px-3 py-2">
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
