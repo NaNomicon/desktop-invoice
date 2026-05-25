@@ -1,8 +1,8 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { deleteQuotation } from '@/lib/quotation/delete';
-import type { Company, QuotationMain } from '@/lib/types';
+import type { Company, QuotationMain, Setting } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { isAdmin } from '@/lib/rbac';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -24,7 +24,14 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import { toast } from 'sonner';
-import { ArrowRightLeft, FilePenLine, FileText, Search, Trash2 } from 'lucide-react';
+import {
+  ArrowRightLeft,
+  Eye,
+  FilePenLine,
+  FileText,
+  Search,
+  Trash2,
+} from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,6 +56,13 @@ interface QuotationLineRow {
   s_no: number;
 }
 
+interface QuotationPreviewRouteState {
+  quotationId: number;
+  quotationNo: string;
+  autoPrint?: boolean;
+  autoExportPdf?: boolean;
+}
+
 function dollars(cents: number): string {
   return (cents / 100).toFixed(2);
 }
@@ -66,6 +80,8 @@ function QuotationList() {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [openingPreviewId, setOpeningPreviewId] = useState<number | null>(null);
+  const [openingPdfId, setOpeningPdfId] = useState<number | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -92,11 +108,14 @@ function QuotationList() {
     let rows = quotations;
     if (search) {
       const value = search.toLowerCase();
-      rows = rows.filter(
-        (quotation) =>
+      rows = rows.filter((quotation) => {
+        const checklist = quotation.checklist_no?.toLowerCase() ?? '';
+        return (
           quotation.customer_name.toLowerCase().includes(value) ||
-          quotation.quo_no.toLowerCase().includes(value),
-      );
+          quotation.quo_no.toLowerCase().includes(value) ||
+          checklist.includes(value)
+        );
+      });
     }
     if (companyFilter !== 'all') {
       rows = rows.filter((quotation) => quotation.company_id === parseInt(companyFilter, 10));
@@ -139,6 +158,40 @@ function QuotationList() {
   const handleEdit = useCallback(
     (quotationId: number) => {
       navigate('/quotations/new', { state: { quotationId } });
+    },
+    [navigate],
+  );
+
+  const openQuotationPreview = useCallback(
+    async (quotation: QuotationRow, options?: { autoExportPdf?: boolean }) => {
+      const { autoExportPdf = false } = options ?? {};
+      const setBusy = autoExportPdf ? setOpeningPdfId : setOpeningPreviewId;
+      setBusy(quotation.id);
+
+      try {
+        const settingRows = await query<Setting>('SELECT * FROM tbl_setting WHERE id = 1 LIMIT 1');
+        const settings = settingRows[0] ?? null;
+
+        if (autoExportPdf && !settings?.quo_path?.trim()) {
+          toast.error('Please Set Quotation Save Path from Setting');
+          return;
+        }
+
+        const routeState: QuotationPreviewRouteState = {
+          quotationId: quotation.id,
+          quotationNo: quotation.quo_no,
+        };
+
+        if (autoExportPdf) {
+          routeState.autoExportPdf = true;
+        }
+
+        navigate('/reports/quotations', { state: routeState });
+      } catch (error) {
+        toast.error(`Unable to open quotation report: ${String(error)}`);
+      } finally {
+        setBusy(null);
+      }
     },
     [navigate],
   );
@@ -229,6 +282,50 @@ function QuotationList() {
         ),
       },
       {
+        id: 'preview',
+        header: '',
+        cell: (info) => {
+          const quotation = info.row.original;
+          const busy = openingPreviewId === quotation.id;
+
+          return (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="justify-start gap-1 text-emerald-700 hover:text-emerald-800"
+              onClick={() => void openQuotationPreview(quotation)}
+              disabled={busy}
+            >
+              <FileText className="size-3.5" />
+              {busy ? 'Opening...' : 'Preview'}
+            </Button>
+          );
+        },
+      },
+      {
+        id: 'viewPdf',
+        header: '',
+        cell: (info) => {
+          const quotation = info.row.original;
+          const busy = openingPdfId === quotation.id;
+
+          return (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="justify-start gap-1 text-violet-700 hover:text-violet-800"
+              onClick={() => void openQuotationPreview(quotation, { autoExportPdf: true })}
+              disabled={busy}
+            >
+              <Eye className="size-3.5" />
+              {busy ? 'Opening...' : 'View PDF'}
+            </Button>
+          );
+        },
+      },
+      {
         id: 'delete',
         header: '',
         cell: (info) =>
@@ -244,7 +341,7 @@ function QuotationList() {
           ) : null,
       },
     ],
-    [admin, handleConvertToInvoice, handleEdit],
+    [admin, handleConvertToInvoice, handleEdit, openQuotationPreview, openingPdfId, openingPreviewId],
   );
 
   const table = useReactTable({
@@ -255,6 +352,17 @@ function QuotationList() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
+
+  const handleRowKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTableRowElement>, quotation: QuotationRow) => {
+      if (event.key !== 'Enter') {
+        return;
+      }
+      event.preventDefault();
+      handleEdit(quotation.id);
+    },
+    [handleEdit],
+  );
 
   return (
     <>
@@ -330,7 +438,14 @@ function QuotationList() {
                       </tr>
                     ) : (
                       table.getRowModel().rows.map((row) => (
-                        <tr key={row.id} className="border-t hover:bg-muted/30">
+                        <tr
+                          key={row.id}
+                          className="cursor-pointer border-t hover:bg-muted/30"
+                          onDoubleClick={() => void handleConvertToInvoice(row.original)}
+                          onKeyDown={(event) => handleRowKeyDown(event, row.original)}
+                          tabIndex={0}
+                          title="Double-click to convert quotation to invoice"
+                        >
                           {row.getVisibleCells().map((cell) => (
                             <td key={cell.id} className="px-4 py-2">
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
