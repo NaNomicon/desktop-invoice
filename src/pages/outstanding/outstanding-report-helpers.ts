@@ -31,6 +31,10 @@ export function customerDisplayName(row: OutstandingRow): string {
   return [row.title_name?.trim(), row.customer_name.trim()].filter(Boolean).join(' ');
 }
 
+function toSignedOutstanding(row: Pick<OutstandingRow, 'due_amount' | 'ad_due'>): number {
+  return row.ad_due === 'Advance' ? -Math.abs(row.due_amount) : Math.abs(row.due_amount);
+}
+
 export function filterOutstandingRows(
   rows: OutstandingRow[],
   search: string,
@@ -66,14 +70,18 @@ export function getOutstandingTotals(rows: OutstandingRow[]): {
   totalDue: number;
   totalAdvance: number;
 } {
-  return {
-    totalDue: rows
-      .filter((row) => row.due_amount > 0)
-      .reduce((sum, row) => sum + row.due_amount, 0),
-    totalAdvance: rows
-      .filter((row) => row.due_amount < 0)
-      .reduce((sum, row) => sum + Math.abs(row.due_amount), 0),
-  };
+  return rows.reduce(
+    (totals, row) => {
+      const signedAmount = toSignedOutstanding(row);
+      if (signedAmount < 0) {
+        totals.totalAdvance += Math.abs(signedAmount);
+      } else {
+        totals.totalDue += signedAmount;
+      }
+      return totals;
+    },
+    { totalDue: 0, totalAdvance: 0 },
+  );
 }
 
 export function createOutstandingReportHtml(

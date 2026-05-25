@@ -195,12 +195,21 @@ function ListOutStanding() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const totalDue = filtered
-    .filter((c) => c.due_amount > 0)
-    .reduce((sum, c) => sum + c.due_amount, 0);
-  const totalAdvance = filtered
-    .filter((c) => c.due_amount < 0)
-    .reduce((sum, c) => sum + Math.abs(c.due_amount), 0);
+  const { totalDue, totalAdvance } = useMemo(
+    () =>
+      filtered.reduce(
+        (totals, customer) => {
+          if (customer.ad_due === 'Advance') {
+            totals.totalAdvance += Math.abs(customer.due_amount);
+          } else {
+            totals.totalDue += Math.abs(customer.due_amount);
+          }
+          return totals;
+        },
+        { totalDue: 0, totalAdvance: 0 },
+      ),
+    [filtered],
+  );
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
