@@ -24,13 +24,13 @@ describe('receipt cal()', () => {
   });
 
   it('advance customer fully settled', () => {
-    const result = cal({ load_dua_amount: -50000, amount_received: 50000 });
-    expect(result.new_due).toBe(-100000);
-    expect(result.ad_due).toBe('Advance');
-    expect(result.cr_dr).toBe('Cr.');
+    const result = cal({ load_dua_amount: -50000, amount_received: -50000 });
+    expect(result.new_due).toBe(0);
+    expect(result.ad_due).toBe('');
+    expect(result.cr_dr).toBe('');
   });
 
-  it('advance customer receiving advance → Cr.', () => {
+  it('advance customer receiving more advance → Cr.', () => {
     const result = cal({ load_dua_amount: -20000, amount_received: 10000 });
     expect(result.new_due).toBe(-30000);
     expect(result.ad_due).toBe('Advance');

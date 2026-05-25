@@ -9,19 +9,6 @@ export interface ReceiptCalResult {
   cr_dr: string; // 'Dr.' | 'Cr.' | ''
 }
 
-/**
- * Receipt calculation: new_due = load_dua_amount - amount_received
- *
- * cr_dr (INVERSE accounting):
- *   new_due > 0  → "Dr."  (customer owes money)
- *   new_due < 0  → "Cr."  (customer has advance credit)
- *   new_due = 0  → ""     (settled)
- *
- * ad_due:
- *   new_due > 0  → "Due"
- *   new_due < 0  → "Advance"
- *   new_due = 0  → ""     (settled)
- */
 export function cal(input: ReceiptCalInput): ReceiptCalResult {
   const new_due = input.load_dua_amount - input.amount_received;
 
