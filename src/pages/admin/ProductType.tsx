@@ -55,11 +55,17 @@ function ProductTypePage() {
     setSearch(e.target.value);
   }, []);
 
+  const openEdit = useCallback((row: ProductType) => {
+    setEditingId(row.id);
+    setTypeName(row.type_name);
+    setDialogOpen(true);
+  }, []);
+
   const columns = useMemo<ColumnDef<ProductType>[]>(
     () => [
       {
         accessorKey: 'type_name',
-        header: 'Type Name',
+        header: 'Product Type',
         cell: (info) => info.getValue<string>(),
       },
       {
@@ -214,7 +220,11 @@ function ProductTypePage() {
                     </tr>
                   ) : (
                     table.getRowModel().rows.map((row) => (
-                      <tr key={row.id} className="border-t hover:bg-muted/30">
+                      <tr
+                        key={row.id}
+                        className="border-t hover:bg-muted/30 cursor-pointer"
+                        onDoubleClick={() => openEdit(row.original)}
+                      >
                         {row.getVisibleCells().map((cell) => (
                           <td key={cell.id} className="px-4 py-2">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
