@@ -1,4 +1,7 @@
 import { format } from 'date-fns';
+import { openPath } from '@tauri-apps/plugin-opener';
+import { toast } from 'sonner';
+import { commands, unwrapResult } from '@/lib/tauri-bindings';
 
 export function escapeHtml(value: string): string {
   return value
@@ -9,22 +12,71 @@ export function escapeHtml(value: string): string {
     .replaceAll("'", '&#39;');
 }
 
-export function openPrintableReport(options: {
+function sanitizeFilenamePart(value: string): string {
+  return value.replaceAll(/[\\/:*?"<>|]/g, '_').trim() || 'report';
+}
+
+function joinPath(basePath: string, filename: string): string {
+  const normalizedBase = basePath.replace(/[\\/]+$/, '');
+  const separator = /\\/.test(normalizedBase) ? '\\' : '/';
+  return `${normalizedBase}${separator}${filename}`;
+}
+
+export function buildReportPdfPath(options: {
+  configuredPath: string;
+  filenamePrefix: string;
+  label?: string | null;
+  date?: Date;
+}): string {
+  const { configuredPath, filenamePrefix, label, date = new Date() } = options;
+  const parts = [
+    sanitizeFilenamePart(filenamePrefix),
+    label ? sanitizeFilenamePart(label) : null,
+    format(date, 'yyyy-MM-dd'),
+  ].filter(Boolean);
+
+  return joinPath(configuredPath, `${parts.join('-')}.pdf`);
+}
+
+export async function openPrintableReport(options: {
   html: string;
   mode: 'print' | 'pdf';
   requirePath?: boolean;
   configuredPath?: string | null;
-}): void {
-  const { html, mode, requirePath = false, configuredPath } = options;
+  outputPath?: string | null;
+}): Promise<void> {
+  const { html, mode, requirePath = false, configuredPath, outputPath } = options;
 
   if (requirePath && !configuredPath?.trim()) {
-    window.alert('Please Set Report Path from Setting');
+    toast.error('Please Set Report Path from Setting');
+    return;
+  }
+
+  if (mode === 'pdf') {
+    if (!outputPath?.trim()) {
+      toast.error('Unable to determine PDF output path');
+      return;
+    }
+
+    try {
+      const savedPath = unwrapResult(
+        await commands.saveReportPdf({
+          html,
+          output_path: outputPath,
+        }),
+      );
+      await openPath(savedPath);
+      toast.success(`PDF saved to ${savedPath}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      toast.error(`Failed to generate PDF: ${message}`);
+    }
     return;
   }
 
   const reportWindow = window.open('', '_blank', 'noopener,noreferrer');
   if (!reportWindow) {
-    window.alert('Unable to open report preview window');
+    toast.error('Unable to open report preview window');
     return;
   }
 
@@ -32,10 +84,7 @@ export function openPrintableReport(options: {
   reportWindow.document.write(html);
   reportWindow.document.close();
   reportWindow.focus();
-
-  if (mode === 'pdf') {
-    reportWindow.print();
-  }
+  reportWindow.print();
 }
 
 export function downloadExcelXml(options: {

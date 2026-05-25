@@ -47,8 +47,7 @@ pub fn backup_database(app: tauri::AppHandle, dest_path: String) -> Result<(), S
             .map_err(|e| format!("Failed to create backup directory: {e}"))?;
     }
 
-    std::fs::copy(&db_path, &dest_path)
-        .map_err(|e| format!("Failed to create backup: {e}"))?;
+    std::fs::copy(&db_path, &dest_path).map_err(|e| format!("Failed to create backup: {e}"))?;
 
     log::info!(
         "Database backed up from '{}' to '{dest_path}'",
@@ -75,8 +74,7 @@ pub fn restore_database(app: tauri::AppHandle, from_path: String) -> Result<(), 
         return Err(format!("Backup file not found: {from_path}"));
     }
 
-    std::fs::copy(&from_path, &db_path)
-        .map_err(|e| format!("Failed to restore database: {e}"))?;
+    std::fs::copy(&from_path, &db_path).map_err(|e| format!("Failed to restore database: {e}"))?;
 
     log::info!(
         "Database restored from '{}' to '{}'",
