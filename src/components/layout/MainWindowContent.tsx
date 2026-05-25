@@ -24,6 +24,8 @@ import StatementPreview from '@/pages/reports/StatementPreview'
 import PrintPreview from '@/pages/reports/PrintPreview'
 import QuotationPreview from '@/pages/reports/QuotationPreview'
 import OutstandingReport from '@/pages/reports/OutstandingReport'
+import InvoiceListReport from '@/pages/reports/InvoiceListReport'
+import ReceiptPreview from '@/pages/reports/ReceiptPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
@@ -89,25 +91,6 @@ function getRouteTabDefinition(pathname: string): RouteTabDefinition | null {
   }
 
   return null
-}
-
-function PlaceholderPage({
-  title,
-  description,
-}: {
-  title: string
-  description: string
-}) {
-  return (
-    <div className="flex h-full items-center justify-center p-6">
-      <div className="max-w-xl rounded-xl border bg-background/95 p-6 shadow-sm">
-        <h1 className="text-2xl font-semibold">{title}</h1>
-        <p className="text-muted-foreground mt-3 text-sm leading-6">
-          {description}
-        </p>
-      </div>
-    </div>
-  )
 }
 
 function HomeTabs() {
@@ -281,27 +264,14 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             <Route path="/reports/statement" element={<StatementPreview />} />
             <Route path="/reports/print" element={<PrintPreview invoice_id={0} />} />
             <Route path="/reports/print/:invoiceId" element={<PrintPreview invoice_id={0} />} />
-            <Route
-              path="/reports/invoices"
-              element={
-                <PlaceholderPage
-                  title="Invoice Report"
-                  description="This HOME entry is now wired into the shell. Detailed invoice reporting remains to be expanded in later spec passes."
-                />
-              }
-            />
+            <Route path="/reports/invoices" element={<InvoiceListReport />} />
             <Route
               path="/reports/quotations"
               element={<QuotationPreview />}
             />
             <Route
               path="/reports/receipts"
-              element={
-                <PlaceholderPage
-                  title="Receipt Report"
-                  description="This HOME entry is available for navigation. The detailed receipt reporting workflow will be completed in later report specs."
-                />
-              }
+              element={<ReceiptPreview />}
             />
             <Route
               path="/reports/outstanding"
