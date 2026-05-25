@@ -5,10 +5,16 @@ import { render, screen, waitFor } from '@/test/test-utils';
 import OutstandingReport from './OutstandingReport';
 import ListOutStanding from '@/pages/outstanding/ListOutStanding';
 
+const _importReportOutput = () => import('@/lib/report-output');
+const _importRouterDom = () => import('react-router-dom');
+
+vi.setSystemTime(new Date('2025-01-01T00:00:00Z'));
+
 const queryMock = vi.fn();
 const openPrintableReportMock = vi.fn();
 const downloadExcelXmlMock = vi.fn();
 const closeHomeTabMock = vi.fn();
+const openPathMock = vi.fn();
 const navigateMock = vi.fn();
 
 vi.mock('@/lib/db', () => ({
@@ -16,7 +22,9 @@ vi.mock('@/lib/db', () => ({
 }));
 
 vi.mock('@/lib/report-output', async () => {
-  const actual = await vi.importActual<typeof import('@/lib/report-output')>('@/lib/report-output');
+  const actual = await vi.importActual<Awaited<ReturnType<typeof _importReportOutput>>>(
+    '@/lib/report-output',
+  );
   return {
     ...actual,
     openPrintableReport: (...args: unknown[]) => openPrintableReportMock(...args),
@@ -24,13 +32,19 @@ vi.mock('@/lib/report-output', async () => {
   };
 });
 
+vi.mock('@tauri-apps/plugin-opener', () => ({
+  openPath: (...args: unknown[]) => openPathMock(...args),
+}));
+
 vi.mock('@/store/ui-store', () => ({
   useUIStore: (selector: (state: { closeHomeTab: typeof closeHomeTabMock }) => unknown) =>
     selector({ closeHomeTab: closeHomeTabMock }),
 }));
 
 vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
+  const actual = await vi.importActual<Awaited<ReturnType<typeof _importRouterDom>>>(
+    'react-router-dom',
+  );
   return {
     ...actual,
     useNavigate: () => navigateMock,
@@ -86,6 +100,7 @@ describe('Outstanding report flows', () => {
     openPrintableReportMock.mockReset();
     downloadExcelXmlMock.mockReset();
     closeHomeTabMock.mockReset();
+    openPathMock.mockReset();
     navigateMock.mockReset();
     setupOutstandingQueries();
   });
@@ -115,6 +130,26 @@ describe('Outstanding report flows', () => {
     expect(openPrintableReportMock.mock.calls[0]?.[0].html).toContain('All Companies');
     expect(openPrintableReportMock.mock.calls[0]?.[0].html).toContain('Alice');
     expect(openPrintableReportMock.mock.calls[0]?.[0].html).not.toContain('Bob');
+  });
+
+  it('passes a concrete PDF output path when exporting outstanding report as PDF', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <MemoryRouter>
+        <OutstandingReport />
+      </MemoryRouter>,
+    );
+
+    await screen.findByText('Outstanding Report');
+    await user.click(screen.getByRole('button', { name: 'View PDF' }));
+
+    expect(openPrintableReportMock).toHaveBeenCalledTimes(1);
+    expect(openPrintableReportMock.mock.calls[0]?.[0]).toMatchObject({
+      mode: 'pdf',
+      configuredPath: '/tmp/reports',
+      outputPath: '/tmp/reports/outstanding-report-All Companies-2025-01-01.pdf',
+    });
   });
 
   it('closes the outstanding report tab when cancel is clicked', async () => {
