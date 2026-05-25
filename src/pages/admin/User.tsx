@@ -54,6 +54,7 @@ function UserPage() {
   const [form, setForm] = useState({
     user_id: '',
     password: '',
+    confirm_password: '',
     des: 'USER',
     company_id: 1,
   });
@@ -122,7 +123,7 @@ function UserPage() {
 
   const openNew = () => {
     setEditingId(null);
-    setForm({ user_id: '', password: '', des: 'USER', company_id: companies[0]?.id ?? 1 });
+    setForm({ user_id: '', password: '', confirm_password: '', des: 'USER', company_id: companies[0]?.id ?? 1 });
     setDialogOpen(true);
   };
 
@@ -131,6 +132,7 @@ function UserPage() {
     setForm({
       user_id: u.user_id,
       password: u.password,
+      confirm_password: '',
       des: u.des ?? 'USER',
       company_id: u.company_id,
     });
@@ -144,6 +146,10 @@ function UserPage() {
     }
     if (!form.password.trim()) {
       toast.error('Password is required');
+      return;
+    }
+    if (form.password !== form.confirm_password) {
+      toast.error('Password and confirm password do not match');
       return;
     }
 
@@ -233,7 +239,11 @@ function UserPage() {
                     </tr>
                   ) : (
                     table.getRowModel().rows.map((row) => (
-                      <tr key={row.id} className="border-t hover:bg-muted/30">
+                      <tr
+                        key={row.id}
+                        className="cursor-pointer border-t hover:bg-muted/30"
+                        onDoubleClick={() => openEdit(row.original)}
+                      >
                         {row.getVisibleCells().map((cell) => (
                           <td key={cell.id} className="px-4 py-2">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
@@ -272,6 +282,16 @@ function UserPage() {
                 value={form.password}
                 onChange={(e) => setForm({ ...form, password: e.target.value })}
                 placeholder="Enter password"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="user-confirm">Confirm Password *</Label>
+              <Input
+                id="user-confirm"
+                type="password"
+                value={form.confirm_password}
+                onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
+                placeholder="Confirm password"
               />
             </div>
             <div className="space-y-1">
