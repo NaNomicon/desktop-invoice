@@ -153,6 +153,7 @@ const SCHEMA_STATEMENTS = [
     unit_price INTEGER DEFAULT 0,
     row_total INTEGER DEFAULT 0,
     s_no INTEGER DEFAULT 0,
+    company_id INTEGER DEFAULT 1,
     is_deleted INTEGER DEFAULT 0
   )`,
   `CREATE TABLE IF NOT EXISTS tbl_receipt (
@@ -392,6 +393,7 @@ const REQUIRED_COLUMNS: Record<string, ColumnSpec[]> = {
     { name: 'unit_price', type: 'INTEGER DEFAULT 0' },
     { name: 'row_total', type: 'INTEGER DEFAULT 0' },
     { name: 's_no', type: 'INTEGER DEFAULT 0' },
+    { name: 'company_id', type: 'INTEGER DEFAULT 1' },
     { name: 'is_deleted', type: 'INTEGER DEFAULT 0' },
   ],
   tbl_receipt: [

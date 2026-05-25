@@ -439,6 +439,8 @@ function QuotationForm() {
           discount: resolvedDiscount,
           total,
           per: parseFloat(per || '0'),
+          isvat: settings?.isvat ?? 0,
+          vat_per: settings?.vat_per ?? 0,
           line_items: activeItems.map((item) => ({
             id: item.id > 0 ? item.id : undefined,
             qty: item.qty,
@@ -509,6 +511,8 @@ function QuotationForm() {
     reindexLineItems,
     resolvedDiscount,
     selectedCustomer?.due_amount,
+    settings?.isvat,
+    settings?.vat_per,
     subTotal,
     total,
   ]);

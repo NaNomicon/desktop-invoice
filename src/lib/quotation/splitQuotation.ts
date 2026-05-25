@@ -21,6 +21,8 @@ interface SplitQuotationParams {
   discount: number;
   total: number;
   per: number;
+  isvat: number;
+  vat_per: number;
   line_items: LineItemWithCompany[];
 }
 
@@ -65,8 +67,12 @@ export async function splitQuotation(
   const sub1 = items1.reduce((s, i) => s + i.row_total, 0);
   const sub2 = items2.reduce((s, i) => s + i.row_total, 0);
 
-  const vat1 = Math.round((sub1 * params.per) / 100);
-  const vat2 = Math.round((sub2 * params.per) / 100);
+  const vat1 = params.isvat === 1
+    ? Math.round((sub1 * params.vat_per) / 100)
+    : 0;
+  const vat2 = params.isvat === 1
+    ? Math.round((sub2 * params.vat_per) / 100)
+    : 0;
 
   const disc1 =
     params.sub_total > 0
