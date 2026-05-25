@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
-import { downloadExcelXml, openPrintableReport } from '@/lib/report-output';
+import { buildReportPdfPath, downloadExcelXml, openPrintableReport } from '@/lib/report-output';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -37,7 +38,7 @@ function ListOutStanding() {
   const navigate = useNavigate();
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
   const [customers, setCustomers] = useState<OutstandingRow[]>([]);
-  const [companies, setCompanies] = useState<Array<{ id: number; company_name: string | null }>>([]);
+  const [companies, setCompanies] = useState<{ id: number; company_name: string | null }[]>([]);
   const [settings, setSettings] = useState<{ report_path: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -83,7 +84,7 @@ function ListOutStanding() {
   const openReceiptVoucher = useCallback(
     (row: OutstandingRow | null) => {
       if (!row) {
-        window.alert('No Data Selected');
+        toast.error('No Data Selected');
         return;
       }
 
@@ -102,12 +103,12 @@ function ListOutStanding() {
   const handleOpenPrintableReport = useCallback(
     (mode: 'print' | 'pdf') => {
       if (filtered.length === 0) {
-        window.alert('No Data Selected');
+        toast.error('No Data Selected');
         return;
       }
 
       if (mode === 'pdf' && !settings?.report_path?.trim()) {
-        window.alert('Please Set Report Path from Setting');
+        toast.error('Please Set Report Path from Setting');
         return;
       }
 
@@ -117,14 +118,22 @@ function ListOutStanding() {
         mode,
         requirePath: mode === 'pdf',
         configuredPath: settings?.report_path ?? null,
+        outputPath:
+          mode === 'pdf' && settings?.report_path
+            ? buildReportPdfPath({
+                configuredPath: settings.report_path,
+                filenamePrefix: 'outstanding-report',
+                label: companyFilter === 'all' ? 'all-companies' : `company-${companyFilter}`,
+              })
+            : null,
       });
     },
-    [filtered, settings],
+    [companyFilter, filtered, settings],
   );
 
   const handleExportExcel = useCallback(() => {
     if (filtered.length === 0) {
-      window.alert('No Data Selected');
+      toast.error('No Data Selected');
       return;
     }
 

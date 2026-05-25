@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { downloadExcelXml, openPrintableReport } from '@/lib/report-output';
+import { toast } from 'sonner';
+import { buildReportPdfPath, downloadExcelXml, openPrintableReport } from '@/lib/report-output';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -20,7 +21,7 @@ import { Download, FileText, Search, X } from 'lucide-react';
 function OutstandingReport() {
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
   const [customers, setCustomers] = useState<OutstandingRow[]>([]);
-  const [companies, setCompanies] = useState<Array<{ id: number; company_name: string | null }>>([]);
+  const [companies, setCompanies] = useState<{ id: number; company_name: string | null }[]>([]);
   const [settings, setSettings] = useState<{ report_path: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -69,12 +70,12 @@ function OutstandingReport() {
   const handlePrintable = useCallback(
     (mode: 'print' | 'pdf') => {
       if (filtered.length === 0) {
-        window.alert('No Data Selected');
+        toast.error('No Data Selected');
         return;
       }
 
       if (mode === 'pdf' && !settings?.report_path?.trim()) {
-        window.alert('Please Set Report Path from Setting');
+        toast.error('Please Set Report Path from Setting');
         return;
       }
 
@@ -83,6 +84,14 @@ function OutstandingReport() {
         mode,
         requirePath: mode === 'pdf',
         configuredPath: settings?.report_path ?? null,
+        outputPath:
+          mode === 'pdf' && settings?.report_path
+            ? buildReportPdfPath({
+                configuredPath: settings.report_path,
+                filenamePrefix: 'outstanding-report',
+                label: companyLabel,
+              })
+            : null,
       });
     },
     [companyLabel, filtered, settings],
@@ -90,7 +99,7 @@ function OutstandingReport() {
 
   const handleExportExcel = useCallback(() => {
     if (filtered.length === 0) {
-      window.alert('No Data Selected');
+      toast.error('No Data Selected');
       return;
     }
 

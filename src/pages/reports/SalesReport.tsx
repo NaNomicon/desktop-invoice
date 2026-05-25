@@ -1,7 +1,13 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
-import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-output';
+import {
+  buildReportPdfPath,
+  downloadExcelXml,
+  escapeHtml,
+  openPrintableReport,
+} from '@/lib/report-output';
 import { useUIStore } from '@/store/ui-store';
 import type { Company, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -311,12 +317,12 @@ function SalesReport() {
   const handleOpenPrintableReport = useCallback(
     (mode: 'print' | 'pdf') => {
       if (salesData.length === 0) {
-        window.alert('No Data Selected');
+        toast.error('No Data Selected');
         return;
       }
 
       if (mode === 'pdf' && !settings[0]?.report_path?.trim()) {
-        window.alert('Please Set Report Path from Setting');
+        toast.error('Please Set Report Path from Setting');
         return;
       }
 
@@ -332,6 +338,14 @@ function SalesReport() {
         mode,
         requirePath: mode === 'pdf',
         configuredPath: settings[0]?.report_path ?? null,
+        outputPath:
+          mode === 'pdf' && settings[0]?.report_path
+            ? buildReportPdfPath({
+                configuredPath: settings[0].report_path,
+                filenamePrefix: 'sales-report',
+                label: companyLabel,
+              })
+            : null,
       });
     },
     [companyLabel, rangeLabel, salesData, searchTerm, settings],
@@ -339,7 +353,7 @@ function SalesReport() {
 
   const handleExportExcel = useCallback(() => {
     if (salesData.length === 0) {
-      window.alert('No Data Selected');
+      toast.error('No Data Selected');
       return;
     }
 

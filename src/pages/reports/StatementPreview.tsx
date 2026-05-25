@@ -1,7 +1,13 @@
 import { useState, useMemo, useCallback } from 'react';
+import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
-import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-output';
+import {
+  buildReportPdfPath,
+  downloadExcelXml,
+  escapeHtml,
+  openPrintableReport,
+} from '@/lib/report-output';
 import type { Company, Customer, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -332,7 +338,7 @@ function StatementPreview() {
   const handleOpenPrintableReport = useCallback(
     (mode: 'print' | 'pdf') => {
       if (!transactions.length || !selectedCustomer) {
-        window.alert('No Data Selected');
+        toast.error('No Data Selected');
         return;
       }
 
@@ -350,6 +356,14 @@ function StatementPreview() {
         mode,
         requirePath: mode === 'pdf',
         configuredPath: settings[0]?.report_path ?? null,
+        outputPath:
+          mode === 'pdf' && settings[0]?.report_path
+            ? buildReportPdfPath({
+                configuredPath: settings[0].report_path,
+                filenamePrefix: 'statement-report',
+                label: selectedCustomer.customer_name,
+              })
+            : null,
       });
     },
     [
@@ -365,7 +379,7 @@ function StatementPreview() {
 
   const handleExportExcel = useCallback(() => {
     if (!transactions.length || !selectedCustomer) {
-      window.alert('No Data Selected');
+      toast.error('No Data Selected');
       return;
     }
 

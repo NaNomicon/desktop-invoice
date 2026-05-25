@@ -2,7 +2,12 @@ import { useMemo, useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
-import { downloadExcelXml, escapeHtml, openPrintableReport } from '@/lib/report-output';
+import {
+  buildReportPdfPath,
+  downloadExcelXml,
+  escapeHtml,
+  openPrintableReport,
+} from '@/lib/report-output';
 import type { Company, Customer, QuotationMain, QuotationSub, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -179,7 +184,7 @@ function QuotationPreview() {
 
   const handlePrintable = (mode: 'print' | 'pdf') => {
     if (!reportHtml) {
-      window.alert('No Data Selected');
+      toast.error('No Data Selected');
       return;
     }
     openPrintableReport({
@@ -187,12 +192,20 @@ function QuotationPreview() {
       mode,
       requirePath: mode === 'pdf',
       configuredPath: data?.settings?.quo_path ?? null,
+      outputPath:
+        mode === 'pdf' && data?.settings?.quo_path
+          ? buildReportPdfPath({
+              configuredPath: data.settings.quo_path,
+              filenamePrefix: 'quotation',
+              label: data.quotation?.quo_no ?? null,
+            })
+          : null,
     });
   };
 
   const handleExportExcel = () => {
     if (!data?.quotation) {
-      window.alert('No Data Selected');
+      toast.error('No Data Selected');
       return;
     }
     downloadExcelXml({
