@@ -29,3 +29,6 @@ jscpd-report
 build/
 *.db
 .sisyphus/
+.opencode/
+# Bundled Chromium binaries (exceeds GitHub 100MB limit)
+src-tauri/binaries/chromium/
