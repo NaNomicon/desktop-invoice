@@ -23,6 +23,7 @@ import SalesReport from '@/pages/reports/SalesReport'
 import StatementPreview from '@/pages/reports/StatementPreview'
 import PrintPreview from '@/pages/reports/PrintPreview'
 import QuotationPreview from '@/pages/reports/QuotationPreview'
+import QuotationListReport from '@/pages/reports/QuotationListReport'
 import OutstandingReport from '@/pages/reports/OutstandingReport'
 import InvoiceListReport from '@/pages/reports/InvoiceListReport'
 import ReceiptPreview from '@/pages/reports/ReceiptPreview'
@@ -73,7 +74,8 @@ const ROUTE_TABS: Record<string, RouteTabDefinition> = {
   '/reports/print': { title: 'Invoice Report' },
   '/reports/print/0': { title: 'Invoice Report' },
   '/reports/invoices': { title: 'Invoice Report' },
-  '/reports/quotations': { title: 'Quotation Report' },
+  '/reports/quotations': { title: 'Quotation List Report' },
+  '/reports/quotations/:quotationId': { title: 'Quotation Report' },
   '/reports/receipts': { title: 'Receipt Report' },
   '/reports/outstanding': { title: 'Outstanding Report' },
   '/home/change-password': { title: 'Change Password' },
@@ -88,6 +90,10 @@ function getRouteTabDefinition(pathname: string): RouteTabDefinition | null {
 
   if (pathname.startsWith('/reports/print/')) {
     return { title: 'Invoice Report' }
+  }
+
+  if (pathname.startsWith('/reports/quotations/')) {
+    return { title: 'Quotation Report' }
   }
 
   return null
@@ -267,6 +273,10 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             <Route path="/reports/invoices" element={<InvoiceListReport />} />
             <Route
               path="/reports/quotations"
+              element={<QuotationListReport />}
+            />
+            <Route
+              path="/reports/quotations/:quotationId"
               element={<QuotationPreview />}
             />
             <Route

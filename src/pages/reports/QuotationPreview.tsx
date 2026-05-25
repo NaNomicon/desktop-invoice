@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
 import {
@@ -126,8 +126,9 @@ function createQuotationHtml(options: {
 function QuotationPreview() {
   const location = useLocation();
   const navigate = useNavigate();
+  const params = useParams();
   const state = (location.state as QuotationPreviewState | null) ?? null;
-  const quotationId = state?.quotationId ?? 0;
+  const quotationId = state?.quotationId ?? Number(params.quotationId) ?? 0;
   const autoPrintMode = state?.autoPrint ?? false;
   const autoExportPdf = state?.autoExportPdf ?? false;
 
