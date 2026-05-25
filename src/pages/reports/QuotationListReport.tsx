@@ -53,9 +53,9 @@ interface QuotationListRow {
   customer_type: string | null;
   quo_no: string;
   quo_date: string;
-  vat: number;
+  per: number;
   discount: number;
-  total: number;
+  sub_total: number;
   checklist_no: string | null;
   telephone: string | null;
 }
@@ -85,7 +85,7 @@ function createQuotationListReportHtml(options: {
 }): string {
   const { rows, rangeLabel, companyLabel, searchTerm } = options;
   const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
-  const totalSubTotal = rows.reduce((sum, row) => sum + row.total, 0);
+  const totalSubTotal = rows.reduce((sum, row) => sum + row.sub_total, 0);
   const totalDiscount = rows.reduce((sum, row) => sum + row.discount, 0);
 
   const tableRows = rows
@@ -95,12 +95,11 @@ function createQuotationListReportHtml(options: {
           <td>${row.quo_id}</td>
           <td>${escapeHtml(row.customer_name)}</td>
           <td>${escapeHtml(row.customer_type ?? '')}</td>
-          <td>${escapeHtml(row.telephone ?? '')}</td>
           <td>${escapeHtml(row.quo_no)}</td>
           <td>${escapeHtml(formatDisplayDate(row.quo_date))}</td>
-          <td class="num">${row.vat.toFixed(2)}</td>
+          <td class="num">${row.per}%</td>
           <td class="num">${dollars(row.discount)}</td>
-          <td class="num">${dollars(row.total)}</td>
+          <td class="num">${dollars(row.sub_total)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -155,7 +154,6 @@ function createQuotationListReportHtml(options: {
           <th>Quo ID</th>
           <th>Customer</th>
           <th>Customer Type</th>
-          <th>Mobile</th>
           <th>Quotation NO</th>
           <th>Date</th>
           <th>Tax%</th>
@@ -167,7 +165,7 @@ function createQuotationListReportHtml(options: {
       <tbody>${tableRows}</tbody>
       <tfoot>
         <tr>
-          <td colspan="7">Total</td>
+          <td colspan="6">Total</td>
           <td class="num">$${dollars(totalDiscount)}</td>
           <td class="num">$${dollars(totalSubTotal)}</td>
           <td></td>
@@ -242,13 +240,13 @@ function QuotationListReport() {
       return query<QuotationListRow>(
         `SELECT
           tbl_quotation_main.id AS quo_id,
-          LTRIM(COALESCE(tbl_customer.title_name + ' ', '') + tbl_customer.customer_name) AS customer_name,
+          LTRIM(tbl_customer.customer_name) AS customer_name,
           tbl_customer.customer_type,
           tbl_quotation_main.quo_no,
           tbl_quotation_main.quo_date,
-          tbl_quotation_main.vat,
+          tbl_quotation_main.per,
           tbl_quotation_main.discount,
-          tbl_quotation_main.total,
+          tbl_quotation_main.sub_total,
           tbl_quotation_main.checklist_no,
           tbl_customer.telephone
         FROM tbl_quotation_main
@@ -343,12 +341,11 @@ function QuotationListReport() {
       worksheetName: 'Quotation List Report',
       headers: [
         'QUO ID',
-        'CUSTOMER NAME',
+        'CUSTOMER',
         'CUSTOMER TYPE',
-        'MOBILE',
         'QUOTATION NO',
         'DATE',
-        'TAX(%)',
+        'TAX%',
         'DISCOUNT',
         'SUB TOTAL',
         'CHECKLIST NO',
@@ -357,12 +354,11 @@ function QuotationListReport() {
         String(row.quo_id),
         row.customer_name,
         row.customer_type ?? '',
-        row.telephone ?? '',
         row.quo_no,
         formatDisplayDate(row.quo_date),
-        row.vat.toFixed(2),
+        `${row.per}%`,
         dollars(row.discount),
-        dollars(row.total),
+        dollars(row.sub_total),
         row.checklist_no ?? '',
       ]),
     });
@@ -386,11 +382,6 @@ function QuotationListReport() {
         cell: (info) => info.getValue<string | null>() ?? '—',
       },
       {
-        accessorKey: 'telephone',
-        header: 'Mobile',
-        cell: (info) => info.getValue<string | null>() ?? '—',
-      },
-      {
         accessorKey: 'quo_no',
         header: 'Quotation NO',
         cell: (info) => info.getValue<string>(),
@@ -401,9 +392,9 @@ function QuotationListReport() {
         cell: (info) => formatDisplayDate(info.getValue<string>()),
       },
       {
-        accessorKey: 'vat',
+        accessorKey: 'per',
         header: 'Tax%',
-        cell: (info) => <span className="tabular-nums">{info.getValue<number>().toFixed(2)}</span>,
+        cell: (info) => <span className="tabular-nums">{info.getValue<number>()}%</span>,
       },
       {
         accessorKey: 'discount',
@@ -413,7 +404,7 @@ function QuotationListReport() {
         ),
       },
       {
-        accessorKey: 'total',
+        accessorKey: 'sub_total',
         header: 'Sub Total',
         cell: (info) => (
           <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
