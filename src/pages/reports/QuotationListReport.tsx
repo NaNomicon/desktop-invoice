@@ -95,6 +95,7 @@ function createQuotationListReportHtml(options: {
           <td>${row.quo_id}</td>
           <td>${escapeHtml(row.customer_name)}</td>
           <td>${escapeHtml(row.customer_type ?? '')}</td>
+          <td>${escapeHtml(row.telephone ?? '')}</td>
           <td>${escapeHtml(row.quo_no)}</td>
           <td>${escapeHtml(formatDisplayDate(row.quo_date))}</td>
           <td class="num">${row.vat.toFixed(2)}</td>
@@ -154,6 +155,7 @@ function createQuotationListReportHtml(options: {
           <th>Quo ID</th>
           <th>Customer</th>
           <th>Customer Type</th>
+          <th>Mobile</th>
           <th>Quotation NO</th>
           <th>Date</th>
           <th>Tax%</th>
@@ -165,7 +167,7 @@ function createQuotationListReportHtml(options: {
       <tbody>${tableRows}</tbody>
       <tfoot>
         <tr>
-          <td colspan="6">Total</td>
+          <td colspan="7">Total</td>
           <td class="num">$${dollars(totalDiscount)}</td>
           <td class="num">$${dollars(totalSubTotal)}</td>
           <td></td>
@@ -381,6 +383,11 @@ function QuotationListReport() {
       {
         accessorKey: 'customer_type',
         header: 'Customer Type',
+        cell: (info) => info.getValue<string | null>() ?? '—',
+      },
+      {
+        accessorKey: 'telephone',
+        header: 'Mobile',
         cell: (info) => info.getValue<string | null>() ?? '—',
       },
       {
