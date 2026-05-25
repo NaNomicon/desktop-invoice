@@ -53,9 +53,9 @@ interface QuotationListRow {
   customer_type: string | null;
   quo_no: string;
   quo_date: string;
-  per: number;
+  vat: number;
   discount: number;
-  sub_total: number;
+  total: number;
   checklist_no: string | null;
   telephone: string | null;
 }
@@ -85,7 +85,7 @@ function createQuotationListReportHtml(options: {
 }): string {
   const { rows, rangeLabel, companyLabel, searchTerm } = options;
   const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
-  const totalSubTotal = rows.reduce((sum, row) => sum + row.sub_total, 0);
+  const totalSubTotal = rows.reduce((sum, row) => sum + row.total, 0);
   const totalDiscount = rows.reduce((sum, row) => sum + row.discount, 0);
 
   const tableRows = rows
@@ -97,9 +97,9 @@ function createQuotationListReportHtml(options: {
           <td>${escapeHtml(row.customer_type ?? '')}</td>
           <td>${escapeHtml(row.quo_no)}</td>
           <td>${escapeHtml(formatDisplayDate(row.quo_date))}</td>
-          <td class="num">${row.per}%</td>
+          <td class="num">${row.vat.toFixed(2)}</td>
           <td class="num">${dollars(row.discount)}</td>
-          <td class="num">${dollars(row.sub_total)}</td>
+          <td class="num">${dollars(row.total)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -240,13 +240,13 @@ function QuotationListReport() {
       return query<QuotationListRow>(
         `SELECT
           tbl_quotation_main.id AS quo_id,
-          LTRIM(tbl_customer.customer_name) AS customer_name,
+          LTRIM(COALESCE(tbl_customer.title_name + ' ', '') + tbl_customer.customer_name) AS customer_name,
           tbl_customer.customer_type,
           tbl_quotation_main.quo_no,
           tbl_quotation_main.quo_date,
-          tbl_quotation_main.per,
+          tbl_quotation_main.vat,
           tbl_quotation_main.discount,
-          tbl_quotation_main.sub_total,
+          tbl_quotation_main.total,
           tbl_quotation_main.checklist_no,
           tbl_customer.telephone
         FROM tbl_quotation_main
@@ -341,11 +341,12 @@ function QuotationListReport() {
       worksheetName: 'Quotation List Report',
       headers: [
         'QUO ID',
-        'CUSTOMER',
+        'CUSTOMER NAME',
         'CUSTOMER TYPE',
+        'MOBILE',
         'QUOTATION NO',
         'DATE',
-        'TAX%',
+        'TAX(%)',
         'DISCOUNT',
         'SUB TOTAL',
         'CHECKLIST NO',
@@ -354,11 +355,12 @@ function QuotationListReport() {
         String(row.quo_id),
         row.customer_name,
         row.customer_type ?? '',
+        row.telephone ?? '',
         row.quo_no,
         formatDisplayDate(row.quo_date),
-        `${row.per}%`,
+        row.vat.toFixed(2),
         dollars(row.discount),
-        dollars(row.sub_total),
+        dollars(row.total),
         row.checklist_no ?? '',
       ]),
     });
@@ -392,9 +394,9 @@ function QuotationListReport() {
         cell: (info) => formatDisplayDate(info.getValue<string>()),
       },
       {
-        accessorKey: 'per',
+        accessorKey: 'vat',
         header: 'Tax%',
-        cell: (info) => <span className="tabular-nums">{info.getValue<number>()}%</span>,
+        cell: (info) => <span className="tabular-nums">{info.getValue<number>().toFixed(2)}</span>,
       },
       {
         accessorKey: 'discount',
@@ -404,7 +406,7 @@ function QuotationListReport() {
         ),
       },
       {
-        accessorKey: 'sub_total',
+        accessorKey: 'total',
         header: 'Sub Total',
         cell: (info) => (
           <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
