@@ -94,13 +94,13 @@ function SettingsPage() {
       const numExistsResult = numExists[0];
       if (numExistsResult && numExistsResult.cnt > 0) {
         await execute(
-          `UPDATE tbl_numbers SET invoice_no = ?, quo_no = ? WHERE id = 1`,
-          [numbers.invoice_no ?? 1, numbers.quo_no ?? 1],
+          `UPDATE tbl_numbers SET invoice_no = ?, quo_no = ?, receipt_no = ? WHERE id = 1`,
+          [numbers.invoice_no ?? 1, numbers.quo_no ?? 1, numbers.receipt_no ?? 1],
         );
       } else {
         await execute(
-          `INSERT INTO tbl_numbers (id, invoice_no, quo_no, receipt_no) VALUES (1, ?, ?, 1)`,
-          [numbers.invoice_no ?? 1, numbers.quo_no ?? 1],
+          `INSERT INTO tbl_numbers (id, invoice_no, quo_no, receipt_no) VALUES (1, ?, ?, ?)`,
+          [numbers.invoice_no ?? 1, numbers.quo_no ?? 1, numbers.receipt_no ?? 1],
         );
       }
 
@@ -276,6 +276,21 @@ function SettingsPage() {
             />
             <p className="text-muted-foreground text-xs">
               Next quotation number to assign
+            </p>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="receipt-no">Next Receipt No</Label>
+            <Input
+              id="receipt-no"
+              type="number"
+              min="1"
+              value={numbers.receipt_no ?? 1}
+              onChange={(e) =>
+                setNumbers((prev) => ({ ...prev, receipt_no: parseInt(e.target.value) || 1 }))
+              }
+            />
+            <p className="text-muted-foreground text-xs">
+              Next receipt number to assign
             </p>
           </div>
         </CardContent>
