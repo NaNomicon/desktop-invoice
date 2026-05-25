@@ -26,6 +26,7 @@ export type {
   AppPreferences,
   JsonValue,
   RecoveryError,
+  SaveReportPdfRequest,
   SendEmailAttachment,
   SendEmailRequest,
   SendEmailResponse,

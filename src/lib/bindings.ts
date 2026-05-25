@@ -186,6 +186,22 @@ async restoreDatabase(fromPath: string) : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+async validateBundledPdfRenderer() : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("validate_bundled_pdf_renderer") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
+},
+async saveReportPdf(request: SaveReportPdfRequest) : Promise<Result<string, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_report_pdf", { request }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -240,6 +256,7 @@ export type RecoveryError =
  */
 { type: "ParseError"; message: string }
 export type SendEmailAttachment = { path: string; filename: string | null; mime_type: string | null }
+export type SaveReportPdfRequest = { html: string; output_path: string }
 export type SendEmailRequest = { smtp_host: string | null; smtp_port: number | null; smtp_starttls: boolean | null; sender_email: string; sender_pass: string; sender_name: string | null; to: string; subject: string; html: string; attachments: SendEmailAttachment[] | null }
 export type SendEmailResponse = { sent_to: string; attachment_count: number }
 
