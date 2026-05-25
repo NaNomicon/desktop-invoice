@@ -20,6 +20,7 @@ interface QuotationPreviewState {
   quotationId?: number;
   quotationNo?: string;
   autoPrint?: boolean;
+  autoExportPdf?: boolean;
 }
 
 interface QuotationLineRow extends QuotationSub {
@@ -128,8 +129,10 @@ function QuotationPreview() {
   const state = (location.state as QuotationPreviewState | null) ?? null;
   const quotationId = state?.quotationId ?? 0;
   const autoPrintMode = state?.autoPrint ?? false;
+  const autoExportPdf = state?.autoExportPdf ?? false;
 
   const [waOpen, setWaOpen] = useState(false);
+  const [autoPdfTriggered, setAutoPdfTriggered] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['quotationPreview', quotationId],
@@ -174,13 +177,22 @@ function QuotationPreview() {
   }, [data]);
 
   useEffect(() => {
-    if (autoPrintMode && reportHtml && !isLoading) {
-      const timer = setTimeout(() => {
-        window.print();
-      }, 300);
-      return () => clearTimeout(timer);
+    if (!autoPrintMode || !reportHtml || isLoading) {
+      return;
     }
+    const timer = setTimeout(() => {
+      window.print();
+    }, 300);
+    return () => clearTimeout(timer);
   }, [autoPrintMode, reportHtml, isLoading]);
+
+  useEffect(() => {
+    if (!autoExportPdf || autoPdfTriggered || isLoading || !reportHtml) {
+      return;
+    }
+    setAutoPdfTriggered(true);
+    void handlePrintable('pdf');
+  }, [autoExportPdf, autoPdfTriggered, isLoading, reportHtml]);
 
   const handlePrintable = (mode: 'print' | 'pdf') => {
     if (!reportHtml) {
