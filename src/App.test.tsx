@@ -3,7 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { render, screen } from '@/test/test-utils'
 import { useAuthStore } from '@/store/authStore'
 
+const toastWarningMock = vi.fn()
+
 const loadPreferencesMock = vi.fn()
+const validateBundledPdfRendererMock = vi.fn()
 const cleanupOldFilesMock = vi.fn()
 const buildAppMenuMock = vi.fn()
 const setupMenuLanguageListenerMock = vi.fn()
@@ -15,6 +18,14 @@ const initializeCommandSystemMock = vi.fn()
 vi.mock('./lib/tauri-bindings', () => ({
   commands: {
     loadPreferences: (...args: unknown[]) => loadPreferencesMock(...args),
+    validateBundledPdfRenderer: (...args: unknown[]) =>
+      validateBundledPdfRendererMock(...args),
+  },
+}))
+
+vi.mock('sonner', () => ({
+  toast: {
+    warning: (...args: unknown[]) => toastWarningMock(...args),
   },
 }))
 
@@ -66,6 +77,7 @@ describe('App splash flow', () => {
       isLoggedIn: false,
     })
     loadPreferencesMock.mockReset()
+    validateBundledPdfRendererMock.mockReset()
     cleanupOldFilesMock.mockReset()
     buildAppMenuMock.mockReset()
     setupMenuLanguageListenerMock.mockReset()
@@ -73,7 +85,12 @@ describe('App splash flow', () => {
     checkMock.mockReset()
     relaunchMock.mockReset()
     initializeCommandSystemMock.mockReset()
+    toastWarningMock.mockReset()
 
+    validateBundledPdfRendererMock.mockResolvedValue({
+      status: 'ok',
+      data: '/tmp/chromium/linux/chrome',
+    })
     loadPreferencesMock.mockResolvedValue({
       status: 'ok',
       data: { theme: 'system', language: 'en' },

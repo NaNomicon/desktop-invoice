@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
+import { toast } from 'sonner'
 import { initializeCommandSystem } from './lib/commands'
 import { buildAppMenu, setupMenuLanguageListener } from './lib/menu'
 import { initializeLanguage } from './i18n/language-init'
@@ -51,6 +52,16 @@ function App() {
       const startedAt = Date.now()
 
       try {
+        const rendererCheck = await commands.validateBundledPdfRenderer()
+        if (rendererCheck.status === 'ok') {
+          logger.info('Bundled PDF renderer ready', { path: rendererCheck.data })
+        } else {
+          logger.warn('Bundled PDF renderer validation failed', {
+            error: rendererCheck.error,
+          })
+          toast.warning(rendererCheck.error)
+        }
+
         // Load preferences to get saved language
         const result = await commands.loadPreferences()
         const savedLanguage =
