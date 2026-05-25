@@ -26,6 +26,7 @@ import QuotationPreview from '@/pages/reports/QuotationPreview'
 import QuotationListReport from '@/pages/reports/QuotationListReport'
 import OutstandingReport from '@/pages/reports/OutstandingReport'
 import InvoiceListReport from '@/pages/reports/InvoiceListReport'
+import InvoicePreview from '@/pages/reports/InvoicePreview'
 import ReceiptPreview from '@/pages/reports/ReceiptPreview'
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
@@ -271,6 +272,10 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             <Route path="/reports/print" element={<PrintPreview invoice_id={0} />} />
             <Route path="/reports/print/:invoiceId" element={<PrintPreview invoice_id={0} />} />
             <Route path="/reports/invoices" element={<InvoiceListReport />} />
+            <Route
+              path="/reports/invoices/:invoiceId"
+              element={<InvoicePreview />}
+            />
             <Route
               path="/reports/quotations"
               element={<QuotationListReport />}
