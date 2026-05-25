@@ -21,7 +21,7 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Package } from 'lucide-react';
+import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
 
 function ProductTypePage() {
   const userId = useAuthStore((s) => s.user_id_log);
@@ -29,6 +29,7 @@ function ProductTypePage() {
 
   const [types, setTypes] = useState<ProductType[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [typeName, setTypeName] = useState('');
@@ -37,16 +38,22 @@ function ProductTypePage() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    const searchPattern = search.trim() ? `%${search.trim()}%` : '%';
     const rows = await query<ProductType>(
-      'SELECT * FROM tbl_product_type WHERE is_deleted = 0 ORDER BY type_name',
+      'SELECT * FROM tbl_product_type WHERE is_deleted = 0 AND type_name LIKE ? ORDER BY type_name',
+      [searchPattern],
     );
     setTypes(rows);
     setLoading(false);
-  }, []);
+  }, [search]);
 
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearch(e.target.value);
+  }, []);
 
   const columns = useMemo<ColumnDef<ProductType>[]>(
     () => [
@@ -160,12 +167,23 @@ function ProductTypePage() {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Package className="size-5" />
-          <h1 className="text-2xl font-semibold">Product Types</h1>
+          <h1 className="text-2xl font-semibold">Product Type</h1>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="size-4" />
-          Add Type
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="relative w-64">
+            <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search product type..."
+              value={search}
+              onChange={handleSearchChange}
+              className="pl-8"
+            />
+          </div>
+          <Button onClick={openNew}>
+            <Plus className="size-4" />
+            Add Type
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -209,6 +227,9 @@ function ProductTypePage() {
               </table>
             </div>
           )}
+          <p className="mt-2 text-right text-lg font-semibold tracking-tight text-muted-foreground">
+            Total : {types.length}
+          </p>
         </CardContent>
       </Card>
 
