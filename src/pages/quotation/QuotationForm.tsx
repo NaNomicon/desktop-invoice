@@ -15,6 +15,7 @@ import type {
   Setting,
 } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/ui-store';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -104,6 +105,8 @@ function QuotationForm() {
   const location = useLocation();
   const authCompanyId = useAuthStore((s) => s.company_id);
   const routeState = (location.state as QuotationRouteState | null) ?? null;
+  const productAutoFill = useUIStore((s) => s.productAutoFill);
+  const setProductAutoFill = useUIStore((s) => s.setProductAutoFill);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -406,6 +409,29 @@ function QuotationForm() {
     },
     [addLineItem, lineItems, updateLineItem],
   );
+
+  useEffect(() => {
+    if (productAutoFill?.targetForm !== 'quotation') return;
+    if (!products.length) return;
+    const product = products.find((p) => p.id === productAutoFill.productId);
+    if (product) {
+      const target = lineItems.find((item) => !item.deleted && !item.product_id) ??
+        lineItems.find((item) => !item.deleted) ??
+        null;
+      if (!target) {
+        addLineItem();
+        return;
+      }
+      updateLineItem(target.uid, {
+        product_id: product.id,
+        product_name: product.product_name,
+        unit_price: product.price,
+        company_id: product.company_id,
+      });
+    }
+    setProductAutoFill(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productAutoFill, products]);
 
   const persistQuotation = useCallback(async () => {
     if (!customerId) {
