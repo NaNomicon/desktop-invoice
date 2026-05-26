@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
+import { commands, unwrapResult } from '@/lib/tauri-bindings';
 import {
   buildReportPdfPath,
   downloadExcelXml,
@@ -87,7 +88,10 @@ interface ReceiptRow {
 }
 
 function dollars(c: number): string {
-  return (c / 100).toFixed(2);
+  return (c / 100).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function formatDisplayDate(date: string): string {
@@ -95,6 +99,48 @@ function formatDisplayDate(date: string): string {
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return date;
   return format(parsed, 'dd-MM-yyyy');
+}
+
+function sanitizeFolderPart(value: string): string {
+  return value.replaceAll(/[\\/:*?"<>|]/g, '_').trim() || 'Unknown';
+}
+
+function joinPath(basePath: string, part: string): string {
+  const normalizedBase = basePath.replace(/[\\/]+$/, '');
+  const separator = /\\/.test(normalizedBase) ? '\\' : '/';
+  return `${normalizedBase}${separator}${part}`;
+}
+
+function buildReceiptPdfPath(options: {
+  configuredPath: string;
+  receiptNo: string;
+  customerName: string;
+  receiptDate: string;
+  receiptFolder?: boolean;
+}): string {
+  const {
+    configuredPath,
+    receiptNo,
+    customerName,
+    receiptDate,
+    receiptFolder = false,
+  } = options;
+  const parsedDate = new Date(receiptDate);
+  const monthName = Number.isNaN(parsedDate.getTime())
+    ? 'Unknown'
+    : parsedDate.toLocaleString('en-US', { month: 'long' });
+  const safeCustomerName = sanitizeFolderPart(customerName);
+  const fileName = `PAY${receiptNo}-${safeCustomerName}.pdf`;
+  let folder = configuredPath;
+
+  if (receiptFolder) {
+    folder = joinPath(folder, 'Receipt');
+  }
+
+  folder = joinPath(folder, monthName);
+  folder = joinPath(folder, safeCustomerName);
+
+  return joinPath(folder, fileName);
 }
 
 /** If cheque_no is "0" or "0.00", return empty; otherwise return the cheque number. */
@@ -281,6 +327,28 @@ function createSingleReceiptHtml(row: ReceiptRow): string {
   </main>
 </body>
 </html>`;
+}
+
+async function saveReceiptPreviewPdf(options: {
+  html: string;
+  configuredPath: string;
+  receiptNo: string;
+  customerName: string;
+  receiptDate: string;
+}): Promise<string> {
+  const outputPath = buildReceiptPdfPath({
+    configuredPath: options.configuredPath,
+    receiptNo: options.receiptNo,
+    customerName: options.customerName,
+    receiptDate: options.receiptDate,
+  });
+
+  return unwrapResult(
+    await commands.saveReportPdf({
+      html: options.html,
+      output_path: outputPath,
+    }),
+  );
 }
 
 function ReceiptPreview() {
@@ -477,13 +545,13 @@ function ReceiptPreview() {
   const singleReceipt = isSinglePreview ? (receiptData[0] ?? null) : null;
 
   const handleOpenPrintableReport = useCallback(
-    (mode: 'print' | 'pdf') => {
+    async (mode: 'print' | 'pdf') => {
       if (receiptData.length === 0) {
         toast.error('No Data Selected');
         return;
       }
 
-      if (mode === 'pdf' && !settings[0]?.report_path?.trim()) {
+      if ((mode === 'pdf' || singleReceipt) && !settings[0]?.report_path?.trim()) {
         toast.error('Please Set Report Path from Setting');
         return;
       }
@@ -498,7 +566,23 @@ function ReceiptPreview() {
             paymentModeLabels,
           });
 
-      openPrintableReport({
+      if (singleReceipt && settings[0]?.report_path) {
+        try {
+          await saveReceiptPreviewPdf({
+            html,
+            configuredPath: settings[0].report_path,
+            receiptNo: singleReceipt.receipt_no,
+            customerName: singleReceipt.customer_name,
+            receiptDate: singleReceipt.receipt_date,
+          });
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          toast.error(`Failed to auto-save receipt PDF: ${message}`);
+          return;
+        }
+      }
+
+      await openPrintableReport({
         html,
         mode,
         requirePath: mode === 'pdf',
@@ -506,10 +590,11 @@ function ReceiptPreview() {
         outputPath:
           mode === 'pdf' && settings[0]?.report_path
             ? singleReceipt
-              ? buildReportPdfPath({
+              ? buildReceiptPdfPath({
                   configuredPath: settings[0].report_path,
-                  filenamePrefix: 'receipt',
-                  label: singleReceipt.receipt_no,
+                  receiptNo: singleReceipt.receipt_no,
+                  customerName: singleReceipt.customer_name,
+                  receiptDate: singleReceipt.receipt_date,
                 })
               : buildReportPdfPath({
                   configuredPath: settings[0].report_path,
@@ -655,7 +740,7 @@ function ReceiptPreview() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => handleOpenPrintableReport('print')}
+              onClick={() => void handleOpenPrintableReport('print')}
               disabled={receiptData.length === 0}
             >
               <Printer className="mr-2 size-4" />
@@ -663,7 +748,7 @@ function ReceiptPreview() {
             </Button>
             <Button
               variant="outline"
-              onClick={() => handleOpenPrintableReport('pdf')}
+              onClick={() => void handleOpenPrintableReport('pdf')}
               disabled={receiptData.length === 0}
             >
               <FileText className="mr-2 size-4" />
