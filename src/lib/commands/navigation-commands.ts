@@ -36,16 +36,16 @@ export const navigationCommands: AppCommand[] = [
   },
 
   {
-    id: 'open-preferences',
-    labelKey: 'commands.openPreferences.label',
-    descriptionKey: 'commands.openPreferences.description',
+    id: 'open-settings',
+    labelKey: 'commands.openSettings.label',
+    descriptionKey: 'commands.openSettings.description',
     icon: Settings,
     group: 'settings',
     shortcut: '⌘+,',
-    keywords: ['preferences', 'settings', 'config', 'options'],
+    keywords: ['settings', 'config', 'options', 'application'],
 
-    execute: context => {
-      context.openPreferences()
+    execute: () => {
+      window.location.hash = '#/settings'
     },
   },
 ]

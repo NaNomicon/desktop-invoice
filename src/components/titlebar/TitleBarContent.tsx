@@ -1,8 +1,8 @@
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
-import { useUIStore } from '@/store/ui-store'
-import { executeCommand, useCommandContext } from '@/lib/commands'
 import { PanelLeft, PanelLeftClose, Settings } from 'lucide-react'
+import { useUIStore } from '@/store/ui-store'
 
 /**
  * Left-side toolbar actions (sidebar toggle).
@@ -38,19 +38,12 @@ export function TitleBarLeftActions() {
 
 export function TitleBarRightActions() {
   const { t } = useTranslation()
-  const commandContext = useCommandContext()
-
-  const handleOpenPreferences = async () => {
-    const result = await executeCommand('open-preferences', commandContext)
-    if (!result.success && result.error) {
-      commandContext.showToast(result.error, 'error')
-    }
-  }
+  const navigate = useNavigate()
 
   return (
     <div className="flex items-center gap-1">
       <Button
-        onClick={handleOpenPreferences}
+        onClick={() => navigate('/settings')}
         variant="ghost"
         size="icon"
         className="h-6 w-6 text-foreground/70 hover:text-foreground"
