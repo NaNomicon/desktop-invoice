@@ -67,8 +67,8 @@
   "commands.showRightSidebar.description": "إظهار الشريط الجانبي الأيمن",
   "commands.hideRightSidebar.label": "إخفاء الشريط الجانبي الأيمن",
   "commands.hideRightSidebar.description": "إخفاء الشريط الجانبي الأيمن",
-  "commands.openPreferences.label": "فتح التفضيلات",
-  "commands.openPreferences.description": "فتح تفضيلات التطبيق",
+  "commands.openSettings.label": "إعدادات التطبيق",
+  "commands.openSettings.description": "فتح إعدادات التطبيق",
 
   "commands.windowClose.label": "إغلاق النافذة",
   "commands.windowClose.description": "إغلاق النافذة الحالية",
