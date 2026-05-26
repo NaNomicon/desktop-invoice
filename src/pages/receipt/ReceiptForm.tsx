@@ -71,6 +71,7 @@ function ReceiptForm() {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [transLoading, setTransLoading] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'extra', desc: true }]);
+  const [preLoadStatus, setPreLoadStatus] = useState<string | null>(null);
 
   const calResult = cal({
     load_dua_amount: loadDuaAmount,
@@ -135,6 +136,7 @@ function ReceiptForm() {
           setChequeNo(receipt.cheque_no ?? '');
           setNotes(receipt.notes ?? '');
           setAmountReceived(String(receipt.amount_received ?? 0));
+          setPreLoadStatus(receipt.pre_load ?? null);
 
           const matchedCustomer = customers.find((customer) => customer.id === receipt.customer_id) ?? null;
           if (matchedCustomer) {
@@ -286,6 +288,7 @@ function ReceiptForm() {
     setChequeNo('');
     setNotes('');
     setTransactions([]);
+    setPreLoadStatus(null);
     if (!isEditing) {
       setReceiptDate(new Date().toISOString().slice(0, 10));
     }
@@ -316,7 +319,7 @@ function ReceiptForm() {
         cr_dr: calResult.cr_dr,
         ad_due: calResult.ad_due,
         load_dua_amount: loadDuaAmount,
-        pre_load_status: null,
+        pre_load_status: preLoadStatus,
       });
       toast.success(isEditing ? 'Receipt updated' : 'Receipt saved');
       await loadData();

@@ -55,6 +55,13 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
     const customer = customerRows[0];
     const companyId = customer?.company_id ?? 1;
 
+    // pre_load captures the customer's balance state BEFORE this receipt
+    // For new receipts: use the customer's current ad_due (their state before the receipt)
+    // For edits: preserve the originally captured pre_load_status
+    const preLoadValue = receipt_id === 0
+      ? (customer?.ad_due ?? null)
+      : (pre_load_status ?? customer?.ad_due ?? null);
+
     if (receipt_id === 0) {
       await db.execute(
         `INSERT INTO tbl_receipt (
@@ -73,7 +80,7 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
           timestamp,
           previous_balance_abs,
           cr_dr,
-          pre_load_status ?? null,
+          preLoadValue,
           isCash,
           isCheque,
           isOther,
@@ -120,7 +127,7 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
           cheque_no ?? null,
           Math.abs(revertedLoadAmount),
           cr_dr,
-          pre_load_status ?? null,
+          preLoadValue,
           isCash,
           isCheque,
           isOther,
