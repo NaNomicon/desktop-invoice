@@ -6,7 +6,7 @@ import type { CommandContext } from '@/lib/commands/types'
  * Handles global keyboard shortcuts for the application.
  *
  * Currently handles:
- * - Cmd/Ctrl+, : Open preferences
+ * - Cmd/Ctrl+, : Open application settings
  * - Cmd/Ctrl+1 : Toggle left sidebar
  */
 export function useKeyboardShortcuts(commandContext: CommandContext) {
@@ -16,7 +16,7 @@ export function useKeyboardShortcuts(commandContext: CommandContext) {
         switch (e.key) {
           case ',': {
             e.preventDefault()
-            commandContext.openPreferences()
+            commandContext.openSettings()
             break
           }
           case '1': {
