@@ -57,7 +57,10 @@ interface ReceiptListRow extends ReceiptRecord {
 }
 
 function dollars(c: number): string {
-  return (c / 100).toFixed(2);
+  return (c / 100).toLocaleString('en-US', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
 }
 
 function formatDisplayDate(date: string): string {
@@ -70,7 +73,11 @@ function formatDisplayDate(date: string): string {
     return date;
   }
 
-  return parsed.toLocaleDateString('en-GB');
+  return new Intl.DateTimeFormat('en-GB', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  }).format(parsed).replaceAll('/', '-');
 }
 
 function formatChequeNo(chequeNo: string | null): string {
@@ -258,6 +265,13 @@ function ReceiptList() {
     [navigate],
   );
 
+  const handleRowActivate = useCallback(
+    (receiptId: number) => {
+      handleEdit(receiptId);
+    },
+    [handleEdit],
+  );
+
   const handlePreview = useCallback(
     (receiptId: number) => {
       navigate('/reports/receipts', { state: { receiptId } });
@@ -383,7 +397,7 @@ function ReceiptList() {
       {
         accessorKey: 'amount_received',
         header: 'Amount Received',
-        cell: (info) => <span className="tabular-nums">${dollars(info.getValue<number>())}</span>,
+        cell: (info) => <span className="text-right tabular-nums">${dollars(info.getValue<number>())}</span>,
       },
       {
         id: 'due_amount_after',
@@ -391,7 +405,7 @@ function ReceiptList() {
         cell: (info) => {
           const row = info.row.original;
           const prefix = row.customer_ad_due === 'Advance' ? '-' : '';
-          return <span className="tabular-nums">{prefix}${dollars(row.customer_due_amount)}</span>;
+          return <span className="text-right tabular-nums">{prefix}${dollars(row.customer_due_amount)}</span>;
         },
       },
       {
@@ -568,7 +582,18 @@ function ReceiptList() {
                       </tr>
                     ) : (
                       table.getRowModel().rows.map((row) => (
-                        <tr key={row.id} className="border-t hover:bg-muted/30">
+                        <tr
+                          key={row.id}
+                          className="cursor-pointer border-t hover:bg-muted/30 focus-within:bg-muted/30"
+                          tabIndex={0}
+                          onDoubleClick={() => handleRowActivate(row.original.id)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              handleRowActivate(row.original.id);
+                            }
+                          }}
+                        >
                           {row.getVisibleCells().map((cell) => (
                             <td key={cell.id} className="px-4 py-2">
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
