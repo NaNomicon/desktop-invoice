@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { cal } from '@/lib/receipt/cal';
 import { saved } from '@/lib/receipt/saved';
-import type { Customer, Company, Setting } from '@/lib/types';
+import type { Customer, Company, Setting, Receipt as ReceiptRecord } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -36,15 +36,20 @@ interface TransactionRow {
   balance: number;
 }
 
+interface ReceiptRouteState {
+  receiptId?: number;
+  customerId?: number;
+  customerName?: string;
+  dueAmount?: number;
+  adDueStatus?: string;
+}
+
 function ReceiptForm() {
   useAuthStore((s) => s.company_id);
   const location = useLocation();
-  const receiptPrefill = location.state as {
-    customerId?: number;
-    customerName?: string;
-    dueAmount?: number;
-    adDueStatus?: string;
-  } | null;
+  const receiptPrefill = (location.state as ReceiptRouteState | null) ?? null;
+  const editingReceiptId = receiptPrefill?.receiptId ?? 0;
+  const isEditing = editingReceiptId > 0;
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [, setCompanies] = useState<Company[]>([]);
@@ -69,8 +74,22 @@ function ReceiptForm() {
 
   const calResult = cal({
     load_dua_amount: loadDuaAmount,
-    amount_received: parseInt(amountReceived) || 0,
+    amount_received: parseInt(amountReceived, 10) || 0,
   });
+
+  const applyCustomerSelection = useCallback(
+    (customer: Customer, options?: { preserveAmountReceived?: boolean }) => {
+      const loadAmount = customer.ad_due === 'Advance' ? -customer.due_amount : customer.due_amount;
+      setCustomerId(customer.id);
+      setDueAmount(customer.due_amount);
+      setAdDueStatus(customer.ad_due);
+      setLoadDuaAmount(loadAmount);
+      if (!options?.preserveAmountReceived) {
+        setAmountReceived(String(Math.abs(loadAmount)));
+      }
+    },
+    [],
+  );
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -87,26 +106,70 @@ function ReceiptForm() {
     setLoading(false);
   }, []);
 
-  const selectCustomer = useCallback((c: Customer) => {
-    setCustomerId(c.id);
-    setDueAmount(c.due_amount);
-    setAdDueStatus(c.ad_due);
-    const loadAmount = c.ad_due === 'Advance' ? -c.due_amount : c.due_amount;
-    setLoadDuaAmount(loadAmount);
-    setAmountReceived(String(Math.abs(loadAmount)));
-  }, []);
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
 
   useEffect(() => {
-    if (!receiptPrefill?.customerId || customers.length === 0) {
+    if (customers.length === 0) {
       return;
     }
 
-    const matchedCustomer =
-      customers.find((customer) => customer.id === receiptPrefill.customerId) ??
-      null;
+    if (isEditing) {
+      const loadReceipt = async () => {
+        setLoading(true);
+        try {
+          const receiptRows = await query<ReceiptRecord>(
+            'SELECT * FROM tbl_receipt WHERE id = ? LIMIT 1',
+            [editingReceiptId],
+          );
+          const receipt = receiptRows[0];
+          if (!receipt) {
+            toast.error(`Receipt ${editingReceiptId} not found`);
+            return;
+          }
+
+          setReceiptNo(receipt.receipt_no);
+          setReceiptDate(receipt.receipt_date || new Date().toISOString().slice(0, 10));
+          setPaymentMode(receipt.payment_mode ?? '');
+          setChequeNo(receipt.cheque_no ?? '');
+          setNotes(receipt.notes ?? '');
+          setAmountReceived(String(receipt.amount_received ?? 0));
+
+          const matchedCustomer = customers.find((customer) => customer.id === receipt.customer_id) ?? null;
+          if (matchedCustomer) {
+            applyCustomerSelection(matchedCustomer, { preserveAmountReceived: true });
+            setCustomerSearch(matchedCustomer.customer_name);
+          } else {
+            const customerRows = await query<Customer>(
+              'SELECT * FROM tbl_customer WHERE id = ? LIMIT 1',
+              [receipt.customer_id],
+            );
+            const customer = customerRows[0];
+            if (customer) {
+              applyCustomerSelection(customer, { preserveAmountReceived: true });
+              setCustomerSearch(customer.customer_name);
+            }
+          }
+        } catch (error) {
+          toast.error(`Unable to load receipt: ${String(error)}`);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      void loadReceipt();
+      return;
+    }
+
+    if (!receiptPrefill?.customerId) {
+      return;
+    }
+
+    const matchedCustomer = customers.find((customer) => customer.id === receiptPrefill.customerId) ?? null;
 
     if (matchedCustomer) {
-      selectCustomer(matchedCustomer);
+      applyCustomerSelection(matchedCustomer);
       setCustomerSearch(matchedCustomer.customer_name);
       return;
     }
@@ -121,7 +184,7 @@ function ReceiptForm() {
     setLoadDuaAmount(loadAmount);
     setAmountReceived(String(Math.abs(loadAmount)));
     setCustomerSearch(receiptPrefill.customerName ?? '');
-  }, [customers, receiptPrefill, selectCustomer]);
+  }, [applyCustomerSelection, customers, editingReceiptId, isEditing, receiptPrefill]);
 
   const loadTransactions = useCallback(async (custId: number) => {
     if (!custId) return;
@@ -157,7 +220,7 @@ function ReceiptForm() {
 
   useEffect(() => {
     if (customerId > 0) {
-      loadTransactions(customerId);
+      void loadTransactions(customerId);
     } else {
       setTransactions([]);
     }
@@ -212,12 +275,28 @@ function ReceiptForm() {
     ? [settings.cash, settings.cheque, settings.other].filter(Boolean)
     : ['Cash', 'Cheque', 'Other'];
 
+  const resetForm = useCallback(() => {
+    setCustomerId(0);
+    setCustomerSearch('');
+    setDueAmount(0);
+    setAdDueStatus('');
+    setLoadDuaAmount(0);
+    setAmountReceived('');
+    setPaymentMode('');
+    setChequeNo('');
+    setNotes('');
+    setTransactions([]);
+    if (!isEditing) {
+      setReceiptDate(new Date().toISOString().slice(0, 10));
+    }
+  }, [isEditing]);
+
   const handleSave = useCallback(async () => {
     if (!customerId) {
       toast.error('Please select a customer');
       return;
     }
-    const amount = parseInt(amountReceived) || 0;
+    const amount = parseInt(amountReceived, 10) || 0;
     if (amount <= 0) {
       toast.error('Please enter received amount');
       return;
@@ -226,7 +305,7 @@ function ReceiptForm() {
     setSaving(true);
     try {
       await saved({
-        receipt_id: 0,
+        receipt_id: editingReceiptId,
         receipt_no: receiptNo,
         receipt_date: receiptDate,
         customer_id: customerId,
@@ -239,29 +318,47 @@ function ReceiptForm() {
         load_dua_amount: loadDuaAmount,
         pre_load_status: null,
       });
-      toast.success('Receipt saved');
+      toast.success(isEditing ? 'Receipt updated' : 'Receipt saved');
       await loadData();
-      setCustomerId(0);
-      setCustomerSearch('');
-      setDueAmount(0);
-      setAdDueStatus('');
-      setLoadDuaAmount(0);
-      setAmountReceived('');
-      setPaymentMode('');
-      setChequeNo('');
-      setNotes('');
+      if (isEditing) {
+        const matchedCustomer = customers.find((customer) => customer.id === customerId) ?? null;
+        if (matchedCustomer) {
+          applyCustomerSelection(matchedCustomer, { preserveAmountReceived: true });
+        }
+        await loadTransactions(customerId);
+      } else {
+        resetForm();
+      }
     } catch (err) {
       toast.error(`Save failed: ${String(err)}`);
     } finally {
       setSaving(false);
     }
-  }, [customerId, amountReceived, receiptNo, receiptDate, paymentMode, chequeNo, notes, calResult, loadDuaAmount, loadData]);
+  }, [
+    amountReceived,
+    applyCustomerSelection,
+    calResult.ad_due,
+    calResult.cr_dr,
+    chequeNo,
+    customerId,
+    customers,
+    editingReceiptId,
+    isEditing,
+    loadData,
+    loadDuaAmount,
+    loadTransactions,
+    notes,
+    paymentMode,
+    receiptDate,
+    receiptNo,
+    resetForm,
+  ]);
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
       <div className="flex items-center gap-2">
         <Receipt className="size-5" />
-        <h1 className="text-2xl font-semibold">Receipt Voucher</h1>
+        <h1 className="text-2xl font-semibold">{isEditing ? `Edit Receipt ${receiptNo}` : 'Receipt Voucher'}</h1>
       </div>
 
       {loading ? (
@@ -301,17 +398,19 @@ function ReceiptForm() {
                       value={customerSearch}
                       onChange={(e) => setCustomerSearch(e.target.value)}
                       className="pl-8"
+                      disabled={isEditing}
                     />
                   </div>
-                  {customerSearch && filteredCustomers.length > 0 && (
+                  {!isEditing && customerSearch && filteredCustomers.length > 0 && (
                     <div className="max-h-40 overflow-auto rounded-md border">
                       {filteredCustomers.map((c) => (
                         <button
                           key={c.id}
+                          type="button"
                           className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted"
                           onClick={() => {
-                            selectCustomer(c);
-                            setCustomerSearch('');
+                            applyCustomerSelection(c);
+                            setCustomerSearch(c.customer_name);
                           }}
                         >
                           <span>{c.customer_name}</span>
@@ -345,10 +444,10 @@ function ReceiptForm() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={amountReceived ? String(parseInt(amountReceived) / 100) : ''}
+                    value={amountReceived ? String(parseInt(amountReceived, 10) / 100) : ''}
                     onChange={(e) => {
-                      const dollars = parseFloat(e.target.value) || 0;
-                      setAmountReceived(String(Math.round(dollars * 100)));
+                      const dollarsValue = parseFloat(e.target.value) || 0;
+                      setAmountReceived(String(Math.round(dollarsValue * 100)));
                     }}
                     placeholder="0.00"
                   />
@@ -411,18 +510,11 @@ function ReceiptForm() {
               </div>
 
               <div className="mt-6 flex justify-end gap-2">
-                <Button variant="outline" onClick={() => {
-                  setCustomerId(0);
-                  setCustomerSearch('');
-                  setAmountReceived('');
-                  setPaymentMode('');
-                  setChequeNo('');
-                  setNotes('');
-                }}>
-                  Reset
+                <Button variant="outline" onClick={resetForm}>
+                  {isEditing ? 'Clear Fields' : 'Reset'}
                 </Button>
                 <Button onClick={() => void handleSave()} disabled={saving}>
-                  {saving ? 'Saving...' : 'Save Receipt'}
+                  {saving ? 'Saving...' : isEditing ? 'Update Receipt' : 'Save Receipt'}
                 </Button>
               </div>
             </CardContent>

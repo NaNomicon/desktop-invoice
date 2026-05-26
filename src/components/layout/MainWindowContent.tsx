@@ -58,7 +58,7 @@ const ROUTE_TABS: Record<string, RouteTabDefinition> = {
   '/quotations/new': { title: 'Add Quotation' },
   '/receipts/new': { title: 'Add Receipt' },
   '/outstanding': { title: 'Outstanding List' },
-  '/history': { title: 'View Receipt' },
+  '/history': { title: 'View Receipt', closable: false },
   '/customers': { title: 'Customer' },
   '/products': { title: 'Product' },
   '/product-types': { title: 'Product Type' },
