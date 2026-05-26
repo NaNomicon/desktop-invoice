@@ -134,7 +134,7 @@ function Customer() {
     () => [
       {
         id: 'display_name',
-        header: 'Name',
+        header: 'Customer Name',
         cell: (info) => {
           const { title_name, customer_name } = info.row.original;
           return [title_name, customer_name].filter(Boolean).join(' ');
@@ -142,12 +142,12 @@ function Customer() {
       },
       {
         accessorKey: 'customer_type',
-        header: 'Type',
+        header: 'Customer Type',
         cell: (info) => (info.getValue() as string) ?? '-',
       },
       {
         accessorKey: 'contact',
-        header: 'Contact',
+        header: 'Contact Person',
         cell: (info) => (info.getValue() as string) ?? '-',
       },
       {
@@ -162,7 +162,7 @@ function Customer() {
       },
       {
         accessorKey: 'email',
-        header: 'Email',
+        header: 'E-Mail',
         cell: (info) => (info.getValue() as string) ?? '-',
       },
       {
@@ -177,6 +177,16 @@ function Customer() {
         accessorKey: 'ad_due',
         header: 'Adv/Due',
         cell: (info) => info.getValue<string>(),
+      },
+      {
+        accessorKey: 'reg_date',
+        header: 'Register Date',
+        cell: (info) => {
+          const date = info.getValue<string>();
+          if (!date) return '-';
+          const d = new Date(date);
+          return isNaN(d.getTime()) ? date : d.toLocaleDateString('en-GB');
+        },
       },
       {
         id: 'actions',
@@ -478,11 +488,7 @@ function Customer() {
       });
       if (!filePath) return;
 
-      const allCustomers = await query<CustomerRow>(
-        'SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
-      );
-
-      const exportData = allCustomers.map((c) => ({
+      const exportData = filtered.map((c) => ({
         'TITLE': c.title_name ?? '',
         'CUSTOMER NAME': c.customer_name,
         'CONTACT PERSON': c.contact ?? '',
@@ -502,7 +508,7 @@ function Customer() {
     } catch (err) {
       toast.error(`Export failed: ${String(err)}`);
     }
-  }, []);
+  }, [filtered]);
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
@@ -582,7 +588,11 @@ function Customer() {
                     </tr>
                   ) : (
                     table.getRowModel().rows.map((row) => (
-                      <tr key={row.id} className="border-t hover:bg-muted/30">
+                      <tr
+                        key={row.id}
+                        className="border-t hover:bg-muted/30 cursor-pointer"
+                        onDoubleClick={() => openEdit(row.original)}
+                      >
                         {row.getVisibleCells().map((cell) => (
                           <td key={cell.id} className="px-4 py-2">
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
