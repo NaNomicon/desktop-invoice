@@ -17,7 +17,6 @@ export interface ProductAutoFill {
 
 interface UIState {
   leftSidebarVisible: boolean
-  rightSidebarVisible: boolean
   commandPaletteOpen: boolean
   preferencesOpen: boolean
   lastQuickPaneEntry: string | null
@@ -28,8 +27,6 @@ interface UIState {
 
   toggleLeftSidebar: () => void
   setLeftSidebarVisible: (visible: boolean) => void
-  toggleRightSidebar: () => void
-  setRightSidebarVisible: (visible: boolean) => void
   toggleCommandPalette: () => void
   setCommandPaletteOpen: (open: boolean) => void
   togglePreferences: () => void
@@ -48,7 +45,6 @@ export const useUIStore = create<UIState>()(
   devtools(
     set => ({
       leftSidebarVisible: true,
-      rightSidebarVisible: true,
       commandPaletteOpen: false,
       preferencesOpen: false,
       lastQuickPaneEntry: null,
@@ -69,20 +65,6 @@ export const useUIStore = create<UIState>()(
           { leftSidebarVisible: visible },
           undefined,
           'setLeftSidebarVisible'
-        ),
-
-      toggleRightSidebar: () =>
-        set(
-          state => ({ rightSidebarVisible: !state.rightSidebarVisible }),
-          undefined,
-          'toggleRightSidebar'
-        ),
-
-      setRightSidebarVisible: visible =>
-        set(
-          { rightSidebarVisible: visible },
-          undefined,
-          'setRightSidebarVisible'
         ),
 
       toggleCommandPalette: () =>
