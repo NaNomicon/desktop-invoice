@@ -30,7 +30,9 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Users, Upload, Download, Loader2 } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { open, save } from '@tauri-apps/plugin-dialog';
 
 interface CustomerRow {
   id: number;
@@ -85,6 +87,12 @@ function Customer() {
   const [form, setForm] = useState<CustomerFormData>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState(0);
+  const [importPreview, setImportPreview] = useState<{
+    data: Record<string, unknown>[];
+    headers: string[];
+  } | null>(null);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -112,6 +120,7 @@ function Customer() {
           c.customer_name.toLowerCase().includes(s) ||
           (c.contact?.toLowerCase().includes(s)) ||
           (c.telephone?.toLowerCase().includes(s)) ||
+          (c.address?.toLowerCase().includes(s)) ||
           (c.email?.toLowerCase().includes(s)),
       );
     }
@@ -144,6 +153,11 @@ function Customer() {
       {
         accessorKey: 'telephone',
         header: 'Telephone',
+        cell: (info) => (info.getValue() as string) ?? '-',
+      },
+      {
+        accessorKey: 'address',
+        header: 'Address',
         cell: (info) => (info.getValue() as string) ?? '-',
       },
       {
@@ -319,6 +333,23 @@ function Customer() {
   const handleDelete = useCallback(async () => {
     if (!deleteConfirm) return;
     try {
+      const [invoiceUse, quotationUse] = await Promise.all([
+        query<{ cnt: number }>(
+          'SELECT COUNT(*) as cnt FROM tbl_invoice_main WHERE customer_id = ? AND is_deleted = 0',
+          [deleteConfirm],
+        ),
+        query<{ cnt: number }>(
+          'SELECT COUNT(*) as cnt FROM tbl_quotation_main WHERE customer_id = ? AND is_deleted = 0',
+          [deleteConfirm],
+        ),
+      ]);
+      const inInvoice = invoiceUse[0]?.cnt ?? 0;
+      const inQuotation = quotationUse[0]?.cnt ?? 0;
+      if (inInvoice > 0 || inQuotation > 0) {
+        toast.error('This Customer In Use You Can Not Delete');
+        setDeleteConfirm(null);
+        return;
+      }
       await execute('UPDATE tbl_customer SET is_deleted = 1 WHERE id = ?', [deleteConfirm]);
       toast.success('Customer deleted');
       setDeleteConfirm(null);
@@ -328,6 +359,151 @@ function Customer() {
     }
   }, [deleteConfirm, loadData]);
 
+  const handleImportClick = useCallback(async () => {
+    try {
+      const filePath = await open({
+        filters: [{ name: 'Excel', extensions: ['xlsx', 'xls', 'csv'] }],
+        multiple: false,
+      });
+      if (!filePath) return;
+
+      setImporting(true);
+      const response = await fetch(`file://${filePath}`);
+      const arrayBuffer = await response.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        toast.error('No sheets found in Excel file');
+        setImporting(false);
+        return;
+      }
+      const firstSheet = workbook.Sheets[sheetName];
+      if (!firstSheet) {
+        toast.error('Sheet is empty');
+        setImporting(false);
+        return;
+      }
+      const jsonData = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, { header: 1 });
+
+      if (jsonData.length < 2 || !jsonData[0]) {
+        toast.error('File is empty or has no data rows');
+        setImporting(false);
+        return;
+      }
+
+      const headerRow = jsonData[0];
+      if (!headerRow) {
+        toast.error('File is empty or has no data rows');
+        setImporting(false);
+        return;
+      }
+      const headers = headerRow.map((h: unknown) => String(h ?? '').trim());
+      const data = jsonData.slice(1).map((row: unknown[]) => {
+        const obj: Record<string, unknown> = {};
+        headers.forEach((header: string, idx: number) => {
+          obj[header] = row[idx];
+        });
+        return obj;
+      });
+
+      setImportPreview({ data, headers });
+      setImporting(false);
+    } catch (err) {
+      toast.error(`Import failed: ${String(err)}`);
+      setImporting(false);
+    }
+  }, []);
+
+  const handleImportConfirm = useCallback(async () => {
+    if (!importPreview) return;
+
+    setImporting(true);
+    setImportProgress(0);
+    const total = importPreview.data.length;
+
+    for (let i = 0; i < total; i++) {
+      const currentRow = importPreview.data[i];
+      if (!currentRow) continue;
+
+      const titleName = String(currentRow['TITLE'] ?? currentRow['title_name'] ?? '');
+      const customerName = String(currentRow['CUSTOMER NAME'] ?? currentRow['customer_name'] ?? '');
+      const contact = String(currentRow['CONTACT PERSON'] ?? currentRow['contact'] ?? '');
+      const address = String(currentRow['ADDRESS'] ?? currentRow['address'] ?? '');
+      const telephone = String(currentRow['TELEPHONE'] ?? currentRow['telephone'] ?? '');
+      const email = String(currentRow['EMAIL ADDRESS'] ?? currentRow['email'] ?? '');
+      const customerType = String(currentRow['CUSTOMER TYPE'] ?? currentRow['customer_type'] ?? 'Individual');
+      const brn = String(currentRow['BRN'] ?? currentRow['brn'] ?? '');
+      const vat = String(currentRow['VAT'] ?? currentRow['vat'] ?? '');
+
+      if (!customerName.trim()) continue;
+
+      const exists = await query<{ cnt: number }>(
+        'SELECT COUNT(*) as cnt FROM tbl_customer WHERE LOWER(customer_name) = LOWER(?) AND is_deleted = 0',
+        [customerName.trim()],
+      );
+      if ((exists[0]?.cnt ?? 0) > 0) continue;
+
+      await execute(
+        `INSERT INTO tbl_customer (customer_name, title_name, customer_type, contact, telephone, address, email, due_amount, reg_date, ad_due, brn, vat, company_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 0, date('now'), 'Advance', ?, ?, ?)`,
+        [
+          customerName.trim(),
+          titleName || null,
+          customerType || 'Individual',
+          contact || null,
+          telephone || null,
+          address || null,
+          email || null,
+          brn || null,
+          vat || null,
+          1,
+        ],
+      );
+
+      setImportProgress(Math.round(((i + 1) / total) * 100));
+    }
+
+    toast.success('Import completed');
+    setImportPreview(null);
+    setImporting(false);
+    setImportProgress(0);
+    await loadData();
+  }, [importPreview, loadData]);
+
+  const handleExportClick = useCallback(async () => {
+    try {
+      const filePath = await save({
+        filters: [{ name: 'Excel', extensions: ['xlsx'] }],
+        defaultPath: 'customers.xlsx',
+      });
+      if (!filePath) return;
+
+      const allCustomers = await query<CustomerRow>(
+        'SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
+      );
+
+      const exportData = allCustomers.map((c) => ({
+        'TITLE': c.title_name ?? '',
+        'CUSTOMER NAME': c.customer_name,
+        'CONTACT PERSON': c.contact ?? '',
+        'ADDRESS': c.address ?? '',
+        'TELEPHONE': c.telephone ?? '',
+        'EMAIL ADDRESS': c.email ?? '',
+        'CUSTOMER TYPE': c.customer_type ?? '',
+        'BRN': c.brn ?? '',
+        'VAT': c.vat ?? '',
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Customers');
+      XLSX.writeFile(wb, filePath);
+      toast.success('Export completed');
+    } catch (err) {
+      toast.error(`Export failed: ${String(err)}`);
+    }
+  }, []);
+
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
       <div className="flex items-center justify-between">
@@ -335,10 +511,20 @@ function Customer() {
           <Users className="size-5" />
           <h1 className="text-2xl font-semibold">Customers</h1>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="size-4" />
-          Add Customer
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => void handleImportClick()} disabled={importing}>
+            <Upload className="size-4" />
+            Import
+          </Button>
+          <Button variant="outline" onClick={() => void handleExportClick()}>
+            <Download className="size-4" />
+            Export
+          </Button>
+          <Button onClick={openNew}>
+            <Plus className="size-4" />
+            Add Customer
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -409,6 +595,9 @@ function Customer() {
               </table>
             </div>
           )}
+          <p className="mt-2 text-right text-lg font-semibold tracking-tight text-muted-foreground">
+            Total : {filtered.length}
+          </p>
         </CardContent>
       </Card>
 
@@ -571,6 +760,69 @@ function Customer() {
             </Button>
             <Button variant="destructive" onClick={() => void handleDelete()}>
               Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Preview */}
+      <Dialog open={importPreview !== null} onOpenChange={(o) => !o && setImportPreview(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Import Preview</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            {importPreview?.data.length ?? 0} customers found. Confirm to import.
+          </p>
+          <div className="max-h-64 overflow-auto rounded border">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-muted">
+                <tr>
+                  {importPreview?.headers.map((h) => (
+                    <th key={h} className="px-2 py-1 text-left font-medium">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {importPreview?.data.slice(0, 10).map((row, idx) => (
+                  <tr key={idx} className="border-t">
+                    {importPreview?.headers.map((h) => (
+                      <td key={h} className="px-2 py-1">
+                        {String(row[h] ?? '')}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {(importPreview?.data.length ?? 0) > 10 && (
+              <p className="p-2 text-center text-sm text-muted-foreground">
+                ...and {(importPreview?.data.length ?? 0) - 10} more rows
+              </p>
+            )}
+          </div>
+          {importing && (
+            <div className="mt-2">
+              <div className="h-2 w-full rounded-full bg-muted">
+                <div
+                  className="h-2 rounded-full bg-primary transition-all"
+                  style={{ width: `${importProgress}%` }}
+                />
+              </div>
+              <p className="mt-1 text-center text-sm text-muted-foreground">
+                Importing... {importProgress}%
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setImportPreview(null)} disabled={importing}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleImportConfirm()} disabled={importing}>
+              {importing ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}
+              Import
             </Button>
           </DialogFooter>
         </DialogContent>
