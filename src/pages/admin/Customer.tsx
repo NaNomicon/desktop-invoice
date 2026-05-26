@@ -397,7 +397,7 @@ function Customer() {
         setImporting(false);
         return;
       }
-      const jsonData = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, { header: 1 });
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as unknown[];
 
       if (jsonData.length < 2 || !jsonData[0]) {
         toast.error('File is empty or has no data rows');
@@ -405,17 +405,18 @@ function Customer() {
         return;
       }
 
-      const headerRow = jsonData[0];
-      if (!headerRow) {
+      const headerRow = Array.isArray(jsonData[0]) ? jsonData[0] : [];
+      if (headerRow.length === 0) {
         toast.error('File is empty or has no data rows');
         setImporting(false);
         return;
       }
       const headers = headerRow.map((h: unknown) => String(h ?? '').trim());
-      const data = jsonData.slice(1).map((row: unknown[]) => {
+      const data = jsonData.slice(1).map((row: unknown) => {
+        const cells = Array.isArray(row) ? row : [];
         const obj: Record<string, unknown> = {};
         headers.forEach((header: string, idx: number) => {
-          obj[header] = row[idx];
+          obj[header] = cells[idx];
         });
         return obj;
       });
