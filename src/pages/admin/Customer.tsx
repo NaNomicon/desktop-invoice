@@ -185,7 +185,11 @@ function Customer() {
           const date = info.getValue<string>();
           if (!date) return '-';
           const d = new Date(date);
-          return isNaN(d.getTime()) ? date : d.toLocaleDateString('en-GB');
+          if (isNaN(d.getTime())) return date;
+          const dd = String(d.getDate()).padStart(2, '0');
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const yyyy = d.getFullYear();
+          return `${dd}-${mm}-${yyyy}`;
         },
       },
       {
