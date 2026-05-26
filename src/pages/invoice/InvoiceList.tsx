@@ -108,6 +108,16 @@ function InvoiceList() {
     [navigate],
   );
 
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+  };
+
   const columns = useMemo<ColumnDef<InvoiceRow>[]>(
     () => [
       {
@@ -120,7 +130,7 @@ function InvoiceList() {
       {
         accessorKey: 'invoice_date',
         header: 'Date',
-        cell: (info) => info.getValue<string>(),
+        cell: (info) => formatDate(info.getValue<string | null>()),
       },
       {
         accessorKey: 'customer_name',
@@ -129,26 +139,42 @@ function InvoiceList() {
       },
       {
         accessorKey: 'checklist_no',
-        header: 'Checklist',
-        cell: (info) => info.getValue<string | null>() || '-',
+        header: () => <span className="block w-full text-center">Checklist</span>,
+        cell: (info) => (
+          <span className="text-center block w-full">
+            {info.getValue<string | null>() || '-'}
+          </span>
+        ),
       },
       {
         accessorKey: 'total',
-        header: 'Total',
-        cell: (info) => `$${dollars(info.getValue<number>())}`,
+        header: () => <span className="block w-full text-right">Total</span>,
+        cell: (info) => (
+          <span className="text-right block w-full">
+            ${dollars(info.getValue<number>())}
+          </span>
+        ),
       },
       {
         accessorKey: 'paid_amount',
-        header: 'Paid',
-        cell: (info) => `$${dollars(info.getValue<number>())}`,
+        header: () => <span className="block w-full text-right">Paid</span>,
+        cell: (info) => (
+          <span className="text-right block w-full">
+            ${dollars(info.getValue<number>())}
+          </span>
+        ),
       },
       {
         accessorKey: 'balance',
-        header: 'Due',
+        header: () => <span className="block w-full text-right">Due</span>,
         cell: (info) => {
           const v = info.getValue<number>();
           return (
-            <span className={v > 0 ? 'font-medium text-orange-600' : ''}>
+            <span
+              className={`text-right block w-full ${
+                v > 0 ? 'font-medium text-orange-600' : ''
+              }`}
+            >
               ${dollars(Math.abs(v))}
               {v < 0 ? ' (overpaid)' : ''}
             </span>
