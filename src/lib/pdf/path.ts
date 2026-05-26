@@ -1,7 +1,7 @@
 import { mkdir, exists } from '@tauri-apps/plugin-fs';
 import { platform } from '@tauri-apps/plugin-os';
 import { query } from '@/lib/db';
-import type { InvoiceMain } from '@/lib/types';
+import type { InvoiceMain, QuotationMain } from '@/lib/types';
 
 function sanitizeFilename(filename: string): string {
   return filename.replace(/[\\/:*?"<>|]/g, '_');
@@ -26,7 +26,11 @@ async function ensureDir(dir: string): Promise<void> {
   }
 }
 
-async function getCompanyPath(invoice: InvoiceMain): Promise<string> {
+async function getOsPathSeparator(): Promise<'\\' | '/'> {
+  return (await platform()) === 'windows' ? '\\' : '/';
+}
+
+async function getInvoiceBasePath(invoice: InvoiceMain): Promise<string> {
   const settings = await query<{ invoice_path: string | null }>(
     'SELECT invoice_path FROM tbl_setting LIMIT 1',
   );
@@ -46,8 +50,32 @@ async function getCompanyPath(invoice: InvoiceMain): Promise<string> {
     return companyPath;
   }
 
-  const p = await platform();
-  return p === 'windows' ? 'C:\\XPress\\Invoices' : '/home/XPress/Invoices';
+  const currentPlatform = await platform();
+  return currentPlatform === 'windows' ? 'C:\\XPress\\Invoices' : '/home/XPress/Invoices';
+}
+
+async function getQuotationBasePath(quotation: QuotationMain): Promise<string> {
+  const settings = await query<{ quo_path: string | null }>(
+    'SELECT quo_path FROM tbl_setting LIMIT 1',
+  );
+
+  const configuredQuotationPath = settings[0]?.quo_path;
+  if (configuredQuotationPath) {
+    return configuredQuotationPath;
+  }
+
+  const companies = await query<{ path: string | null }>(
+    'SELECT path FROM tbl_company WHERE id = ? LIMIT 1',
+    [quotation.company_id],
+  );
+
+  const companyPath = companies[0]?.path;
+  if (companyPath) {
+    return companyPath;
+  }
+
+  const currentPlatform = await platform();
+  return currentPlatform === 'windows' ? 'C:\\XPress\\Quotations' : '/home/XPress/Quotations';
 }
 
 async function getCustomerDisplayName(customerId: number): Promise<string | null> {
@@ -64,11 +92,12 @@ async function getCustomerDisplayName(customerId: number): Promise<string | null
 }
 
 export async function getInvoicePdfPath(invoice: InvoiceMain): Promise<string> {
-  const companyPath = await getCompanyPath(invoice);
+  const companyPath = await getInvoiceBasePath(invoice);
   await ensureDir(companyPath);
 
   const monthFolder = monthFolderName(invoice.invoice_date);
-  const folderPath = `${companyPath}${(await platform()) === 'windows' ? '\\' : '/'}${monthFolder}`;
+  const sep = await getOsPathSeparator();
+  const folderPath = `${companyPath}${sep}${monthFolder}`;
   await ensureDir(folderPath);
 
   const customerDisplayName = await getCustomerDisplayName(invoice.customer_id);
@@ -77,6 +106,27 @@ export async function getInvoicePdfPath(invoice: InvoiceMain): Promise<string> {
     : `INV${invoice.invoice_no}`;
   const filename = `${sanitizeFilename(fileBase)}.pdf`;
 
-  const sep = (await platform()) === 'windows' ? '\\' : '/';
   return `${folderPath}${sep}${filename}`;
+}
+
+export async function getQuotationPdfPath(quotation: QuotationMain): Promise<string> {
+  const quotationPath = await getQuotationBasePath(quotation);
+  await ensureDir(quotationPath);
+
+  const monthFolder = monthFolderName(quotation.quo_date);
+  const sep = await getOsPathSeparator();
+  const monthPath = `${quotationPath}${sep}${monthFolder}`;
+  await ensureDir(monthPath);
+
+  const customerDisplayName = await getCustomerDisplayName(quotation.customer_id);
+  const customerFolderName = sanitizeFilename(customerDisplayName || `Customer-${quotation.customer_id}`);
+  const customerPath = `${monthPath}${sep}${customerFolderName}`;
+  await ensureDir(customerPath);
+
+  const fileBase = customerDisplayName
+    ? `QUO${quotation.quo_no}-${customerDisplayName}`
+    : `QUO${quotation.quo_no}`;
+  const filename = `${sanitizeFilename(fileBase)}.pdf`;
+
+  return `${customerPath}${sep}${filename}`;
 }

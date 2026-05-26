@@ -44,11 +44,19 @@ export async function openPrintableReport(options: {
   requirePath?: boolean;
   configuredPath?: string | null;
   outputPath?: string | null;
+  missingPathMessage?: string;
 }): Promise<void> {
-  const { html, mode, requirePath = false, configuredPath, outputPath } = options;
+  const {
+    html,
+    mode,
+    requirePath = false,
+    configuredPath,
+    outputPath,
+    missingPathMessage = 'Please Set Report Path from Setting',
+  } = options;
 
   if (requirePath && !configuredPath?.trim()) {
-    toast.error('Please Set Report Path from Setting');
+    toast.error(missingPathMessage);
     return;
   }
 
