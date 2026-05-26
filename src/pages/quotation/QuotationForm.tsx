@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
+import { sendEmail } from '@/lib/email/send';
+import { getQuotationPdfPath } from '@/lib/pdf/path';
 import { quoCal } from '@/lib/quotation/cal';
 import { saveQuotation } from '@/lib/quotation/saved';
 import { splitQuotation } from '@/lib/quotation/splitQuotation';
@@ -34,6 +36,7 @@ import {
   Eraser,
   FilePlus2,
   FileText,
+  Mail,
   Plus,
   Printer,
   Save,
@@ -118,6 +121,8 @@ function QuotationForm() {
 
   const [editingId, setEditingId] = useState<number | null>(routeState?.quotationId ?? null);
   const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSearchIndex, setCustomerSearchIndex] = useState(0);
   const [companyId, setCompanyId] = useState(authCompanyId);
   const [quotationNumber, setQuotationNumber] = useState('0');
   const [quotationDate, setQuotationDate] = useState(today());
@@ -127,6 +132,7 @@ function QuotationForm() {
   const [per, setPer] = useState('0');
   const [manualDiscount, setManualDiscount] = useState('0.00');
   const [productSearch, setProductSearch] = useState('');
+  const [productSearchIndex, setProductSearchIndex] = useState(0);
   const [lineItems, setLineItems] = useState<LineItem[]>([createBlankLineItem()]);
   const [deletedLineItemIds, setDeletedLineItemIds] = useState<number[]>([]);
 
@@ -134,6 +140,26 @@ function QuotationForm() {
     () => customers.find((customer) => customer.id === customerId) ?? null,
     [customers, customerId],
   );
+
+  const filteredCustomers = useMemo(() => {
+    const search = customerSearch.trim().toLowerCase();
+    if (!search) {
+      return customers;
+    }
+
+    return customers.filter((customer) => {
+      const values = [
+        customer.customer_name,
+        customer.title_name,
+        customer.telephone,
+        customer.contact,
+        customer.address,
+        customer.email,
+      ];
+
+      return values.some((value) => (value ?? '').toLowerCase().includes(search));
+    });
+  }, [customerSearch, customers]);
 
   const subTotal = useMemo(
     () =>
@@ -182,6 +208,26 @@ function QuotationForm() {
     });
   }, [productSearch, products, typeFilter]);
 
+  useEffect(() => {
+    setCustomerSearchIndex(0);
+  }, [customerSearch]);
+
+  useEffect(() => {
+    if (customerSearchIndex >= filteredCustomers.length) {
+      setCustomerSearchIndex(0);
+    }
+  }, [customerSearchIndex, filteredCustomers.length]);
+
+  useEffect(() => {
+    setProductSearchIndex(0);
+  }, [productSearch]);
+
+  useEffect(() => {
+    if (productSearchIndex >= filteredProducts.length) {
+      setProductSearchIndex(0);
+    }
+  }, [filteredProducts.length, productSearchIndex]);
+
   const reindexLineItems = useCallback((items: LineItem[]) => {
     let serial = 1;
     return items.map((item) => {
@@ -198,6 +244,8 @@ function QuotationForm() {
     (nextQuotationNumber?: string) => {
       setEditingId(null);
       setCustomerId(null);
+      setCustomerSearch('');
+      setCustomerSearchIndex(0);
       setCompanyId(authCompanyId);
       setQuotationDate(today());
       setChecklistNo('');
@@ -206,6 +254,7 @@ function QuotationForm() {
       setPer('0');
       setManualDiscount('0.00');
       setProductSearch('');
+      setProductSearchIndex(0);
       setLineItems([createBlankLineItem()]);
       setDeletedLineItemIds([]);
       if (nextQuotationNumber) {
@@ -309,7 +358,10 @@ function QuotationForm() {
           : [createBlankLineItem()],
       );
       setTypeFilter('all');
+      setCustomerSearch('');
+      setCustomerSearchIndex(0);
       setProductSearch('');
+      setProductSearchIndex(0);
       navigate(location.pathname, { replace: true, state: null });
     },
     [location.pathname, navigate],
@@ -406,6 +458,7 @@ function QuotationForm() {
         company_id: product.company_id,
       });
       setProductSearch('');
+      setProductSearchIndex(0);
     },
     [addLineItem, lineItems, updateLineItem],
   );
@@ -430,8 +483,131 @@ function QuotationForm() {
       });
     }
     setProductAutoFill(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productAutoFill, products]);
+  }, [addLineItem, lineItems, productAutoFill, products, setProductAutoFill, updateLineItem]);
+
+  const selectCustomer = useCallback((customer: Customer) => {
+    setCustomerId(customer.id);
+    setCustomerSearch('');
+    setCustomerSearchIndex(0);
+  }, []);
+
+  const handleCustomerSearchKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'ArrowDown') {
+        if (filteredCustomers.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        setCustomerSearchIndex((current) => Math.min(current + 1, filteredCustomers.length - 1));
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        if (filteredCustomers.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        setCustomerSearchIndex((current) => Math.max(current - 1, 0));
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const selectedMatch = filteredCustomers[customerSearchIndex] ?? filteredCustomers[0];
+        if (selectedMatch) {
+          selectCustomer(selectedMatch);
+        }
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setCustomerSearch('');
+      }
+    },
+    [customerSearchIndex, filteredCustomers, selectCustomer],
+  );
+
+  const handleProductSearchKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'ArrowDown') {
+        if (filteredProducts.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        setProductSearchIndex((current) => Math.min(current + 1, filteredProducts.length - 1));
+        return;
+      }
+
+      if (event.key === 'ArrowUp') {
+        if (filteredProducts.length === 0) {
+          return;
+        }
+        event.preventDefault();
+        setProductSearchIndex((current) => Math.max(current - 1, 0));
+        return;
+      }
+
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        const selectedMatch = filteredProducts[productSearchIndex] ?? filteredProducts[0];
+        if (selectedMatch) {
+          handleProductPick(selectedMatch);
+        }
+        return;
+      }
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setProductSearch('');
+      }
+    },
+    [filteredProducts, handleProductPick, productSearchIndex],
+  );
+
+  const handleLineItemsKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!lineItems.some((item) => !item.deleted)) {
+        return;
+      }
+
+      if (event.ctrlKey && event.key.toLowerCase() === 'i') {
+        event.preventDefault();
+        addLineItem();
+        return;
+      }
+
+      if (event.ctrlKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        const activeLine = [...lineItems].reverse().find((item) => !item.deleted);
+        if (activeLine) {
+          toggleDeleteLineItem(activeLine.uid);
+        }
+      }
+    },
+    [addLineItem, lineItems, toggleDeleteLineItem],
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'i') {
+        event.preventDefault();
+        addLineItem();
+        return;
+      }
+
+      if (event.ctrlKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        const activeLine = [...lineItems].reverse().find((item) => !item.deleted);
+        if (activeLine) {
+          toggleDeleteLineItem(activeLine.uid);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [addLineItem, lineItems, toggleDeleteLineItem]);
 
   const persistQuotation = useCallback(async () => {
     if (!customerId) {
@@ -450,8 +626,23 @@ function QuotationForm() {
     setSaving(true);
     try {
       const activeItems = lineItems.filter((item) => !item.deleted && item.product_id);
-      const activeCompanyIds = [...new Set(activeItems.map((item) => item.company_id).filter((cid): cid is number => cid !== null))];
+      const activeCompanyIds = [
+        ...new Set(activeItems.map((item) => item.company_id).filter((cid): cid is number => cid !== null)),
+      ];
       const hasSplit = activeCompanyIds.length >= 2;
+      const splitLineItems = activeItems.flatMap((item) =>
+        item.company_id === null
+          ? []
+          : [{
+              id: item.id > 0 ? item.id : undefined,
+              qty: item.qty,
+              product_id: item.product_id,
+              unit_price: item.unit_price,
+              row_total: item.row_total,
+              s_no: item.s_no,
+              company_id: item.company_id,
+            }],
+      );
 
       if (hasSplit) {
         const result = await splitQuotation({
@@ -467,18 +658,16 @@ function QuotationForm() {
           per: parseFloat(per || '0'),
           isvat: settings?.isvat ?? 0,
           vat_per: settings?.vat_per ?? 0,
-          line_items: activeItems.map((item) => ({
-            id: item.id > 0 ? item.id : undefined,
-            qty: item.qty,
-            product_id: item.product_id,
-            unit_price: item.unit_price,
-            row_total: item.row_total,
-            s_no: item.s_no,
-            company_id: item.company_id!,
-          })),
+          line_items: splitLineItems,
         });
         await loadInitialData();
-        return { ...result, nextQuotationNumber: String((await query<NumberSequence>('SELECT quo_no FROM tbl_numbers WHERE id = 1 LIMIT 1'))[0]?.quo_no ?? 0) };
+        return {
+          ...result,
+          nextQuotationNumber: String(
+            (await query<NumberSequence>('SELECT quo_no FROM tbl_numbers WHERE id = 1 LIMIT 1'))[0]
+              ?.quo_no ?? 0,
+          ),
+        };
       }
 
       const result = await saveQuotation({
@@ -486,7 +675,10 @@ function QuotationForm() {
         customer_id: customerId,
         quo_no: quotationNumber,
         checklist_no: checklistNo.trim() || null,
-        company_id: activeCompanyIds.length === 1 ? activeCompanyIds[0]! : companyId,
+        company_id:
+          activeCompanyIds.length === 1 && activeCompanyIds[0] !== undefined
+            ? activeCompanyIds[0]
+            : companyId,
         sub_total: subTotal,
         amount_due: selectedCustomer?.due_amount ?? 0,
         vat: calcResult.vat,
@@ -581,6 +773,57 @@ function QuotationForm() {
     });
   }, [navigate, persistQuotation]);
 
+  const handleSend = useCallback(async () => {
+    if (!selectedCustomer) {
+      toast.error('Please select a customer before sending a quotation email');
+      return;
+    }
+    if (!selectedCustomer.email?.trim()) {
+      toast.error('The selected customer does not have an email address');
+      return;
+    }
+
+    const result = await persistQuotation();
+    if (!result) {
+      return;
+    }
+
+    const resultId = 'id' in result ? result.id : result.quotation1_id;
+    const quotationRows = await query<QuotationMain>(
+      'SELECT * FROM tbl_quotation_main WHERE id = ? LIMIT 1',
+      [resultId],
+    );
+    const quotation = quotationRows[0];
+    if (!quotation) {
+      toast.error('Quotation was saved but could not be reloaded for sending');
+      return;
+    }
+
+    const customerName = [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name.trim()]
+      .filter(Boolean)
+      .join(' ');
+    const sendResult = await sendEmail({
+      to: selectedCustomer.email.trim(),
+      template_type: 'QUOTATION',
+      variables: {
+        date: quotation.quo_date,
+        contact_person: selectedCustomer.title_name?.trim() || '',
+        name: selectedCustomer.customer_name,
+      },
+      pdf_path: await getQuotationPdfPath(quotation),
+    });
+
+    if (!sendResult.success) {
+      toast.error(sendResult.error ?? 'Failed to send quotation email');
+      return;
+    }
+
+    toast.success(`Quotation emailed to ${customerName}`, {
+      description: 'Quotation email sent',
+    });
+    resetForm(result.nextQuotationNumber);
+  }, [persistQuotation, resetForm, selectedCustomer]);
+
   const openCustomers = useCallback(() => {
     navigate('/customers');
   }, [navigate]);
@@ -623,6 +866,10 @@ function QuotationForm() {
             <Printer className="size-4" />
             Preview
           </Button>
+          <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
+            <Mail className="size-4" />
+            Send
+          </Button>
           <Button variant="default" onClick={() => void handleSaveAndPrint()} disabled={saving}>
             <Printer className="size-4" />
             Save & Print
@@ -649,21 +896,44 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Customer *</Label>
-            <Select
-              value={customerId ? String(customerId) : ''}
-              onValueChange={(value) => setCustomerId(parseInt(value, 10))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select customer..." />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((customer) => (
-                  <SelectItem key={customer.id} value={String(customer.id)}>
-                    {customer.customer_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Input
+                value={customerSearch}
+                onChange={(event) => setCustomerSearch(event.target.value)}
+                onKeyDown={handleCustomerSearchKeyDown}
+                placeholder="Search customer by name, phone, email, or address"
+              />
+              <Select
+                value={customerId ? String(customerId) : ''}
+                onValueChange={(value) => {
+                  const selected = customers.find((customer) => customer.id === parseInt(value, 10));
+                  if (selected) {
+                    selectCustomer(selected);
+                    return;
+                  }
+                  setCustomerId(parseInt(value, 10));
+                  setCustomerSearchIndex(0);
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select customer..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredCustomers.slice(0, 100).map((customer, index) => (
+                    <SelectItem key={customer.id} value={String(customer.id)}>
+                      {index === customerSearchIndex ? '→ ' : ''}
+                      {[
+                        customer.title_name?.trim(),
+                        customer.customer_name,
+                        customer.telephone?.trim(),
+                      ]
+                        .filter(Boolean)
+                        .join(' - ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <div className="space-y-1">
             <Label>Checklist No</Label>
@@ -708,6 +978,7 @@ function QuotationForm() {
             placeholder="Search by product code or name"
             value={productSearch}
             onChange={(event) => setProductSearch(event.target.value)}
+            onKeyDown={handleProductSearchKeyDown}
             className="max-w-md"
           />
           <div className="max-h-52 overflow-auto rounded-md border">
@@ -722,10 +993,16 @@ function QuotationForm() {
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.slice(0, 12).map((product) => (
-                  <tr key={product.id} className="border-t hover:bg-muted/30">
+                {filteredProducts.slice(0, 12).map((product, index) => (
+                  <tr
+                    key={product.id}
+                    className={`border-t hover:bg-muted/30 ${index === productSearchIndex ? 'bg-muted/40' : ''}`}
+                  >
                     <td className="px-3 py-2">{product.product_id ?? '-'}</td>
-                    <td className="px-3 py-2">{product.product_name}</td>
+                    <td className="px-3 py-2">
+                      {index === productSearchIndex ? '→ ' : ''}
+                      {product.product_name}
+                    </td>
                     <td className="px-3 py-2 text-right">${dollars(product.price)}</td>
                     <td className="px-3 py-2 text-right">
                       {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
@@ -824,7 +1101,8 @@ function QuotationForm() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+              <CardContent onKeyDown={handleLineItemsKeyDown} tabIndex={-1}>
+
               {companyItems.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No items for {companyName}</p>
               ) : (
@@ -938,11 +1216,13 @@ function QuotationForm() {
               <p className="text-lg font-medium">${dollars(calcResult.vat)}</p>
             </div>
           )}
-          {calcResult.discount > 0 && (
+          {resolvedDiscount > 0 && (
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Discount</Label>
+              <Label className="text-xs text-muted-foreground">
+                {parseFloat(per || '0') > 0 ? 'Discount' : 'Manual Discount'}
+              </Label>
               <p className="text-lg font-medium text-destructive">
-                -${dollars(calcResult.discount)}
+                -${dollars(resolvedDiscount)}
               </p>
             </div>
           )}
@@ -960,6 +1240,19 @@ function QuotationForm() {
               value={per}
               onChange={(e) => setPer(e.target.value)}
               placeholder="0"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Manual Discount</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              className="h-8 w-28"
+              value={manualDiscount}
+              onChange={(e) => setManualDiscount(e.target.value)}
+              disabled={parseFloat(per || '0') > 0}
+              placeholder="0.00"
             />
           </div>
           <div className="space-y-1 md:col-span-2">

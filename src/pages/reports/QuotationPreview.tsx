@@ -1,13 +1,13 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
 import {
-  buildReportPdfPath,
   downloadExcelXml,
   escapeHtml,
   openPrintableReport,
 } from '@/lib/report-output';
+import { getQuotationPdfPath } from '@/lib/pdf/path';
 import type { Company, Customer, QuotationMain, QuotationSub, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -128,12 +128,12 @@ function QuotationPreview() {
   const navigate = useNavigate();
   const params = useParams();
   const state = (location.state as QuotationPreviewState | null) ?? null;
-  const quotationId = state?.quotationId ?? Number(params.quotationId) ?? 0;
+  const quotationId = state?.quotationId ?? (Number(params.quotationId) || 0);
   const autoPrintMode = state?.autoPrint ?? false;
   const autoExportPdf = state?.autoExportPdf ?? false;
 
   const [waOpen, setWaOpen] = useState(false);
-  const [autoPdfTriggered, setAutoPdfTriggered] = useState(false);
+  const autoPdfTriggeredRef = useRef(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['quotationPreview', quotationId],
@@ -177,6 +177,18 @@ function QuotationPreview() {
     });
   }, [data]);
 
+  const printableReportConfig = useMemo(() => {
+    if (!reportHtml) {
+      return null;
+    }
+
+    return {
+      html: reportHtml,
+      configuredPath: data?.settings?.quo_path ?? null,
+      quotation: data?.quotation ?? null,
+    };
+  }, [data, reportHtml]);
+
   useEffect(() => {
     if (!autoPrintMode || !reportHtml || isLoading) {
       return;
@@ -188,33 +200,28 @@ function QuotationPreview() {
   }, [autoPrintMode, reportHtml, isLoading]);
 
   useEffect(() => {
-    if (!autoExportPdf || autoPdfTriggered || isLoading || !reportHtml) {
+    if (!autoExportPdf || autoPdfTriggeredRef.current || isLoading || !printableReportConfig) {
       return;
     }
-    setAutoPdfTriggered(true);
-    void handlePrintable('pdf');
-  }, [autoExportPdf, autoPdfTriggered, isLoading, reportHtml]);
 
-  const handlePrintable = (mode: 'print' | 'pdf') => {
-    if (!reportHtml) {
-      toast.error('No Data Selected');
-      return;
-    }
-    openPrintableReport({
-      html: reportHtml,
-      mode,
-      requirePath: mode === 'pdf',
-      configuredPath: data?.settings?.quo_path ?? null,
-      outputPath:
-        mode === 'pdf' && data?.settings?.quo_path
-          ? buildReportPdfPath({
-              configuredPath: data.settings.quo_path,
-              filenamePrefix: 'quotation',
-              label: data.quotation?.quo_no ?? null,
-            })
-          : null,
-    });
-  };
+    const exportPdf = async () => {
+      autoPdfTriggeredRef.current = true;
+      const outputPath = printableReportConfig.quotation
+        ? await getQuotationPdfPath(printableReportConfig.quotation)
+        : null;
+
+      await openPrintableReport({
+        html: printableReportConfig.html,
+        mode: 'pdf',
+        requirePath: true,
+        missingPathMessage: 'Please Set Quotation Save Path from Setting',
+        configuredPath: printableReportConfig.configuredPath,
+        outputPath,
+      });
+    };
+
+    void exportPdf();
+  }, [autoExportPdf, isLoading, printableReportConfig]);
 
   const handleExportExcel = () => {
     if (!data?.quotation) {
@@ -236,6 +243,27 @@ function QuotationPreview() {
     });
   };
 
+  const handlePrintable = async (mode: 'print' | 'pdf') => {
+    if (!printableReportConfig) {
+      toast.error('No Data Selected');
+      return;
+    }
+
+    const outputPath =
+      mode === 'pdf' && printableReportConfig.quotation
+        ? await getQuotationPdfPath(printableReportConfig.quotation)
+        : null;
+
+    await openPrintableReport({
+      html: printableReportConfig.html,
+      mode,
+      requirePath: mode === 'pdf',
+      missingPathMessage: 'Please Set Quotation Save Path from Setting',
+      configuredPath: printableReportConfig.configuredPath,
+      outputPath,
+    });
+  };
+
   const handleSend = async () => {
     if (!data?.quotation || !data.customer?.email) {
       toast.error('Customer email is not configured');
@@ -250,6 +278,7 @@ function QuotationPreview() {
         contact_person: data.customer.title_name ?? '',
         name: data.customer.customer_name,
       },
+      pdf_path: await getQuotationPdfPath(data.quotation),
     });
 
     if (!result.success) {
