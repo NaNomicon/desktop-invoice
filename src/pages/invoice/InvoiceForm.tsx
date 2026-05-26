@@ -14,6 +14,7 @@ import type {
   NumberSequence,
 } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/ui-store';
 import { cal } from '@/lib/invoice/cal';
 import { saved } from '@/lib/invoice/saved';
 import { splitInvoice } from '@/lib/invoice/splitInvoice';
@@ -120,6 +121,8 @@ function InvoiceForm() {
   const location = useLocation();
   const authCompanyId = useAuthStore((s) => s.company_id);
   const invoicePrefill = location.state as InvoicePrefillState | null;
+  const productAutoFill = useUIStore((s) => s.productAutoFill);
+  const setProductAutoFill = useUIStore((s) => s.setProductAutoFill);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -803,6 +806,39 @@ function InvoiceForm() {
     selectedCustomer,
     subTotal,
   ]);
+
+  useEffect(() => {
+    if (productAutoFill?.targetForm !== 'invoice') return;
+    if (!products.length) return;
+    const product = products.find((p) => p.id === productAutoFill.productId);
+    if (product) {
+      const emptyTarget = lineItems.find((item) => !item.deleted && !item.product_id) ?? null;
+      if (emptyTarget) {
+        updateLineItem(emptyTarget.uid, {
+          product_id: product.id,
+          product_name: product.product_name,
+          unit_price: product.price,
+          company_id: product.company_id,
+        });
+      } else {
+        const fallbackItem = {
+          uid: nextUid(),
+          id: 0,
+          qty: 1,
+          product_id: product.id,
+          product_name: product.product_name,
+          unit_price: product.price,
+          row_total: product.price,
+          s_no: lineItems.length + 1,
+          deleted: false,
+          company_id: product.company_id,
+        };
+        setLineItems((prev) => [...prev, fallbackItem]);
+      }
+    }
+    setProductAutoFill(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productAutoFill, products]);
 
   const handleSave = useCallback(async () => {
     const result = await persistInvoice();

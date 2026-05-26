@@ -8,6 +8,13 @@ export interface HomeTabItem {
   closable?: boolean
 }
 
+export interface ProductAutoFill {
+  targetForm: 'invoice' | 'quotation'
+  productId: number | null
+  productName: string
+  unitPrice: number
+}
+
 interface UIState {
   leftSidebarVisible: boolean
   rightSidebarVisible: boolean
@@ -17,6 +24,7 @@ interface UIState {
   homeTabs: HomeTabItem[]
   activeHomeTab: string | null
   homeBackground: string | null
+  productAutoFill: ProductAutoFill | null
 
   toggleLeftSidebar: () => void
   setLeftSidebarVisible: (visible: boolean) => void
@@ -33,6 +41,7 @@ interface UIState {
   setActiveHomeTab: (key: string | null) => void
   resetHomeTabs: () => void
   setHomeBackground: (path: string | null) => void
+  setProductAutoFill: (fill: ProductAutoFill | null) => void
 }
 
 export const useUIStore = create<UIState>()(
@@ -46,6 +55,7 @@ export const useUIStore = create<UIState>()(
       homeTabs: [],
       activeHomeTab: null,
       homeBackground: null,
+      productAutoFill: null,
 
       toggleLeftSidebar: () =>
         set(
@@ -145,6 +155,9 @@ export const useUIStore = create<UIState>()(
 
       setHomeBackground: path =>
         set({ homeBackground: path }, undefined, 'setHomeBackground'),
+
+      setProductAutoFill: fill =>
+        set({ productAutoFill: fill }, undefined, 'setProductAutoFill'),
     }),
     {
       name: 'ui-store',

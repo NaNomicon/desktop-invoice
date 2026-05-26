@@ -1,7 +1,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { query, execute } from '@/lib/db';
 import type { Company } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
+import { useUIStore } from '@/store/ui-store';
 import { isAdmin } from '@/lib/rbac';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -54,6 +56,7 @@ function ProductPage() {
   const authCompanyId = useAuthStore((s) => s.company_id);
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
+  const [searchParams] = useSearchParams();
 
   const [products, setProducts] = useState<ProductRow[]>([]);
   const [typeOptions, setTypeOptions] = useState<TypeOption[]>([]);
@@ -84,6 +87,8 @@ function ProductPage() {
 
   const [typeDialogOpen, setTypeDialogOpen] = useState(false);
   const [newTypeName, setNewTypeName] = useState('');
+  const productAutoFill = useUIStore((s) => s.productAutoFill);
+  const setProductAutoFill = useUIStore((s) => s.setProductAutoFill);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -105,6 +110,22 @@ function ProductPage() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    const target = searchParams.get('newFor');
+    if (target === 'invoice' || target === 'quotation') {
+      const priceParam = searchParams.get('price');
+      const nameParam = searchParams.get('name');
+      openNew(target);
+      if (priceParam) {
+        setForm((f) => ({ ...f, price: priceParam, product_name: nameParam || '' }));
+      }
+      if (!productAutoFill) {
+        setProductAutoFill({ targetForm: target, productId: null, productName: '', unitPrice: 0 });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const filtered = useMemo(() => {
     let rows = products;
@@ -188,7 +209,10 @@ function ProductPage() {
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const openNew = () => {
+  const openNew = (targetForm?: 'invoice' | 'quotation') => {
+    if (targetForm) {
+      setProductAutoFill({ targetForm, productId: null, productName: '', unitPrice: 0 });
+    }
     setEditingId(null);
     setForm({
       product_name: '',
@@ -245,6 +269,18 @@ function ProductPage() {
           [form.product_name.trim(), form.product_id || null, typeId, form.company_id, priceCents],
         );
         toast.success('Product created');
+        if (productAutoFill) {
+          const newProduct = await query<{ id: number }>(
+            'SELECT id FROM tbl_product WHERE product_name = ? AND type_id IS ? AND company_id = ? ORDER BY id DESC LIMIT 1',
+            [form.product_name.trim(), typeId, form.company_id],
+          );
+          if (newProduct[0]) {
+            setProductAutoFill({
+              ...productAutoFill,
+              productId: newProduct[0].id,
+            });
+          }
+        }
       }
       setDialogOpen(false);
       await loadData();
@@ -253,7 +289,7 @@ function ProductPage() {
     } finally {
       setSaving(false);
     }
-  }, [form, editingId, loadData]);
+  }, [form, editingId, loadData, productAutoFill, setProductAutoFill]);
 
   const handleDelete = useCallback(async () => {
     if (!deleteConfirm) return;
@@ -470,7 +506,7 @@ function ProductPage() {
             <Download className="size-4" />
             Export
           </Button>
-          <Button onClick={openNew}>
+          <Button onClick={() => openNew()}>
             <Plus className="size-4" />
             Add Product
           </Button>
