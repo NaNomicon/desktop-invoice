@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import { buildReportPdfPath, downloadExcelXml, openPrintableReport } from '@/lib/report-output';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/store/ui-store';
+import { useOutstandingStore } from '@/store/outstanding-store';
 import {
   createOutstandingReportHtml,
   customerDisplayName,
@@ -13,33 +14,20 @@ import {
   filterOutstandingRows,
   getOutstandingCompanyLabel,
   getOutstandingTotals,
-  loadOutstandingData,
-  type OutstandingRow,
 } from '@/pages/outstanding/outstanding-report-helpers';
+import { useOutstandingData } from '@/services/outstanding';
 import { Download, FileText, Search, X } from 'lucide-react';
 
 function OutstandingReport() {
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
-  const [customers, setCustomers] = useState<OutstandingRow[]>([]);
-  const [companies, setCompanies] = useState<{ id: number; company_name: string | null }[]>([]);
-  const [settings, setSettings] = useState<{ report_path: string | null } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const { customers: customerRows, companies: companyRows, settings: currentSettings } =
-      await loadOutstandingData();
-    setCustomers(customerRows);
-    setCompanies(companyRows);
-    setSettings(currentSettings);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
+  const search = useOutstandingStore((state) => state.search);
+  const companyFilter = useOutstandingStore((state) => state.companyFilter);
+  const setSearch = useOutstandingStore((state) => state.setSearch);
+  const setCompanyFilter = useOutstandingStore((state) => state.setCompanyFilter);
+  const { data, isLoading } = useOutstandingData();
+  const customers = data?.customers ?? [];
+  const companies = data?.companies ?? [];
+  const settings = data?.settings ?? null;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -202,7 +190,7 @@ function OutstandingReport() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <p className="py-8 text-center text-muted-foreground">Loading...</p>
           ) : filtered.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">No outstanding balances found</p>
