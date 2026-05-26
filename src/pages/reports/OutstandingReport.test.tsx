@@ -1,9 +1,11 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter } from 'react-router-dom';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@/test/test-utils';
 import OutstandingReport from './OutstandingReport';
 import ListOutStanding from '@/pages/outstanding/ListOutStanding';
+import { useOutstandingStore } from '@/store/outstanding-store';
 
 const _importReportOutput = () => import('@/lib/report-output');
 const _importRouterDom = () => import('react-router-dom');
@@ -94,8 +96,26 @@ function setupOutstandingQueries() {
   });
 }
 
+function renderWithQuery(ui: React.ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
+}
+
 describe('Outstanding report flows', () => {
   beforeEach(() => {
+    useOutstandingStore.setState({
+      search: '',
+      companyFilter: 'all',
+      selectedCustomerId: null,
+    });
     queryMock.mockReset();
     openPrintableReportMock.mockReset();
     downloadExcelXmlMock.mockReset();
@@ -108,7 +128,7 @@ describe('Outstanding report flows', () => {
   it('renders outstanding report totals and filters by customer name before printing', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <MemoryRouter>
         <OutstandingReport />
       </MemoryRouter>,
@@ -135,7 +155,7 @@ describe('Outstanding report flows', () => {
   it('passes a concrete PDF output path when exporting outstanding report as PDF', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <MemoryRouter>
         <OutstandingReport />
       </MemoryRouter>,
@@ -155,7 +175,7 @@ describe('Outstanding report flows', () => {
   it('closes the outstanding report tab when cancel is clicked', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <MemoryRouter>
         <OutstandingReport />
       </MemoryRouter>,
@@ -170,7 +190,7 @@ describe('Outstanding report flows', () => {
   it('opens a receipt voucher for the selected outstanding customer', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <MemoryRouter>
         <ListOutStanding />
       </MemoryRouter>,
@@ -197,7 +217,7 @@ describe('Outstanding report flows', () => {
   it('closes the outstanding list tab when cancel is clicked', async () => {
     const user = userEvent.setup();
 
-    render(
+    renderWithQuery(
       <MemoryRouter>
         <ListOutStanding />
       </MemoryRouter>,

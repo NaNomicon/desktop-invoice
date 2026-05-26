@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { buildReportPdfPath, downloadExcelXml, openPrintableReport } from '@/lib/report-output';
@@ -7,14 +7,15 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/store/ui-store';
+import { useOutstandingStore } from '@/store/outstanding-store';
 import {
   createOutstandingReportHtml,
   customerDisplayName,
   dollars,
   filterOutstandingRows,
-  loadOutstandingData,
   type OutstandingRow,
 } from './outstanding-report-helpers';
+import { useOutstandingData } from '@/services/outstanding';
 import {
   flexRender,
   getCoreRowModel,
@@ -37,28 +38,17 @@ import {
 function ListOutStanding() {
   const navigate = useNavigate();
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
-  const [customers, setCustomers] = useState<OutstandingRow[]>([]);
-  const [companies, setCompanies] = useState<{ id: number; company_name: string | null }[]>([]);
-  const [settings, setSettings] = useState<{ report_path: string | null } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
+  const search = useOutstandingStore((state) => state.search);
+  const companyFilter = useOutstandingStore((state) => state.companyFilter);
+  const selectedCustomerId = useOutstandingStore((state) => state.selectedCustomerId);
+  const setSearch = useOutstandingStore((state) => state.setSearch);
+  const setCompanyFilter = useOutstandingStore((state) => state.setCompanyFilter);
+  const setSelectedCustomerId = useOutstandingStore((state) => state.setSelectedCustomerId);
+  const { data, isLoading } = useOutstandingData();
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const { customers: customerRows, companies: companyRows, settings: currentSettings } =
-      await loadOutstandingData();
-    setCustomers(customerRows);
-    setCompanies(companyRows);
-    setSettings(currentSettings);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
+  const customers = data?.customers ?? [];
+  const companies = data?.companies ?? [];
+  const settings = data?.settings ?? null;
 
   const filtered = useMemo(
     () => filterOutstandingRows(customers, search, companyFilter),
@@ -283,7 +273,7 @@ function ListOutStanding() {
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <p className="py-8 text-center text-muted-foreground">Loading...</p>
           ) : (
             <div className="overflow-x-auto rounded-md border">
