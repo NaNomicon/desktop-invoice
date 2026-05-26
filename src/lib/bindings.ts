@@ -255,8 +255,8 @@ export type RecoveryError =
  * JSON serialization/deserialization error
  */
 { type: "ParseError"; message: string }
-export type SendEmailAttachment = { path: string; filename: string | null; mime_type: string | null }
 export type SaveReportPdfRequest = { html: string; output_path: string }
+export type SendEmailAttachment = { path: string; filename: string | null; mime_type: string | null }
 export type SendEmailRequest = { smtp_host: string | null; smtp_port: number | null; smtp_starttls: boolean | null; sender_email: string; sender_pass: string; sender_name: string | null; to: string; subject: string; html: string; attachments: SendEmailAttachment[] | null }
 export type SendEmailResponse = { sent_to: string; attachment_count: number }
 
