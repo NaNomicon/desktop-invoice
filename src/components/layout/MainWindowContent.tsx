@@ -71,7 +71,7 @@ const ROUTE_TABS: Record<string, RouteTabDefinition> = {
   '/whatsapp-templates': { title: 'WhatsApp Templates' },
   '/settings': { title: 'Application Settings' },
   '/reports/sales': { title: 'Sales Report' },
-  '/reports/statement': { title: 'Outstanding Report' },
+  '/reports/statement': { title: 'Statement of Account' },
   '/reports/print': { title: 'Invoice Report' },
   '/reports/print/0': { title: 'Invoice Report' },
   '/reports/invoices': { title: 'Invoice Report' },

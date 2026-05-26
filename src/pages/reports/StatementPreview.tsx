@@ -1,7 +1,9 @@
 import { useState, useMemo, useCallback } from 'react';
+import { sendEmail } from '@/lib/email/send';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
+import { commands } from '@/lib/tauri-bindings';
 import {
   buildReportPdfPath,
   downloadExcelXml,
@@ -11,6 +13,7 @@ import {
 import type { Company, Customer, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -30,7 +33,7 @@ import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 import 'react-day-picker/style.css';
-import { Download, FileText, Calendar } from 'lucide-react';
+import { Download, FileText, Calendar, Search, Mail } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -38,10 +41,21 @@ import {
 } from '@/components/ui/popover';
 
 interface StatementRow {
+  id: number;
   ref_no: string;
   date: string;
-  type: 'Invoice' | 'Receipt';
-  amount: number; // INTEGER cents — positive for invoices, negative display for receipts
+  type: 'Invoice' | 'Payment';
+  checklist_no: string | null;
+  bill_amount: number;
+  paid_amount: number;
+  cheque_no: string | null;
+  balance: number;
+  extra: string | null;
+  cr_dr: string | null;
+}
+
+function dollars(c: number): string {
+  return (c / 100).toFixed(2);
 }
 
 function createStatementReportHtml(options: {
@@ -60,6 +74,7 @@ function createStatementReportHtml(options: {
     closingBalance,
     rows,
   } = options;
+
   const generatedAt = new Date().toLocaleString('en-GB', {
     year: 'numeric',
     month: '2-digit',
@@ -70,26 +85,28 @@ function createStatementReportHtml(options: {
     hour12: false,
   }).replace(',', '');
 
-  const tableRows = rows
-    .map((row) => {
-      const sign = row.type === 'Receipt' ? '-' : '';
-      return `
+  const tableRows = rows.map((row) => {
+    const isPayment = row.type === 'Payment';
+    return `
         <tr>
           <td>${escapeHtml(row.ref_no)}</td>
           <td>${escapeHtml(row.date)}</td>
           <td>${escapeHtml(row.type)}</td>
-          <td class="amount">${escapeHtml(`${sign}$${dollars(row.amount)}`)}</td>
+          <td>${escapeHtml(row.checklist_no ?? '-')}</td>
+          <td class="amount">${isPayment ? '' : '$'}${dollars(row.bill_amount)}</td>
+          <td class="amount">${isPayment ? '$' : ''}${dollars(row.paid_amount)}</td>
+          <td>${escapeHtml(row.cheque_no ?? '-')}</td>
+          <td class="amount">${dollars(row.balance)}</td>
         </tr>`;
-    })
-    .join('');
+  }).join('');
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Statement Report</title>
+  <title>Statement of Account</title>
   <style>
-    @page { margin: 14mm; size: A4 portrait; }
+    @page { margin: 14mm; size: A4 landscape; }
     body { font-family: Arial, sans-serif; color: #111827; margin: 0; }
     main { padding: 24px; }
     .header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
@@ -109,7 +126,7 @@ function createStatementReportHtml(options: {
   <main>
     <div class="header">
       <div>
-        <h1 class="title">Statement Report</h1>
+        <h1 class="title">Statement of Account</h1>
         <div class="meta">Generated: ${escapeHtml(generatedAt)}</div>
       </div>
       <div class="meta">
@@ -129,7 +146,11 @@ function createStatementReportHtml(options: {
           <th>Ref #</th>
           <th>Date</th>
           <th>Type</th>
-          <th>Amount</th>
+          <th>Checklist No</th>
+          <th>Bill Amount</th>
+          <th>Paid Amount</th>
+          <th>Cheque No</th>
+          <th>Balance</th>
         </tr>
       </thead>
       <tbody>${tableRows}</tbody>
@@ -139,16 +160,14 @@ function createStatementReportHtml(options: {
 </html>`;
 }
 
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
-
 function StatementPreview() {
   const [customerId, setCustomerId] = useState<string>('');
   const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [showCustomerResults, setShowCustomerResults] = useState(false);
 
   const { data: companies = [] } = useQuery({
     queryKey: ['companies'],
@@ -169,7 +188,7 @@ function StatementPreview() {
     queryKey: ['statementCustomers', companyFilter],
     queryFn: () =>
       query<Customer>(
-        `SELECT id, customer_name, due_amount, company_id
+        `SELECT id, customer_name, due_amount, company_id, email, title_name, contact
          FROM tbl_customer
          WHERE is_deleted = 0
            AND (company_id = ? OR ? = 'ALL')
@@ -193,6 +212,20 @@ function StatementPreview() {
     [customers, customerId],
   );
 
+  const filteredCustomers = useMemo(() => {
+    if (!customerSearch.trim()) return [];
+    const search = customerSearch.toLowerCase();
+    return customers
+      .filter((c) => c.customer_name.toLowerCase().includes(search))
+      .slice(0, 10);
+  }, [customers, customerSearch]);
+
+  const handleSelectCustomer = useCallback((c: Customer & { email?: string | null }) => {
+    setCustomerId(String(c.id));
+    setCustomerSearch(c.customer_name);
+    setShowCustomerResults(false);
+  }, []);
+
   const fromDate = dateRange?.from
     ? format(dateRange.from, 'yyyy-MM-dd')
     : '1970-01-01';
@@ -205,15 +238,24 @@ function StatementPreview() {
   const { data: invoices = [], isLoading: loadingInvoices } = useQuery({
     queryKey: ['statementInvoices', customerId, fromDate, toDate],
     queryFn: () =>
-      query<{ ref_no: string; date: string; amount: number }>(
-        `SELECT invoice_no AS ref_no,
-                invoice_date AS date,
-                total AS amount
+      query<StatementRow>(
+        `SELECT 
+          tbl_invoice_main.id,
+          tbl_invoice_main.invoice_no AS ref_no,
+          tbl_invoice_main.invoice_date AS date,
+          tbl_invoice_main.checklist_no,
+          (tbl_invoice_main.sub_total - tbl_invoice_main.discount) AS bill_amount,
+          tbl_invoice_main.paid_amount,
+          '-' AS cheque_no,
+          tbl_invoice_main.balance,
+          tbl_invoice_main.no AS extra,
+          tbl_invoice_main.cr_dr
          FROM tbl_invoice_main
-         WHERE customer_id = ?
-           AND is_deleted = 0
-           AND invoice_date BETWEEN ? AND ?
-         ORDER BY invoice_date`,
+         INNER JOIN tbl_customer ON tbl_invoice_main.customer_id = tbl_customer.id
+         WHERE tbl_invoice_main.customer_id = ?
+           AND tbl_invoice_main.is_deleted = 0
+           AND tbl_invoice_main.invoice_date BETWEEN ? AND ?
+         ORDER BY tbl_invoice_main.invoice_date`,
         [customerId, fromDate, toDate],
       ),
     enabled: hasFilter,
@@ -223,15 +265,24 @@ function StatementPreview() {
   const { data: receipts = [], isLoading: loadingReceipts } = useQuery({
     queryKey: ['statementReceipts', customerId, fromDate, toDate],
     queryFn: () =>
-      query<{ ref_no: string; date: string; amount: number }>(
-        `SELECT receipt_no AS ref_no,
-                receipt_date AS date,
-                amount_received AS amount
+      query<StatementRow>(
+        `SELECT 
+          tbl_receipt.id,
+          tbl_receipt.receipt_no AS ref_no,
+          tbl_receipt.receipt_date AS date,
+          '-' AS checklist_no,
+          0 AS bill_amount,
+          tbl_receipt.amount_received AS paid_amount,
+          tbl_receipt.cheque_no,
+          tbl_receipt.due_amount AS balance,
+          tbl_receipt.no AS extra,
+          tbl_receipt.cr_dr
          FROM tbl_receipt
-         WHERE customer_id = ?
-           AND is_deleted = 0
-           AND receipt_date BETWEEN ? AND ?
-         ORDER BY receipt_date`,
+         INNER JOIN tbl_customer ON tbl_receipt.customer_id = tbl_customer.id
+         WHERE tbl_receipt.customer_id = ?
+           AND tbl_receipt.is_deleted = 0
+           AND tbl_receipt.receipt_date BETWEEN ? AND ?
+         ORDER BY tbl_receipt.receipt_date`,
         [customerId, fromDate, toDate],
       ),
     enabled: hasFilter,
@@ -241,31 +292,28 @@ function StatementPreview() {
   const transactions = useMemo<StatementRow[]>(() => {
     const combined: StatementRow[] = [
       ...invoices.map((inv) => ({
-        ref_no: inv.ref_no,
-        date: inv.date,
+        ...inv,
         type: 'Invoice' as const,
-        amount: inv.amount,
       })),
       ...receipts.map((rec) => ({
-        ref_no: rec.ref_no,
-        date: rec.date,
-        type: 'Receipt' as const,
-        amount: rec.amount,
+        ...rec,
+        type: 'Payment' as const,
       })),
     ];
-    combined.sort((a, b) => a.date.localeCompare(b.date));
+    combined.sort((a, b) => {
+      const dateCompare = a.date.localeCompare(b.date);
+      if (dateCompare !== 0) return dateCompare;
+      return (a.extra ?? '').localeCompare(b.extra ?? '');
+    });
     return combined;
   }, [invoices, receipts]);
 
-  const openingBalance = useMemo(() => {
+  const runningBalance = useMemo(() => {
     if (!selectedCustomer) return 0;
-    const dueAmount = selectedCustomer.due_amount;
-    const invoiceSum = invoices.reduce((sum, i) => sum + i.amount, 0);
-    const receiptSum = receipts.reduce((sum, r) => sum + r.amount, 0);
-    return dueAmount - invoiceSum + receiptSum;
-  }, [selectedCustomer, invoices, receipts]);
+    return selectedCustomer.due_amount;
+  }, [selectedCustomer]);
 
-  const closingBalance = useMemo(() => {
+  const openingBalance = useMemo(() => {
     if (!selectedCustomer) return 0;
     return selectedCustomer.due_amount;
   }, [selectedCustomer]);
@@ -303,24 +351,43 @@ function StatementPreview() {
         },
       },
       {
-        accessorKey: 'amount',
-        header: 'Amount',
+        accessorKey: 'checklist_no',
+        header: 'Checklist No',
+        cell: (info) => info.getValue<string>() ?? '-',
+      },
+      {
+        accessorKey: 'bill_amount',
+        header: 'Bill Amount',
         cell: (info) => {
-          const row = info.row.original;
           const d = info.getValue<number>();
-          const sign = row.type === 'Receipt' ? '-' : '';
-          return (
-            <span className="tabular-nums">
-              {sign}${dollars(d)}
-            </span>
-          );
+          return <span className="tabular-nums">${dollars(d)}</span>;
+        },
+      },
+      {
+        accessorKey: 'paid_amount',
+        header: 'Paid Amount',
+        cell: (info) => {
+          const d = info.getValue<number>();
+          return <span className="tabular-nums">${dollars(d)}</span>;
+        },
+      },
+      {
+        accessorKey: 'cheque_no',
+        header: 'Cheque No',
+        cell: (info) => info.getValue<string>() ?? '-',
+      },
+      {
+        accessorKey: 'balance',
+        header: 'Balance',
+        cell: (info) => {
+          const d = info.getValue<number>();
+          return <span className="tabular-nums">${dollars(d)}</span>;
         },
       },
     ],
     [],
   );
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable helpers
   const table = useReactTable({
     data: transactions,
     columns,
@@ -347,7 +414,7 @@ function StatementPreview() {
         companyLabel,
         rangeLabel,
         openingBalance,
-        closingBalance,
+        closingBalance: runningBalance,
         rows: transactions,
       });
 
@@ -360,21 +427,13 @@ function StatementPreview() {
           mode === 'pdf' && settings[0]?.report_path
             ? buildReportPdfPath({
                 configuredPath: settings[0].report_path,
-                filenamePrefix: 'statement-report',
+                filenamePrefix: 'SOA',
                 label: selectedCustomer.customer_name,
               })
             : null,
       });
     },
-    [
-      closingBalance,
-      companyLabel,
-      openingBalance,
-      rangeLabel,
-      selectedCustomer,
-      settings,
-      transactions,
-    ],
+    [companyLabel, openingBalance, rangeLabel, runningBalance, selectedCustomer, settings, transactions],
   );
 
   const handleExportExcel = useCallback(() => {
@@ -384,24 +443,87 @@ function StatementPreview() {
     }
 
     downloadExcelXml({
-      filenamePrefix: 'statement-report',
+      filenamePrefix: `SOA-${selectedCustomer.customer_name}`,
       worksheetName: 'Statement Report',
-      headers: ['REF #', 'DATE', 'TYPE', 'AMOUNT'],
+      headers: ['REF #', 'DATE', 'TYPE', 'CHECKLIST NO', 'BILL AMOUNT', 'PAID AMOUNT', 'CHEQUE NO', 'BALANCE'],
       rows: transactions.map((row) => [
         row.ref_no,
         row.date,
         row.type,
-        `${row.type === 'Receipt' ? '-' : ''}${dollars(row.amount)}`,
+        row.checklist_no ?? '-',
+        dollars(row.bill_amount),
+        dollars(row.paid_amount),
+        row.cheque_no ?? '-',
+        dollars(row.balance),
       ]),
     });
   }, [selectedCustomer, transactions]);
+
+  const handleSendEmail = useCallback(async () => {
+    if (!transactions.length || !selectedCustomer) {
+      toast.error('No Data Selected');
+      return;
+    }
+
+    if (!selectedCustomer.email) {
+      toast.error('Customer email is not configured');
+      return;
+    }
+
+    if (!settings[0]?.report_path) {
+      toast.error('Please Set Report Path from Setting');
+      return;
+    }
+
+    const pdfPath = buildReportPdfPath({
+      configuredPath: settings[0].report_path,
+      filenamePrefix: 'SOA',
+      label: selectedCustomer.customer_name,
+    });
+
+    const html = createStatementReportHtml({
+      customerName: selectedCustomer.customer_name,
+      companyLabel,
+      rangeLabel,
+      openingBalance,
+      closingBalance: runningBalance,
+      rows: transactions,
+    });
+
+    try {
+      await commands.saveReportPdf({ html, output_path: pdfPath });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(`Failed to generate PDF: ${msg}`);
+      return;
+    }
+
+    const result = await sendEmail({
+      to: selectedCustomer.email,
+      template_type: 'STATEMENT',
+      variables: {
+        date: new Date().toLocaleDateString('en-GB'),
+        contact_person: selectedCustomer.title_name ?? '',
+        name: selectedCustomer.customer_name,
+      },
+      pdf_path: pdfPath,
+    });
+
+    if (!result.success) {
+      toast.error(result.error ?? 'Failed to send email');
+      return;
+    }
+
+    toast.success(`Statement emailed to ${selectedCustomer.email}`);
+  }, [companyLabel, openingBalance, rangeLabel, runningBalance, selectedCustomer, settings, transactions]);
+
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <FileText className="size-5" />
-          <h1 className="text-2xl font-semibold">Statement Preview</h1>
+          <h1 className="text-2xl font-semibold">Statement of Account</h1>
         </div>
         <div className="flex gap-2">
           <Button
@@ -428,24 +550,50 @@ function StatementPreview() {
             <Download className="mr-2 size-4" />
             Export Excel
           </Button>
+          <Button
+            variant="outline"
+            onClick={handleSendEmail}
+            disabled={transactions.length === 0}
+          >
+            <Mail className="mr-2 size-4" />
+            Email PDF
+          </Button>
         </div>
       </div>
 
       <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={customerId} onValueChange={setCustomerId}>
-              <SelectTrigger className="w-56">
-                <SelectValue placeholder="Select customer..." />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.customer_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
+              <Input
+                placeholder="Search customer..."
+                value={customerSearch}
+                onChange={(e) => {
+                  setCustomerSearch(e.target.value);
+                  setShowCustomerResults(true);
+                }}
+                onFocus={() => setShowCustomerResults(true)}
+                className="w-56 pl-8"
+              />
+              {showCustomerResults && filteredCustomers.length > 0 && (
+                <div className="absolute z-10 max-h-60 w-full overflow-auto rounded-md border bg-background shadow-md">
+                  {filteredCustomers.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-muted"
+                      onClick={() => handleSelectCustomer(c)}
+                    >
+                      <span>{c.customer_name}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {c.due_amount > 0 ? `$${dollars(c.due_amount)}` : ''}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <Select value={companyFilter} onValueChange={setCompanyFilter}>
               <SelectTrigger className="w-44">
@@ -487,8 +635,7 @@ function StatementPreview() {
 
             {transactions.length > 0 && (
               <span className="text-sm text-muted-foreground">
-                {transactions.length} transaction
-                {transactions.length !== 1 ? 's' : ''}
+                {transactions.length} transaction{transactions.length !== 1 ? 's' : ''}
               </span>
             )}
           </div>
@@ -496,7 +643,7 @@ function StatementPreview() {
         <CardContent>
           {!hasFilter ? (
             <p className="py-8 text-center text-muted-foreground">
-              Select a customer to view their statement
+              Search and select a customer to view their statement
             </p>
           ) : isLoading ? (
             <p className="py-8 text-center text-muted-foreground">
@@ -522,8 +669,8 @@ function StatementPreview() {
                   </div>
                   <div
                     className={`text-lg font-semibold tabular-nums ${
-                      invoices.reduce((s, i) => s + i.amount, 0) -
-                        receipts.reduce((s, r) => s + r.amount, 0) >
+                      invoices.reduce((s, i) => s + i.bill_amount, 0) -
+                        receipts.reduce((s, r) => s + r.paid_amount, 0) >
                       0
                         ? 'text-destructive'
                         : 'text-green-600'
@@ -531,8 +678,8 @@ function StatementPreview() {
                   >
                     {(() => {
                       const net =
-                        invoices.reduce((s, i) => s + i.amount, 0) -
-                        receipts.reduce((s, r) => s + r.amount, 0);
+                        invoices.reduce((s, i) => s + i.bill_amount, 0) -
+                        receipts.reduce((s, r) => s + r.paid_amount, 0);
                       const sign = net > 0 ? '' : '-';
                       return `${sign}$${dollars(Math.abs(net))}`;
                     })()}
@@ -543,10 +690,10 @@ function StatementPreview() {
                     Closing Balance
                   </div>
                   <div
-                    className={`text-lg font-semibold tabular-nums ${closingBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
+                    className={`text-lg font-semibold tabular-nums ${runningBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
                   >
-                    {closingBalance > 0 ? '' : '-'}$
-                    {dollars(Math.abs(closingBalance))}
+                    {runningBalance > 0 ? '' : '-'}$
+                    {dollars(Math.abs(runningBalance))}
                   </div>
                 </div>
               </div>
