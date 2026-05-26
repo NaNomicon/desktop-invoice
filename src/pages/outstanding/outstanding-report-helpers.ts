@@ -1,4 +1,3 @@
-import { query } from '@/lib/db';
 import { escapeHtml } from '@/lib/report-output';
 import type { Setting } from '@/lib/types';
 
@@ -173,23 +172,4 @@ export function createOutstandingReportHtml(
   </main>
 </body>
 </html>`;
-}
-
-export async function loadOutstandingData(): Promise<OutstandingDataSet> {
-  const [customers, companies, settings] = await Promise.all([
-    query<OutstandingRow>(
-      `SELECT id, customer_name, title_name, customer_type, due_amount, ad_due, company_id
-       FROM tbl_customer
-       WHERE is_deleted = 0 AND due_amount != 0
-       ORDER BY customer_name`,
-    ),
-    query<OutstandingCompanyOption>('SELECT id, company_name FROM tbl_company WHERE is_active = 1'),
-    query<Setting>('SELECT report_path FROM tbl_setting WHERE id = 1 LIMIT 1'),
-  ]);
-
-  return {
-    customers,
-    companies,
-    settings: settings[0] ?? null,
-  };
 }
