@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { deleteInvoice } from '@/lib/invoice/delete';
@@ -24,7 +24,7 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import { toast } from 'sonner';
-import { Eye, FilePenLine, FileText, Search } from 'lucide-react';
+import { Eye, FilePenLine, FileText, Plus, Search } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -91,7 +91,8 @@ function InvoiceList() {
       rows = rows.filter(
         (inv) =>
           inv.customer_name.toLowerCase().includes(s) ||
-          inv.invoice_no.toLowerCase().includes(s),
+          inv.invoice_no.toLowerCase().includes(s) ||
+          (inv.checklist_no?.toLowerCase().includes(s) ?? false),
       );
     }
     if (companyFilter !== 'all') {
@@ -125,6 +126,11 @@ function InvoiceList() {
         accessorKey: 'customer_name',
         header: 'Customer',
         cell: (info) => info.getValue<string>(),
+      },
+      {
+        accessorKey: 'checklist_no',
+        header: 'Checklist',
+        cell: (info) => info.getValue<string | null>() || '-',
       },
       {
         accessorKey: 'total',
@@ -258,6 +264,10 @@ function InvoiceList() {
           <FileText className="size-5" />
           <h1 className="text-2xl font-semibold">Invoices</h1>
         </div>
+        <Button onClick={() => navigate('/invoices/new')}>
+          <Plus className="size-4" />
+          Add Invoice
+        </Button>
       </div>
 
       <Card>
@@ -270,6 +280,11 @@ function InvoiceList() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearch('');
+                  }
+                }}
               />
             </div>
             <Select value={companyFilter} onValueChange={setCompanyFilter}>
@@ -293,59 +308,73 @@ function InvoiceList() {
               Loading...
             </p>
           ) : (
-            <div className="overflow-x-auto rounded-md border">
-              <table className="w-full text-sm">
-                <thead>
-                  {table.getHeaderGroups().map((hg) => (
-                    <tr key={hg.id} className="bg-muted/50">
-                      {hg.headers.map((h) => (
-                        <th
-                          key={h.id}
-                          className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
-                          {flexRender(
-                            h.column.columnDef.header,
-                            h.getContext(),
-                          )}
-                          {{ asc: ' ↑', desc: ' ↓' }[
-                            h.column.getIsSorted() as string
-                          ] ?? ''}
-                        </th>
-                      ))}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={columns.length}
-                        className="py-8 text-center text-muted-foreground"
-                      >
-                        No invoices found
-                      </td>
-                    </tr>
-                  ) : (
-                    table.getRowModel().rows.map((row) => (
-                      <tr
-                        key={row.id}
-                        className="border-t hover:bg-muted/30"
-                      >
-                        {row.getVisibleCells().map((cell) => (
-                          <td key={cell.id} className="px-4 py-2">
+            <>
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    {table.getHeaderGroups().map((hg) => (
+                      <tr key={hg.id} className="bg-muted/50">
+                        {hg.headers.map((h) => (
+                          <th
+                            key={h.id}
+                            className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
+                            onClick={h.column.getToggleSortingHandler()}
+                          >
                             {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
+                              h.column.columnDef.header,
+                              h.getContext(),
                             )}
-                          </td>
+                            {{ asc: ' ↑', desc: ' ↓' }[
+                              h.column.getIsSorted() as string
+                            ] ?? ''}
+                          </th>
                         ))}
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    ))}
+                  </thead>
+                  <tbody>
+                    {table.getRowModel().rows.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={columns.length}
+                          className="py-8 text-center text-muted-foreground"
+                        >
+                          No invoices found
+                        </td>
+                      </tr>
+                    ) : (
+                      table.getRowModel().rows.map((row) => (
+                        <tr
+                          key={row.id}
+                          className="cursor-pointer border-t hover:bg-muted/30"
+                          onDoubleClick={() => handleEdit(row.original.id)}
+                          onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                            if (event.key === 'Enter') {
+                              event.preventDefault();
+                              handleEdit(row.original.id);
+                            }
+                          }}
+                          tabIndex={0}
+                          title="Double-click to edit"
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <td key={cell.id} className="px-4 py-2">
+                              {flexRender(
+                                cell.column.columnDef.cell,
+                                cell.getContext(),
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-2 text-sm text-muted-foreground">
+                Total: {filtered.length} invoice{filtered.length !== 1 ? 's' : ''}
+              </div>
+            </>
           )}
         </CardContent>
       </Card>
