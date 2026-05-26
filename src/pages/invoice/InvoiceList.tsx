@@ -188,8 +188,8 @@ function InvoiceList() {
             type="button"
             variant="ghost"
             size="icon-sm"
-            onClick={() => navigate(`/reports/print/${info.row.original.id}`)}
-            aria-label={`Preview invoice ${info.row.original.invoice_no}`}
+              onClick={() => navigate(`/reports/invoices/${info.row.original.id}`)}
+              aria-label={`Preview invoice ${info.row.original.invoice_no}`}
           >
             <Eye className="size-3.5" />
           </Button>

@@ -563,7 +563,7 @@ function QuotationForm() {
     const quoNo = 'quo_no' in result ? result.quo_no : `${result.quotation1_no} & ${result.quotation2_no}`;
     const quoId = 'id' in result ? result.id : result.quotation1_id;
     toast.success(`Quotation ${quoNo} saved`);
-    navigate('/reports/quotations', {
+    navigate(`/reports/quotations/${quoId}`, {
       state: { quotationId: quoId, quotationNo: quoNo },
     });
   }, [navigate, persistQuotation]);
@@ -576,7 +576,7 @@ function QuotationForm() {
     const quoId = 'id' in result ? result.id : result.quotation1_id;
     const quoNo = 'quo_no' in result ? result.quo_no : `${result.quotation1_no} & ${result.quotation2_no}`;
     toast.success(`Quotation ${quoNo} saved`);
-    navigate('/reports/quotations', {
+    navigate(`/reports/quotations/${quoId}`, {
       state: { quotationId: quoId, quotationNo: quoNo, autoPrint: true },
     });
   }, [navigate, persistQuotation]);
