@@ -1,6 +1,10 @@
 import { getDb } from '@/lib/db';
 import { cal } from './cal';
 
+function toSignedBalance(adDue: string | null | undefined, amount: number): number {
+  return adDue === 'Advance' ? -amount : amount;
+}
+
 export interface ReceiptSaveInput {
   receipt_id: number;
   receipt_no: string;
@@ -46,9 +50,10 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
 
   try {
     const customerRows = await db.select<
-      { company_id: number }[]
-    >('SELECT company_id FROM tbl_customer WHERE id = ? LIMIT 1', [customer_id]);
-    const companyId = customerRows[0]?.company_id ?? 1;
+      { company_id: number; ad_due: string | null; due_amount: number }[]
+    >('SELECT company_id, ad_due, due_amount FROM tbl_customer WHERE id = ? LIMIT 1', [customer_id]);
+    const customer = customerRows[0];
+    const companyId = customer?.company_id ?? 1;
 
     if (receipt_id === 0) {
       await db.execute(
@@ -86,6 +91,22 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
         'UPDATE tbl_numbers SET receipt_no = receipt_no + 1 WHERE id = (SELECT MAX(id) FROM tbl_numbers)',
       );
     } else {
+      const existingRows = await db.select<
+        { amount_received: number }[]
+      >('SELECT amount_received FROM tbl_receipt WHERE id = ? LIMIT 1', [receipt_id]);
+      const existingReceipt = existingRows[0];
+
+      if (!existingReceipt) {
+        throw new Error(`Receipt ${receipt_id} not found`);
+      }
+
+      const currentSignedBalance = toSignedBalance(customer?.ad_due, customer?.due_amount ?? 0);
+      const revertedLoadAmount = currentSignedBalance + existingReceipt.amount_received;
+      const updatedBalance = cal({
+        load_dua_amount: revertedLoadAmount,
+        amount_received,
+      });
+
       await db.execute(
         `UPDATE tbl_receipt SET
          receipt_date = ?, due_amount = ?, amount_received = ?, cheque_no = ?,
@@ -94,10 +115,10 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
          WHERE id = ?`,
         [
           receipt_date,
-          new_due_abs,
+          Math.abs(updatedBalance.new_due),
           amount_received,
           cheque_no ?? null,
-          previous_balance_abs,
+          Math.abs(revertedLoadAmount),
           cr_dr,
           pre_load_status ?? null,
           isCash,
@@ -111,7 +132,7 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
 
       await db.execute(
         'UPDATE tbl_customer SET due_amount = ?, ad_due = ? WHERE id = ?',
-        [new_due_abs, ad_due, customer_id],
+        [Math.abs(updatedBalance.new_due), updatedBalance.ad_due, customer_id],
       );
     }
 
