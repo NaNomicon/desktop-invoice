@@ -99,12 +99,6 @@ export async function buildAppMenu(): Promise<Menu> {
         await createNavItem('E-mail Config', '/email-templates'),
         await createNavItem('Direct Email', '/direct-email'),
         await createNavItem('WhatsApp Templates', '/whatsapp-templates'),
-        await MenuItem.new({
-          id: 'preferences',
-          text: t('menu.preferences'),
-          accelerator: 'CmdOrCtrl+,',
-          action: handleOpenPreferences,
-        }),
       ],
     })
 
@@ -223,11 +217,6 @@ async function handleCheckForUpdates(): Promise<void> {
     logger.error('Update check failed', { error })
     notifications.error('Update Check Failed', 'Could not check for updates')
   }
-}
-
-function handleOpenPreferences(): void {
-  logger.info('Preferences menu item clicked')
-  useUIStore.getState().setPreferencesOpen(true)
 }
 
 function handleToggleLeftSidebar(): void {
