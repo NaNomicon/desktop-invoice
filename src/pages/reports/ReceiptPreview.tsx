@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
@@ -45,6 +46,10 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+
+interface ReceiptPreviewState {
+  receiptId?: number;
+}
 
 interface ReceiptRow {
   id: number;
@@ -208,7 +213,82 @@ function createReceiptReportHtml(options: {
 </html>`;
 }
 
+function createSingleReceiptHtml(row: ReceiptRow): string {
+  const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
+  const customerLabel = `${row.title_name ?? ''} ${row.customer_name}`.trim() || row.customer_name;
+  const duePrefix = row.ad_due === 'Advance' ? '-' : '';
+  const chequeNo = formatChequeNo(row.cheque_no) || '—';
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Receipt ${escapeHtml(row.receipt_no)}</title>
+  <style>
+    @page { margin: 14mm; size: A4 portrait; }
+    body { font-family: Arial, sans-serif; color: #111827; margin: 0; }
+    main { padding: 24px; }
+    .header { display: flex; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+    .title { margin: 0; font-size: 24px; }
+    .meta { color: #4b5563; font-size: 12px; line-height: 1.6; }
+    .summary { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .card { border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+    .label { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 6px; }
+    .value { font-size: 16px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border: 1px solid #d1d5db; padding: 10px; font-size: 12px; text-align: left; }
+    th { width: 28%; background: #e0f2fe; }
+    .amount { text-align: right; font-variant-numeric: tabular-nums; }
+    .notes { margin-top: 16px; border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="header">
+      <div>
+        <h1 class="title">Receipt Voucher</h1>
+        <div class="meta">Generated: ${escapeHtml(generatedAt)}</div>
+      </div>
+      <div class="meta">
+        <div><strong>Receipt No:</strong> ${escapeHtml(row.receipt_no)}</div>
+        <div><strong>Date:</strong> ${escapeHtml(formatDisplayDate(row.receipt_date))}</div>
+        <div><strong>Customer:</strong> ${escapeHtml(customerLabel)}</div>
+      </div>
+    </div>
+
+    <div class="summary">
+      <div class="card"><div class="label">Received</div><div class="value">$${dollars(row.amount_received)}</div></div>
+      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}$${dollars(row.customer_due_amount)}</div></div>
+      <div class="card"><div class="label">Cheque No</div><div class="value">${escapeHtml(chequeNo)}</div></div>
+      <div class="card"><div class="label">Payment Mode</div><div class="value">${escapeHtml(row.payment_mode ?? '—')}</div></div>
+    </div>
+
+    <table>
+      <tbody>
+        <tr><th>Customer Type</th><td>${escapeHtml(row.customer_type ?? '—')}</td></tr>
+        <tr><th>Invoice No</th><td>${escapeHtml(row.invoice_no ?? '—')}</td></tr>
+        <tr><th>Balance Before Receipt</th><td class="amount">$${dollars(row.balance)}</td></tr>
+        <tr><th>Stored Receipt Due</th><td class="amount">$${dollars(row.due_amount)}</td></tr>
+        <tr><th>Telephone</th><td>${escapeHtml(row.telephone ?? '—')}</td></tr>
+        <tr><th>Address</th><td>${escapeHtml(row.address ?? '—')}</td></tr>
+      </tbody>
+    </table>
+
+    <div class="notes">
+      <div class="label">Notes</div>
+      <div>${escapeHtml(row.notes?.trim() || '—')}</div>
+    </div>
+  </main>
+</body>
+</html>`;
+}
+
 function ReceiptPreview() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const state = (location.state as ReceiptPreviewState | null) ?? null;
+  const receiptId = state?.receiptId ?? 0;
+  const isSinglePreview = receiptId > 0;
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: new Date(),
@@ -229,7 +309,13 @@ function ReceiptPreview() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [closeHomeTab]);
 
-  const handleClose = () => closeHomeTab('/reports/receipts');
+  const handleClose = () => {
+    if (singleReceipt) {
+      navigate('/history');
+      return;
+    }
+    closeHomeTab('/reports/receipts');
+  };
 
   const { data: companies = [] } = useQuery({
     queryKey: ['companies'],
@@ -250,19 +336,64 @@ function ReceiptPreview() {
   const { data: receiptData = [], isLoading } = useQuery({
     queryKey: [
       'receiptReport',
+      receiptId,
       dateRange?.from?.toISOString() ?? '',
       dateRange?.to?.toISOString() ?? '',
       companyFilter,
       searchTerm,
     ],
     queryFn: () => {
+      const likeTerm = `%${searchTerm.trim()}%`;
+
+      if (isSinglePreview) {
+        return query<ReceiptRow>(
+          `SELECT
+            tbl_receipt.id,
+            tbl_receipt.receipt_no,
+            tbl_receipt.receipt_date,
+            tbl_receipt.customer_id,
+            tbl_receipt.due_amount,
+            tbl_receipt.amount_received,
+            tbl_receipt.cheque_no,
+            tbl_receipt.no,
+            tbl_receipt.balance,
+            tbl_receipt.cr_dr,
+            tbl_receipt.invoice_no,
+            LTRIM(tbl_customer.customer_name) AS customer_name,
+            tbl_customer.contact,
+            tbl_customer.customer_type,
+            tbl_customer.telephone,
+            tbl_customer.address,
+            tbl_customer.email,
+            tbl_customer.due_amount AS customer_due_amount,
+            tbl_customer.title_name,
+            tbl_customer.reg_date,
+            tbl_customer.ad_due,
+            tbl_customer.brn,
+            tbl_customer.vat,
+            tbl_receipt.pre_load,
+            tbl_receipt.cash,
+            tbl_receipt.cheque,
+            tbl_receipt.other,
+            tbl_receipt.payment_mode,
+            tbl_receipt.bank_name,
+            tbl_receipt.invoice_reference,
+            tbl_receipt.notes,
+            tbl_receipt.company_id
+          FROM tbl_receipt
+          INNER JOIN tbl_customer ON tbl_receipt.customer_id = tbl_customer.id
+          WHERE tbl_receipt.id = ?
+          LIMIT 1`,
+          [receiptId],
+        );
+      }
+
       const fromDate = dateRange?.from
         ? format(dateRange.from, 'yyyy-MM-dd')
         : '1970-01-01';
       const toDate = dateRange?.to
         ? format(dateRange.to, 'yyyy-MM-dd')
         : '2099-12-31';
-      const likeTerm = `%${searchTerm.trim()}%`;
 
       return query<ReceiptRow>(
         `SELECT
@@ -313,14 +444,19 @@ function ReceiptPreview() {
         [fromDate, toDate, companyFilter, companyFilter, likeTerm, likeTerm, likeTerm, likeTerm, likeTerm],
       );
     },
+    enabled: isSinglePreview || Boolean(dateRange),
     staleTime: 30_000,
   });
 
   const companyLabel = useMemo(() => {
+    if (isSinglePreview) {
+      const company = companies.find((entry) => entry.id === receiptData[0]?.company_id);
+      return company?.company_name ?? `Company ${receiptData[0]?.company_id ?? ''}`;
+    }
     if (companyFilter === 'ALL') return 'All Companies';
     const company = companies.find((entry) => String(entry.id) === companyFilter);
     return company?.company_name ?? `Company ${companyFilter}`;
-  }, [companies, companyFilter]);
+  }, [companies, companyFilter, isSinglePreview, receiptData]);
 
   const paymentModeLabels = useMemo(() => {
     const s = settings[0];
@@ -332,9 +468,13 @@ function ReceiptPreview() {
     };
   }, [settings]);
 
-  const rangeLabel = dateRange?.from
-    ? `${format(dateRange.from, 'MMM d, yyyy')}${dateRange.to ? ` – ${format(dateRange.to, 'MMM d, yyyy')}` : ''}`
-    : 'All dates';
+  const rangeLabel = isSinglePreview
+    ? formatDisplayDate(receiptData[0]?.receipt_date ?? '')
+    : dateRange?.from
+      ? `${format(dateRange.from, 'MMM d, yyyy')}${dateRange.to ? ` – ${format(dateRange.to, 'MMM d, yyyy')}` : ''}`
+      : 'All dates';
+
+  const singleReceipt = isSinglePreview ? (receiptData[0] ?? null) : null;
 
   const handleOpenPrintableReport = useCallback(
     (mode: 'print' | 'pdf') => {
@@ -348,13 +488,15 @@ function ReceiptPreview() {
         return;
       }
 
-      const html = createReceiptReportHtml({
-        rows: receiptData,
-        rangeLabel,
-        companyLabel,
-        searchTerm: searchTerm.trim(),
-        paymentModeLabels,
-      });
+      const html = singleReceipt
+        ? createSingleReceiptHtml(singleReceipt)
+        : createReceiptReportHtml({
+            rows: receiptData,
+            rangeLabel,
+            companyLabel,
+            searchTerm: searchTerm.trim(),
+            paymentModeLabels,
+          });
 
       openPrintableReport({
         html,
@@ -363,15 +505,21 @@ function ReceiptPreview() {
         configuredPath: settings[0]?.report_path ?? null,
         outputPath:
           mode === 'pdf' && settings[0]?.report_path
-            ? buildReportPdfPath({
-                configuredPath: settings[0].report_path,
-                filenamePrefix: 'receipt-report',
-                label: companyLabel,
-              })
+            ? singleReceipt
+              ? buildReportPdfPath({
+                  configuredPath: settings[0].report_path,
+                  filenamePrefix: 'receipt',
+                  label: singleReceipt.receipt_no,
+                })
+              : buildReportPdfPath({
+                  configuredPath: settings[0].report_path,
+                  filenamePrefix: 'receipt-report',
+                  label: companyLabel,
+                })
             : null,
       });
     },
-    [companyLabel, rangeLabel, receiptData, searchTerm, settings, paymentModeLabels],
+    [companyLabel, rangeLabel, receiptData, searchTerm, settings, paymentModeLabels, singleReceipt],
   );
 
   const handleExportExcel = useCallback(() => {
@@ -488,106 +636,118 @@ function ReceiptPreview() {
   });
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <Receipt className="size-5" />
-          <h1 className="text-2xl font-semibold">Receipt Report</h1>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" onClick={handleClose}>
-            Cancel
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => handleOpenPrintableReport('print')}
-            disabled={receiptData.length === 0}
-          >
-            <Printer className="mr-2 size-4" />
-            Print
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => handleOpenPrintableReport('pdf')}
-            disabled={receiptData.length === 0}
-          >
-            <FileText className="mr-2 size-4" />
-            View PDF
-          </Button>
-          <Button
-            variant="outline"
-            onClick={handleExportExcel}
-            disabled={receiptData.length === 0}
-          >
-            <Download className="mr-2 size-4" />
-            Export Excel
-          </Button>
-        </div>
-      </div>
-
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex flex-wrap items-center gap-3">
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="justify-start gap-2 text-left font-normal"
-                >
-                  <Calendar className="size-4" />
-                  <span>{rangeLabel}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <DayPicker
-                  mode="range"
-                  selected={dateRange}
-                  onSelect={(range) => {
-                    setDateRange(range);
-                    if (range?.from && range?.to) {
-                      setPickerOpen(false);
-                    }
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
-
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-
-            <div className="relative min-w-64 flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchTerm}
-                onChange={(event) => setSearchTerm(event.target.value)}
-                placeholder="Search customer, type, receipt no, invoice no"
-                className="pl-9"
-              />
-            </div>
-
-            {receiptData.length > 0 && (
-              <span className="text-sm text-muted-foreground">
-                {receiptData.length} receipt{receiptData.length !== 1 ? 's' : ''}
-                {dateRange?.from &&
-                  ` from ${format(dateRange.from, 'MMM d, yyyy')}`}
-                {dateRange?.to &&
-                  ` to ${format(dateRange.to, 'MMM d, yyyy')}`}
-              </span>
+      <div className="flex h-full flex-col gap-4 overflow-auto p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <Receipt className="size-5" />
+            <h1 className="text-2xl font-semibold">
+              {singleReceipt ? `Receipt Preview: ${singleReceipt.receipt_no}` : 'Receipt Report'}
+            </h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            {singleReceipt && (
+              <Button variant="outline" onClick={() => navigate('/receipts/new', { state: { receiptId } })}>
+                Edit
+              </Button>
+            )}
+            <Button variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleOpenPrintableReport('print')}
+              disabled={receiptData.length === 0}
+            >
+              <Printer className="mr-2 size-4" />
+              Print
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleOpenPrintableReport('pdf')}
+              disabled={receiptData.length === 0}
+            >
+              <FileText className="mr-2 size-4" />
+              View PDF
+            </Button>
+            {!singleReceipt && (
+              <Button
+                variant="outline"
+                onClick={handleExportExcel}
+                disabled={receiptData.length === 0}
+              >
+                <Download className="mr-2 size-4" />
+                Export Excel
+              </Button>
             )}
           </div>
-        </CardHeader>
-        <CardContent>
+        </div>
+
+
+      <Card>
+        {!singleReceipt && (
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="justify-start gap-2 text-left font-normal"
+                  >
+                    <Calendar className="size-4" />
+                    <span>{rangeLabel}</span>
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <DayPicker
+                    mode="range"
+                    selected={dateRange}
+                    onSelect={(range) => {
+                      setDateRange(range);
+                      if (range?.from && range?.to) {
+                        setPickerOpen(false);
+                      }
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
+
+              <Select value={companyFilter} onValueChange={setCompanyFilter}>
+                <SelectTrigger className="w-44">
+                  <SelectValue placeholder="All Companies" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Companies</SelectItem>
+                  {companies.map((c) => (
+                    <SelectItem key={c.id} value={String(c.id)}>
+                      {c.company_name ?? `Company ${c.id}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="relative min-w-64 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Search customer, type, receipt no, invoice no"
+                  className="pl-9"
+                />
+              </div>
+
+              {receiptData.length > 0 && (
+                <span className="text-sm text-muted-foreground">
+                  {receiptData.length} receipt{receiptData.length !== 1 ? 's' : ''}
+                  {dateRange?.from &&
+                    ` from ${format(dateRange.from, 'MMM d, yyyy')}`}
+                  {dateRange?.to &&
+                    ` to ${format(dateRange.to, 'MMM d, yyyy')}`}
+                </span>
+              )}
+            </div>
+          </CardHeader>
+        )}
+        <CardContent className={singleReceipt ? 'pt-6' : undefined}>
           {isLoading ? (
             <p className="py-8 text-center text-muted-foreground">Loading...</p>
           ) : (
