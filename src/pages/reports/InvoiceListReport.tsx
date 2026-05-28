@@ -98,8 +98,8 @@ function createInvoiceListReportHtml(options: {
           <td>${escapeHtml(row.invoice_no)}</td>
           <td>${escapeHtml(formatDisplayDate(row.invoice_date))}</td>
           <td class="num">${row.vat_per}%</td>
-          <td class="num">${dollars(row.discount)}</td>
-          <td class="num">${dollars(row.sub_total)}</td>
+          <td class="num">Rs ${dollars(row.discount)}</td>
+          <td class="num">Rs ${dollars(row.sub_total)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -144,8 +144,8 @@ function createInvoiceListReportHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Invoices</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Sub Total</div><div class="value">$${dollars(totalSubTotal)}</div></div>
-      <div class="card"><div class="label">Discount</div><div class="value">$${dollars(totalDiscount)}</div></div>
+      <div class="card"><div class="label">Sub Total</div><div class="value">Rs ${dollars(totalSubTotal)}</div></div>
+      <div class="card"><div class="label">Discount</div><div class="value">Rs ${dollars(totalDiscount)}</div></div>
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
     </div>
     <table>
@@ -166,8 +166,8 @@ function createInvoiceListReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">$${dollars(totalDiscount)}</td>
-          <td class="num">$${dollars(totalSubTotal)}</td>
+          <td class="num">Rs ${dollars(totalDiscount)}</td>
+          <td class="num">Rs ${dollars(totalSubTotal)}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -400,14 +400,14 @@ function InvoiceListReport() {
         accessorKey: 'discount',
         header: 'Discount',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
         accessorKey: 'sub_total',
         header: 'Sub Total',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {

@@ -1,4 +1,4 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useState, useCallback } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
@@ -74,8 +74,8 @@ function createInvoiceHtml(options: {
           <td>${escapeHtml(line.product_code ?? '-')}</td>
           <td>${escapeHtml(line.product_name ?? 'Unknown Product')}</td>
           <td class="amount">${escapeHtml(String(line.qty))}</td>
-          <td class="amount">$${escapeHtml(dollars(line.unit_price))}</td>
-          <td class="amount">$${escapeHtml(dollars(line.row_total))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(line.unit_price))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(line.row_total))}</td>
         </tr>`,
     )
     .join('');
@@ -124,10 +124,10 @@ function createInvoiceHtml(options: {
       </div>
     </div>
     <div class="summary">
-      <div class="card"><div class="label">Sub Total</div><div class="value">$${escapeHtml(dollars(invoice.sub_total))}</div></div>
-      <div class="card"><div class="label">Discount</div><div class="value">$${escapeHtml(dollars(invoice.discount))}</div></div>
-      <div class="card"><div class="label">VAT (${invoice.per}%)</div><div class="value">$${escapeHtml(dollars(invoice.vat))}</div></div>
-      <div class="card"><div class="label">Total</div><div class="value">$${escapeHtml(dollars(invoice.total))}</div></div>
+      <div class="card"><div class="label">Sub Total</div><div class="value">Rs ${escapeHtml(dollars(invoice.sub_total))}</div></div>
+      <div class="card"><div class="label">Discount</div><div class="value">Rs ${escapeHtml(dollars(invoice.discount))}</div></div>
+      <div class="card"><div class="label">VAT (${invoice.per}%)</div><div class="value">Rs ${escapeHtml(dollars(invoice.vat))}</div></div>
+      <div class="card"><div class="label">Total</div><div class="value">Rs ${escapeHtml(dollars(invoice.total))}</div></div>
     </div>
     <table>
       <thead>
@@ -146,31 +146,31 @@ function createInvoiceHtml(options: {
       <tbody>
         <tr>
           <td>Sub Total</td>
-          <td class="amount">$${escapeHtml(dollars(invoice.sub_total))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(invoice.sub_total))}</td>
         </tr>
         ${invoice.discount > 0 ? `<tr>
           <td>Discount</td>
-          <td class="amount">-$${escapeHtml(dollars(invoice.discount))}</td>
+          <td class="amount">-Rs ${escapeHtml(dollars(invoice.discount))}</td>
         </tr>` : ''}
         ${invoice.vat > 0 ? `<tr>
           <td>VAT (${invoice.per}%)</td>
-          <td class="amount">$${escapeHtml(dollars(invoice.vat))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(invoice.vat))}</td>
         </tr>` : ''}
         <tr style="font-weight: 700; background: #f1f5f9;">
           <td>Total</td>
-          <td class="amount">$${escapeHtml(dollars(invoice.total))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(invoice.total))}</td>
         </tr>
         <tr>
           <td>Paid Amount</td>
-          <td class="amount">$${escapeHtml(dollars(invoice.paid_amount))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(invoice.paid_amount))}</td>
         </tr>
         ${showDueAmt && invoice.print_due ? `<tr class="${isAdvance ? 'advance-row' : 'due-row'}">
           <td>${isAdvance ? 'Advance' : 'Due Amount'}</td>
-          <td class="amount">$${escapeHtml(dollars(invoice.amount_due))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(invoice.amount_due))}</td>
         </tr>` : ''}
         <tr class="balance-due">
           <td>Balance Due</td>
-          <td class="amount">$${escapeHtml(dollars(invoice.balance))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(invoice.balance))}</td>
         </tr>
       </tbody>
     </table>
@@ -250,25 +250,7 @@ function InvoicePreview() {
     });
   }, [data, showDueAmt]);
 
-  useEffect(() => {
-    if (!autoPrintMode || !reportHtml || isLoading) {
-      return;
-    }
-    const timer = setTimeout(() => {
-      window.print();
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [autoPrintMode, reportHtml, isLoading]);
-
-  useEffect(() => {
-    if (!autoExportPdf || autoPdfTriggered || isLoading || !reportHtml) {
-      return;
-    }
-    setAutoPdfTriggered(true);
-    void handlePrintable('pdf');
-  }, [autoExportPdf, autoPdfTriggered, isLoading, reportHtml]);
-
-  const handlePrintable = (mode: 'print' | 'pdf') => {
+  const handlePrintable = useCallback((mode: 'print' | 'pdf') => {
     if (!reportHtml) {
       toast.error('No Data Selected');
       return;
@@ -287,7 +269,28 @@ function InvoicePreview() {
             })
           : null,
     });
-  };
+  }, [data, reportHtml]);
+
+  useEffect(() => {
+    if (!autoPrintMode || !reportHtml || isLoading) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      window.print();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [autoPrintMode, reportHtml, isLoading]);
+
+  useEffect(() => {
+    if (!autoExportPdf || autoPdfTriggered || isLoading || !reportHtml) {
+      return;
+    }
+    const timer = setTimeout(() => {
+      setAutoPdfTriggered(true);
+      void handlePrintable('pdf');
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [autoExportPdf, autoPdfTriggered, isLoading, reportHtml, handlePrintable]);
 
   const handleExportExcel = () => {
     if (!data?.invoice) {
@@ -467,8 +470,8 @@ function InvoicePreview() {
                     </td>
                     <td className="px-4 py-2">{line.type_name ?? '-'}</td>
                     <td className="px-4 py-2 text-right">{line.qty}</td>
-                    <td className="px-4 py-2 text-right">${dollars(line.unit_price)}</td>
-                    <td className="px-4 py-2 text-right">${dollars(line.row_total)}</td>
+                    <td className="px-4 py-2 text-right">Rs {dollars(line.unit_price)}</td>
+                    <td className="px-4 py-2 text-right">Rs {dollars(line.row_total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -479,25 +482,25 @@ function InvoicePreview() {
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 Sub Total
               </div>
-              <div className="font-medium">${dollars(data.invoice.sub_total)}</div>
+              <div className="font-medium">Rs {dollars(data.invoice.sub_total)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 Discount
               </div>
-              <div className="font-medium">${dollars(data.invoice.discount)}</div>
+              <div className="font-medium">Rs {dollars(data.invoice.discount)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 VAT ({data.invoice.per}%)
               </div>
-              <div className="font-medium">${dollars(data.invoice.vat)}</div>
+              <div className="font-medium">Rs {dollars(data.invoice.vat)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">
                 Total
               </div>
-              <div className="font-semibold">${dollars(data.invoice.total)}</div>
+              <div className="font-semibold">Rs {dollars(data.invoice.total)}</div>
             </div>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-4">
@@ -506,7 +509,7 @@ function InvoicePreview() {
                 Paid
               </div>
               <div className="font-medium text-green-600">
-                ${dollars(data.invoice.paid_amount)}
+                Rs {dollars(data.invoice.paid_amount)}
               </div>
             </div>
             {showDueAmt && (
@@ -515,7 +518,7 @@ function InvoicePreview() {
                   {data.invoice.print_due === 'Advance' ? 'Advance' : 'Due Amount'}
                 </div>
                 <div className="font-medium">
-                  ${dollars(data.invoice.amount_due)}
+                  Rs {dollars(data.invoice.amount_due)}
                 </div>
               </div>
             )}
@@ -528,7 +531,7 @@ function InvoicePreview() {
                   data.invoice.balance > 0 ? 'text-destructive' : ''
                 }`}
               >
-                ${dollars(data.invoice.balance)}
+                Rs {dollars(data.invoice.balance)}
               </div>
             </div>
           </div>
