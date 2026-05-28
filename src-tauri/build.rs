@@ -19,7 +19,8 @@ fn enforce_bundled_renderer() {
     println!("cargo:rerun-if-changed={}", renderer_path.display());
     println!("cargo:rerun-if-changed=binaries");
 
-    let enforce_for_profile = matches!(profile.as_str(), "release") || env::var_os("TAURI_FORCE_BUNDLED_CHROMIUM_CHECK").is_some();
+    let enforce_for_profile = matches!(profile.as_str(), "release")
+        || env::var_os("TAURI_FORCE_BUNDLED_CHROMIUM_CHECK").is_some();
     if !enforce_for_profile {
         return;
     }

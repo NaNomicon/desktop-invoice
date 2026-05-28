@@ -1,6 +1,5 @@
 use std::{
-    env,
-    fs,
+    env, fs,
     path::{Path, PathBuf},
 };
 
@@ -75,12 +74,14 @@ fn bundled_browser_relative_paths() -> &'static [&'static str] {
 
 fn resolve_bundled_browser(app: &tauri::AppHandle) -> Option<PathBuf> {
     let resolver = app.path();
-    bundled_browser_relative_paths().iter().find_map(|relative_path| {
-        resolver
-            .resolve(relative_path, tauri::path::BaseDirectory::Resource)
-            .ok()
-            .filter(|candidate| candidate.exists())
-    })
+    bundled_browser_relative_paths()
+        .iter()
+        .find_map(|relative_path| {
+            resolver
+                .resolve(relative_path, tauri::path::BaseDirectory::Resource)
+                .ok()
+                .filter(|candidate| candidate.exists())
+        })
 }
 
 fn find_browser_binary(app: &tauri::AppHandle) -> Option<BrowserBinary> {
