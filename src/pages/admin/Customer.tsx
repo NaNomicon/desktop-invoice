@@ -170,7 +170,7 @@ function Customer() {
         header: 'Due',
         cell: (info) => {
           const cents = info.getValue<number>();
-          return `$${(cents / 100).toFixed(2)}`;
+          return `Rs ${(cents / 100).toFixed(2)}`;
         },
       },
       {

@@ -107,6 +107,24 @@ function ProductPage() {
     setLoading(false);
   }, []);
 
+  const openNew = useCallback(
+    (targetForm?: 'invoice' | 'quotation') => {
+      if (targetForm) {
+        setProductAutoFill({ targetForm, productId: null, productName: '', unitPrice: 0 });
+      }
+      setEditingId(null);
+      setForm({
+        product_name: '',
+        product_id: '',
+        type_id: 'none',
+        company_id: authCompanyId,
+        price: '',
+      });
+      setDialogOpen(true);
+    },
+    [authCompanyId, setProductAutoFill],
+  );
+
   useEffect(() => {
     void loadData();
   }, [loadData]);
@@ -124,8 +142,7 @@ function ProductPage() {
         setProductAutoFill({ targetForm: target, productId: null, productName: '', unitPrice: 0 });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [openNew, productAutoFill, searchParams, setProductAutoFill]);
 
   const filtered = useMemo(() => {
     let rows = products;
@@ -137,7 +154,7 @@ function ProductPage() {
           (p.product_id ?? '').toLowerCase().includes(s) ||
           (p.type_name ?? '').toLowerCase().includes(s) ||
           (p.price && String(p.price).includes(s)) ||
-          ((p.price ?? 0) > 0 && `$${(p.price / 100).toFixed(2)}`.includes(s)),
+          ((p.price ?? 0) > 0 && `Rs ${(p.price / 100).toFixed(2)}`.includes(s)),
       );
     }
     if (companyFilter !== 'all') {
@@ -168,7 +185,7 @@ function ProductPage() {
         header: 'Price',
         cell: (info) => {
           const cents = info.getValue<number>();
-          return `$${(cents / 100).toFixed(2)}`;
+          return `Rs ${(cents / 100).toFixed(2)}`;
         },
       },
       {
@@ -208,21 +225,6 @@ function ProductPage() {
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
-
-  const openNew = (targetForm?: 'invoice' | 'quotation') => {
-    if (targetForm) {
-      setProductAutoFill({ targetForm, productId: null, productName: '', unitPrice: 0 });
-    }
-    setEditingId(null);
-    setForm({
-      product_name: '',
-      product_id: '',
-      type_id: 'none',
-      company_id: authCompanyId,
-      price: '',
-    });
-    setDialogOpen(true);
-  };
 
   const openEdit = (p: ProductRow) => {
     setEditingId(p.id);
@@ -611,7 +613,7 @@ function ProductPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="prod-price">Price ($)</Label>
+              <Label htmlFor="prod-price">Price (Rs)</Label>
               <Input
                 id="prod-price"
                 type="number"

@@ -40,7 +40,7 @@ const DEFAULT_COMPANY: Partial<Company> = {
   bank_branch: '',
 }
 
-const TEXT_FIELDS: Array<keyof Company> = [
+const TEXT_FIELDS: (keyof Company)[] = [
   'company_name',
   'company_short_name',
   'company_code',
