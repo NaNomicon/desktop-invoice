@@ -57,8 +57,8 @@ function createQuotationHtml(options: {
           <td>${escapeHtml(line.product_code ?? '-')}</td>
           <td>${escapeHtml(line.product_name ?? 'Unknown Product')}</td>
           <td class="amount">${escapeHtml(String(line.qty))}</td>
-          <td class="amount">$${escapeHtml(dollars(line.unit_price))}</td>
-          <td class="amount">$${escapeHtml(dollars(line.row_total))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(line.unit_price))}</td>
+          <td class="amount">Rs ${escapeHtml(dollars(line.row_total))}</td>
         </tr>`,
     )
     .join('');
@@ -101,9 +101,9 @@ function createQuotationHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Checklist</div><div class="value">${escapeHtml(quotation.checklist_no ?? '-')}</div></div>
-      <div class="card"><div class="label">Sub Total</div><div class="value">$${escapeHtml(dollars(quotation.sub_total))}</div></div>
-      <div class="card"><div class="label">VAT</div><div class="value">$${escapeHtml(dollars(quotation.vat))}</div></div>
-      <div class="card"><div class="label">Total</div><div class="value">$${escapeHtml(dollars(quotation.total))}</div></div>
+      <div class="card"><div class="label">Sub Total</div><div class="value">Rs ${escapeHtml(dollars(quotation.sub_total))}</div></div>
+      <div class="card"><div class="label">VAT</div><div class="value">Rs ${escapeHtml(dollars(quotation.vat))}</div></div>
+      <div class="card"><div class="label">Total</div><div class="value">Rs ${escapeHtml(dollars(quotation.total))}</div></div>
     </div>
     <table>
       <thead>
@@ -379,8 +379,8 @@ function QuotationPreview() {
                     <td className="px-4 py-2">{line.product_code ?? '-'}</td>
                     <td className="px-4 py-2">{line.product_name ?? 'Unknown Product'}</td>
                     <td className="px-4 py-2 text-right">{line.qty}</td>
-                    <td className="px-4 py-2 text-right">${dollars(line.unit_price)}</td>
-                    <td className="px-4 py-2 text-right">${dollars(line.row_total)}</td>
+                    <td className="px-4 py-2 text-right">Rs {dollars(line.unit_price)}</td>
+                    <td className="px-4 py-2 text-right">Rs {dollars(line.row_total)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -389,19 +389,19 @@ function QuotationPreview() {
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Sub Total</div>
-              <div className="font-medium">${dollars(data.quotation.sub_total)}</div>
+              <div className="font-medium">Rs {dollars(data.quotation.sub_total)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">VAT</div>
-              <div className="font-medium">${dollars(data.quotation.vat)}</div>
+              <div className="font-medium">Rs {dollars(data.quotation.vat)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Discount</div>
-              <div className="font-medium">${dollars(data.quotation.discount)}</div>
+              <div className="font-medium">Rs {dollars(data.quotation.discount)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Total</div>
-              <div className="font-semibold">${dollars(data.quotation.total)}</div>
+              <div className="font-semibold">Rs {dollars(data.quotation.total)}</div>
             </div>
           </div>
         </CardContent>
