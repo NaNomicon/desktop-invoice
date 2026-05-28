@@ -129,12 +129,12 @@ function InvoiceList() {
       {
         accessorKey: 'total',
         header: 'Total',
-        cell: (info) => `$${dollars(info.getValue<number>())}`,
+        cell: (info) => `Rs ${dollars(info.getValue<number>())}`,
       },
       {
         accessorKey: 'paid_amount',
         header: 'Paid',
-        cell: (info) => `$${dollars(info.getValue<number>())}`,
+        cell: (info) => `Rs ${dollars(info.getValue<number>())}`,
       },
       {
         accessorKey: 'balance',
@@ -143,7 +143,7 @@ function InvoiceList() {
           const v = info.getValue<number>();
           return (
             <span className={v > 0 ? 'font-medium text-orange-600' : ''}>
-              ${dollars(Math.abs(v))}
+              Rs {dollars(Math.abs(v))}
               {v < 0 ? ' (overpaid)' : ''}
             </span>
           );

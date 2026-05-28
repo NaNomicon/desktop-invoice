@@ -186,11 +186,11 @@ function InvoiceForm() {
 
   const signedBalanceLabel = useMemo(() => {
     if (!selectedCustomer) {
-      return '$0.00';
+      return 'Rs 0.00';
     }
 
     const prefix = selectedCustomer.ad_due === 'Advance' ? '-' : '';
-    return `${prefix}$${dollars(selectedCustomer.due_amount)}`;
+    return `${prefix}Rs ${dollars(selectedCustomer.due_amount)}`;
   }, [selectedCustomer]);
 
   const filteredProducts = useMemo(() => {
@@ -837,8 +837,7 @@ function InvoiceForm() {
       }
     }
     setProductAutoFill(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productAutoFill, products]);
+  }, [productAutoFill, products, lineItems, setProductAutoFill, updateLineItem]);
 
   const handleSave = useCallback(async () => {
     const result = await persistInvoice();
@@ -1154,7 +1153,7 @@ function InvoiceForm() {
               <div className="space-y-1">
                 <Label>Customer Balance</Label>
                 <Input
-                  value={`$${dollars(selectedCustomer.due_amount)}`}
+                  value={`Rs ${dollars(selectedCustomer.due_amount)}`}
                   disabled
                   className="bg-muted"
                 />
@@ -1215,7 +1214,7 @@ function InvoiceForm() {
                   >
                     <td className="px-3 py-2">{product.product_id ?? '-'}</td>
                     <td className="px-3 py-2">{product.product_name}</td>
-                    <td className="px-3 py-2 text-right">${dollars(product.price)}</td>
+                    <td className="px-3 py-2 text-right">Rs {dollars(product.price)}</td>
                     <td className="px-3 py-2 text-right">
                       {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
                     </td>
@@ -1302,7 +1301,7 @@ function InvoiceForm() {
                     <SelectContent>
                       {companyProducts.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
-                          {p.product_name} - ${dollars(p.price)}
+                          {p.product_name} - Rs {dollars(p.price)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1356,7 +1355,7 @@ function InvoiceForm() {
                           </td>
                           <td className="px-3 py-1.5">
                             {li.deleted ? (
-                              <span className="text-muted-foreground">${dollars(li.unit_price)}</span>
+                              <span className="text-muted-foreground">Rs {dollars(li.unit_price)}</span>
                             ) : (
                               <Input
                                 type="number"
@@ -1371,7 +1370,7 @@ function InvoiceForm() {
                             )}
                           </td>
                           <td className="px-3 py-1.5 font-medium">
-                            ${dollars(li.row_total)}
+                            Rs {dollars(li.row_total)}
                           </td>
                           <td className="px-3 py-1.5">
                             <Button
@@ -1391,7 +1390,7 @@ function InvoiceForm() {
                         <td colSpan={4} className="px-3 py-2 text-right font-medium">
                           Subtotal
                         </td>
-                        <td className="px-3 py-2 font-semibold">${dollars(companySubtotal)}</td>
+                        <td className="px-3 py-2 font-semibold">Rs {dollars(companySubtotal)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
@@ -1418,21 +1417,21 @@ function InvoiceForm() {
                 <Label className="text-xs text-muted-foreground">
                   {company.company_name ?? company.company_code ?? `Company ${company.id}`}
                 </Label>
-                <p className="text-lg font-medium">${dollars(companySubtotal)}</p>
+                <p className="text-lg font-medium">Rs {dollars(companySubtotal)}</p>
               </div>
             );
           })}
           {settings?.isvat === 1 && calResult.vat > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">VAT</Label>
-              <p className="text-lg font-medium">${dollars(calResult.vat)}</p>
+              <p className="text-lg font-medium">Rs {dollars(calResult.vat)}</p>
             </div>
           )}
           {calResult.discount > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Discount</Label>
               <p className="text-lg font-medium text-destructive">
-                -${dollars(calResult.discount)}
+                -Rs {dollars(calResult.discount)}
               </p>
             </div>
           )}
@@ -1444,7 +1443,7 @@ function InvoiceForm() {
                   ? 'Add Due'
                   : 'New Total'}
             </Label>
-            <p className="text-lg font-medium">${dollars(calResult.new_tot)}</p>
+            <p className="text-lg font-medium">Rs {dollars(calResult.new_tot)}</p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Discount %</Label>
@@ -1462,12 +1461,12 @@ function InvoiceForm() {
           <div className="space-y-1 md:col-span-2">
             <Label className="text-xs text-muted-foreground">Grand Total</Label>
             <p className="text-2xl font-bold">
-              ${dollars(calResult.total)}
+              Rs {dollars(calResult.total)}
             </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Balance</Label>
-            <p className="text-lg font-medium">${dollars(caseDebit === 'CREDIT' ? calResult.total : balance)}</p>
+            <p className="text-lg font-medium">Rs {dollars(caseDebit === 'CREDIT' ? calResult.total : balance)}</p>
           </div>
         </CardContent>
       </Card>
