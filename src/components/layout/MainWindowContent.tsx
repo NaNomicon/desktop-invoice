@@ -19,6 +19,7 @@ import SettingsPage from '@/pages/admin/Settings'
 import ChangePasswordPage from '@/pages/admin/ChangePassword'
 import BackupDatabase from '@/pages/admin/BackupDatabase'
 import RestoreDatabase from '@/pages/admin/RestoreDatabase'
+import MigrateDatabase from '@/pages/admin/MigrateDatabase'
 import SalesReport from '@/pages/reports/SalesReport'
 import StatementPreview from '@/pages/reports/StatementPreview'
 import PrintPreview from '@/pages/reports/PrintPreview'
@@ -107,6 +108,10 @@ export function MainWindowContent({ className }: MainWindowContentProps) {
             <Route
               path="/home/restore"
               element={<RestoreDatabase />}
+            />
+            <Route
+              path="/home/migrate"
+              element={<MigrateDatabase />}
             />
             <Route path="*" element={<Navigate to="/invoices" replace />} />
           </Routes>

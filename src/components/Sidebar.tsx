@@ -32,6 +32,7 @@ const NAV_GROUPS: NavGroup[] = [
       { title: 'Change Password', path: '/home/change-password' },
       { title: 'Backup Database', path: '/home/backup' },
       { title: 'Restore Database', path: '/home/restore' },
+      { title: 'Migrate from SQL Server', path: '/home/migrate' },
     ],
   },
   {
