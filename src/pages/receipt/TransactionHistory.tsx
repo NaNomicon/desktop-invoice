@@ -173,8 +173,8 @@ function createReceiptPdfHtml(receipt: ReceiptListRow): string {
     </div>
 
     <div class="summary">
-      <div class="card"><div class="label">Received</div><div class="value">$${dollars(receipt.amount_received)}</div></div>
-      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}$${dollars(receipt.customer_due_amount)}</div></div>
+      <div class="card"><div class="label">Received</div><div class="value">Rs ${dollars(receipt.amount_received)}</div></div>
+      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}Rs ${dollars(receipt.customer_due_amount)}</div></div>
       <div class="card"><div class="label">Cheque No</div><div class="value">${escapeHtml(chequeNo)}</div></div>
       <div class="card"><div class="label">Payment Mode</div><div class="value">${escapeHtml(receipt.payment_mode ?? '—')}</div></div>
     </div>
@@ -183,8 +183,8 @@ function createReceiptPdfHtml(receipt: ReceiptListRow): string {
       <tbody>
         <tr><th>Customer Email</th><td>${escapeHtml(receipt.customer_email ?? '—')}</td></tr>
         <tr><th>Contact Person</th><td>${escapeHtml(receipt.customer_contact ?? '—')}</td></tr>
-        <tr><th>Balance Before Receipt</th><td class="amount">$${dollars(receipt.balance ?? 0)}</td></tr>
-        <tr><th>Stored Receipt Due</th><td class="amount">$${dollars(receipt.due_amount ?? 0)}</td></tr>
+        <tr><th>Balance Before Receipt</th><td class="amount">Rs ${dollars(receipt.balance ?? 0)}</td></tr>
+        <tr><th>Stored Receipt Due</th><td class="amount">Rs ${dollars(receipt.due_amount ?? 0)}</td></tr>
       </tbody>
     </table>
 
@@ -397,7 +397,7 @@ function ReceiptList() {
       {
         accessorKey: 'amount_received',
         header: 'Amount Received',
-        cell: (info) => <span className="text-right tabular-nums">${dollars(info.getValue<number>())}</span>,
+        cell: (info) => <span className="text-right tabular-nums">Rs {dollars(info.getValue<number>())}</span>,
       },
       {
         id: 'due_amount_after',
@@ -405,7 +405,7 @@ function ReceiptList() {
         cell: (info) => {
           const row = info.row.original;
           const prefix = row.customer_ad_due === 'Advance' ? '-' : '';
-          return <span className="text-right tabular-nums">{prefix}${dollars(row.customer_due_amount)}</span>;
+          return <span className="text-right tabular-nums">{prefix}Rs {dollars(row.customer_due_amount)}</span>;
         },
       },
       {

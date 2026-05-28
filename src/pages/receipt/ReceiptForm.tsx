@@ -237,7 +237,7 @@ function ReceiptForm() {
         const amt = info.getValue<number>();
         const row = info.row.original;
         const prefix = row.cr_dr === 'Cr.' ? '-' : '';
-        return `${prefix}$${dollars(amt)}`;
+        return `${prefix}Rs ${dollars(amt)}`;
       },
     },
     {
@@ -252,7 +252,7 @@ function ReceiptForm() {
     {
       accessorKey: 'balance',
       header: 'Balance',
-      cell: (info) => `$${dollars(Number(info.getValue()))}`,
+      cell: (info) => `Rs ${dollars(Number(info.getValue()))}`,
     },
   ], []);
 
@@ -415,7 +415,7 @@ function ReceiptForm() {
                         >
                           <span>{c.customer_name}</span>
                           <span className="ml-auto text-xs text-muted-foreground">
-                            {c.ad_due === 'Advance' ? '-' : ''}${dollars(c.due_amount)}
+                            {c.ad_due === 'Advance' ? '-' : ''}Rs {dollars(c.due_amount)}
                           </span>
                         </button>
                       ))}
@@ -431,7 +431,7 @@ function ReceiptForm() {
                 <div className="space-y-1">
                   <Label>{adDueStatus === 'Advance' ? 'Advance Amount' : 'Due Amount'}</Label>
                   <Input
-                    value={`$${dollars(dueAmount)}`}
+                    value={`Rs ${dollars(dueAmount)}`}
                     readOnly
                     className="bg-muted"
                   />
@@ -486,7 +486,7 @@ function ReceiptForm() {
                 <div className="space-y-1">
                   <Label>New Balance</Label>
                   <Input
-                    value={`$${dollars(calResult.new_due)}`}
+                    value={`Rs ${dollars(calResult.new_due)}`}
                     readOnly
                     className={`bg-muted font-medium ${
                       calResult.new_due > 0
