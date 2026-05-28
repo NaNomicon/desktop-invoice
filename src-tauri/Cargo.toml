@@ -1,8 +1,8 @@
 [package]
-name = "tauri-app"
+name = "xpress-billing"
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "Desktop billing and invoicing application"
+authors = ["NaNomicon <https://nanomicon.com>"]
 edition = "2021"
 rust-version = "1.82"
 

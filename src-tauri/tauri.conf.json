@@ -36,7 +36,7 @@
     "macOSPrivateApi": true
   },
   "bundle": {
-    "createUpdaterArtifacts": true,
+    "createUpdaterArtifacts": false,
     "active": true,
     "targets": "all",
     "resources": ["binaries"],
@@ -47,11 +47,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "publisher": "Your Name",
-    "category": "DeveloperTool",
-    "shortDescription": "A Tauri React template application",
-    "longDescription": "A modern Tauri React template with comprehensive boilerplate code, TypeScript, Tailwind CSS, and shadcn/ui components.",
-    "copyright": "Copyright © 2025 Your Name. All rights reserved.",
+    "publisher": "NaNomicon",
+    "category": "Business",
+    "shortDescription": "Desktop billing and invoicing for XPress.",
+    "longDescription": "XPress Billing is a desktop billing and invoicing application for managing customers, products, invoices, quotations, receipts, and reports.",
+    "copyright": "Copyright © 2025 NaNomicon. All rights reserved.",
     "macOS": {
       "frameworks": [],
       "minimumSystemVersion": "10.15",
@@ -69,12 +69,10 @@
       "open": true
     },
     "updater": {
-      "active": true,
-      "endpoints": [
-        "https://github.com/YOUR_USERNAME/YOUR_REPO/releases/latest/download/latest.json"
-      ],
-      "dialog": true,
-      "pubkey": "YOUR_UPDATER_PUBLIC_KEY_HERE"
+      "active": false,
+      "endpoints": [],
+      "dialog": false,
+      "pubkey": ""
     }
   }
 }
