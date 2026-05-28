@@ -20,8 +20,10 @@ interface NavGroup {
   defaultCollapsed?: boolean
 }
 
-// Groups that default to collapsed to save space
-const DEFAULT_COLLAPSED_GROUPS = ['File', 'Settings']
+// All groups collapse by default
+const DEFAULT_COLLAPSED_GROUPS: string[] = [
+  'File', 'Master', 'Invoice', 'Quotation', 'Outstanding', 'Report', 'Settings',
+]
 
 const NAV_GROUPS: NavGroup[] = [
   {
