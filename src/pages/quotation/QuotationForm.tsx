@@ -945,7 +945,7 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Customer Due</Label>
-            <Input value={`$${dollars(selectedCustomer?.due_amount ?? 0)}`} disabled className="bg-muted" />
+            <Input value={`Rs ${dollars(selectedCustomer?.due_amount ?? 0)}`} disabled className="bg-muted" />
           </div>
           <div className="space-y-1">
             <Label>Product Type</Label>
@@ -1003,7 +1003,7 @@ function QuotationForm() {
                       {index === productSearchIndex ? '→ ' : ''}
                       {product.product_name}
                     </td>
-                    <td className="px-3 py-2 text-right">${dollars(product.price)}</td>
+                    <td className="px-3 py-2 text-right">Rs {dollars(product.price)}</td>
                     <td className="px-3 py-2 text-right">
                       {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
                     </td>
@@ -1089,7 +1089,7 @@ function QuotationForm() {
                     <SelectContent>
                       {companyProducts.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
-                          {p.product_name} - ${dollars(p.price)}
+                          {p.product_name} - Rs {dollars(p.price)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1144,7 +1144,7 @@ function QuotationForm() {
                           </td>
                           <td className="px-3 py-1.5">
                             {li.deleted ? (
-                              <span className="text-muted-foreground">${dollars(li.unit_price)}</span>
+                              <span className="text-muted-foreground">Rs {dollars(li.unit_price)}</span>
                             ) : (
                               <Input
                                 type="number"
@@ -1159,7 +1159,7 @@ function QuotationForm() {
                             )}
                           </td>
                           <td className="px-3 py-1.5 font-medium">
-                            ${dollars(li.row_total)}
+                            Rs {dollars(li.row_total)}
                           </td>
                           <td className="px-3 py-1.5">
                             <Button
@@ -1179,7 +1179,7 @@ function QuotationForm() {
                         <td colSpan={4} className="px-3 py-2 text-right font-medium">
                           Subtotal
                         </td>
-                        <td className="px-3 py-2 font-semibold">${dollars(companySubtotal)}</td>
+                        <td className="px-3 py-2 font-semibold">Rs {dollars(companySubtotal)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
@@ -1206,14 +1206,14 @@ function QuotationForm() {
                 <Label className="text-xs text-muted-foreground">
                   {company.company_name ?? company.company_code ?? `Company ${company.id}`}
                 </Label>
-                <p className="text-lg font-medium">${dollars(companySubtotal)}</p>
+                <p className="text-lg font-medium">Rs {dollars(companySubtotal)}</p>
               </div>
             );
           })}
           {settings?.isvat === 1 && calcResult.vat > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">VAT</Label>
-              <p className="text-lg font-medium">${dollars(calcResult.vat)}</p>
+              <p className="text-lg font-medium">Rs {dollars(calcResult.vat)}</p>
             </div>
           )}
           {resolvedDiscount > 0 && (
@@ -1222,13 +1222,13 @@ function QuotationForm() {
                 {parseFloat(per || '0') > 0 ? 'Discount' : 'Manual Discount'}
               </Label>
               <p className="text-lg font-medium text-destructive">
-                -${dollars(resolvedDiscount)}
+                -Rs {dollars(resolvedDiscount)}
               </p>
             </div>
           )}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">New Total</Label>
-            <p className="text-lg font-medium">${dollars(total)}</p>
+            <p className="text-lg font-medium">Rs {dollars(total)}</p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Discount %</Label>
@@ -1257,7 +1257,7 @@ function QuotationForm() {
           </div>
           <div className="space-y-1 md:col-span-2">
             <Label className="text-xs text-muted-foreground">Grand Total</Label>
-            <p className="text-2xl font-bold">${dollars(total)}</p>
+            <p className="text-2xl font-bold">Rs {dollars(total)}</p>
           </div>
         </CardContent>
       </Card>

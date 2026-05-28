@@ -236,7 +236,7 @@ function QuotationList() {
       {
         accessorKey: 'total',
         header: 'Total',
-        cell: (info) => `$${dollars(info.getValue<number>())}`,
+        cell: (info) => `Rs ${dollars(info.getValue<number>())}`,
       },
       {
         accessorKey: 'identify',
