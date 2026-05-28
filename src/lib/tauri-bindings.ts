@@ -25,6 +25,9 @@ export { commands, type Result } from './bindings'
 export type {
   AppPreferences,
   JsonValue,
+  MigrationResult,
+  SqlServerConfig,
+  TableMigrationResult,
   RecoveryError,
   SaveReportPdfRequest,
   SendEmailAttachment,

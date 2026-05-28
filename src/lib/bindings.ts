@@ -202,6 +202,21 @@ async saveReportPdf(request: SaveReportPdfRequest) : Promise<Result<string, stri
     if(e instanceof Error) throw e;
     else return { status: "error", error: e  as any };
 }
+},
+/**
+ * Migrate all data from the local Docker SQL Server (`xpress-sql`)
+ * into the app's SQLite database. Optionally accepts custom connection config.
+ *
+ * Emits `migration-progress` events for frontend progress tracking.
+ * Creates SQLite tables if they don't exist.
+ */
+async migrateFromSqlserver(config: SqlServerConfig | null) : Promise<Result<MigrationResult, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("migrate_from_sqlserver", { config }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e  as any };
+}
 }
 }
 
@@ -232,6 +247,10 @@ quick_pane_shortcut: string | null;
 language: string | null }
 export type JsonValue = null | boolean | number | string | JsonValue[] | Partial<{ [key in string]: JsonValue }>
 /**
+ * Overall migration result returned to the frontend.
+ */
+export type MigrationResult = { results: TableMigrationResult[]; totalRows: number; success: boolean; error: string | null }
+/**
  * Error types for recovery operations (typed for frontend matching)
  */
 export type RecoveryError = 
@@ -259,6 +278,15 @@ export type SaveReportPdfRequest = { html: string; output_path: string }
 export type SendEmailAttachment = { path: string; filename: string | null; mime_type: string | null }
 export type SendEmailRequest = { smtp_host: string | null; smtp_port: number | null; smtp_starttls: boolean | null; sender_email: string; sender_pass: string; sender_name: string | null; to: string; subject: string; html: string; attachments: SendEmailAttachment[] | null }
 export type SendEmailResponse = { sent_to: string; attachment_count: number }
+/**
+ * Connection configuration for the source SQL Server database.
+ * Defaults to the Docker container `xpress-sql` on port 1433.
+ */
+export type SqlServerConfig = { host: string; port: number; instance: string | null; user: string; password: string; database: string }
+/**
+ * Result for a single table migration.
+ */
+export type TableMigrationResult = { tableName: string; rowsMigrated: number; success: boolean; error: string | null }
 
 /** tauri-specta globals **/
 
