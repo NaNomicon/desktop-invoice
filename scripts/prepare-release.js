@@ -105,18 +105,15 @@ async function prepareRelease() {
     // Verify configurations
     console.log('\n🔍 Verifying configurations...')
 
-    if (!tauriConfig.bundle?.createUpdaterArtifacts) {
-      console.warn(
-        '⚠️  Warning: createUpdaterArtifacts not enabled in tauri.conf.json'
-      )
+    const updaterEnabled = Boolean(
+      tauriConfig.bundle?.createUpdaterArtifacts &&
+        tauriConfig.plugins?.updater?.active &&
+        tauriConfig.plugins?.updater?.pubkey
+    )
+    if (updaterEnabled) {
+      console.log('✅ Auto-update artifacts and signing public key configured')
     } else {
-      console.log('✅ Updater artifacts enabled')
-    }
-
-    if (!tauriConfig.plugins?.updater?.pubkey) {
-      console.warn('⚠️  Warning: Updater public key not configured')
-    } else {
-      console.log('✅ Updater public key configured')
+      console.log('ℹ️  Auto-update is disabled; release will publish installers only')
     }
 
     // Final check that Rust code compiles
@@ -135,7 +132,7 @@ async function prepareRelease() {
     console.log('   • GitHub Actions will automatically build the release')
     console.log('   • A draft release will be created on GitHub')
     console.log("   • You'll need to manually publish the draft release")
-    console.log('   • Users will receive auto-update notifications')
+    console.log('   • Download and distribute installers from the private release')
 
     // Interactive execution option
     const answer = await askQuestion(
@@ -159,10 +156,10 @@ async function prepareRelease() {
 
       console.log(`\n🎊 Release ${tagVersion} has been published!`)
       console.log(
-        '📱 Check GitHub Actions: https://github.com/YOUR_USERNAME/YOUR_REPO/actions'
+        '📱 Check GitHub Actions: https://github.com/NaNomicon/desktop-invoice/actions'
       )
       console.log(
-        '📦 Draft release will appear at: https://github.com/YOUR_USERNAME/YOUR_REPO/releases'
+        '📦 Draft release will appear at: https://github.com/NaNomicon/desktop-invoice/releases'
       )
       console.log(
         '\n⚠️  Remember: You need to manually publish the draft release on GitHub!'

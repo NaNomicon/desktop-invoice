@@ -1,14 +1,18 @@
-name: 'Release Tauri Template App'
+name: Release XPress Billing
 
 on:
   push:
-    tags: ['v*']
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
-      version:
-        description: 'Release version (e.g., v1.0.0)'
+      tag:
+        description: Existing release tag to build, for example v1.0.0
         required: true
         type: string
+
+permissions:
+  contents: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,36 +20,59 @@ env:
 
 jobs:
   publish-tauri:
-    permissions:
-      contents: write
+    name: Build ${{ matrix.name }} Installer
     strategy:
       fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            args: '--bundles app,dmg'
-          - platform: 'windows-latest'
-            args: '--bundles msi'
-          - platform: 'ubuntu-22.04'
-            args: '--bundles appimage'
+          - name: macOS
+            platform: macos-latest
+            args: --bundles app,dmg
+          - name: Windows
+            platform: windows-latest
+            args: --bundles msi
+          - name: Linux
+            platform: ubuntu-22.04
+            args: --bundles appimage
 
     runs-on: ${{ matrix.platform }}
     steps:
-      - uses: actions/checkout@v4
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${GITHUB_REF_NAME:-}" ] && [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Validate release tag
+        shell: bash
+        run: |
+          git rev-parse --verify --quiet "refs/tags/${{ steps.release.outputs.tag }}"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
 
-      - name: Install Rust stable
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
-          workspaces: './src-tauri -> target'
+          workspaces: ./src-tauri -> target
 
       - name: Install Linux dependencies
         if: matrix.platform == 'ubuntu-22.04'
@@ -56,28 +83,84 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build and release
-        uses: tauri-apps/tauri-action@dev
+      - name: Validate release build inputs
+        shell: bash
+        run: |
+          npm run tauri:check
+
+      - name: Build and upload installers
+        uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name || inputs.version }}
-          releaseName: 'Tauri Template App ${{ github.ref_name || inputs.version }}'
-          releaseBody: |
-            ## Tauri Template App ${{ github.ref_name || inputs.version }}
-
-            ### Installation Instructions
-            - **macOS**: Download the `.dmg` file and drag to Applications folder
-            - **Windows**: Download the `.msi` file and run the installer
-            - **Linux**: Download the `.AppImage` file, make it executable (`chmod +x`), and run
-
-            ### Auto-Updates
-            Existing users will receive automatic update notifications.
-
-            **Full Changelog**: https://github.com/${{ github.repository }}/commits/${{ github.ref_name || inputs.version }}
+          tagName: ${{ steps.release.outputs.tag }}
+          releaseName: XPress Billing ${{ steps.release.outputs.tag }}
+          releaseBody: See CHANGELOG.md for release notes.
           releaseDraft: true
-          prerelease: false
-          includeUpdaterJson: true
+          prerelease: ${{ contains(steps.release.outputs.tag, '-rc.') || contains(steps.release.outputs.tag, '-beta.') || contains(steps.release.outputs.tag, '-alpha.') }}
+          includeUpdaterJson: false
           args: ${{ matrix.args }}
+
+      - name: Generate artifact checksums
+        if: always()
+        shell: bash
+        run: |
+          shopt -s globstar nullglob
+          files=(src-tauri/target/release/bundle/**/*.{msi,dmg,AppImage,deb,rpm,exe,zip,tar.gz})
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No bundle files found for checksums"
+            exit 0
+          fi
+          if command -v sha256sum >/dev/null 2>&1; then
+            sha256sum "${files[@]}" > "checksums-${{ matrix.name }}.txt"
+          else
+            shasum -a 256 "${files[@]}" > "checksums-${{ matrix.name }}.txt"
+          fi
+
+      - name: Upload checksum artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checksums-${{ matrix.name }}
+          path: checksums-${{ matrix.name }}.txt
+          if-no-files-found: ignore
+
+  publish-checksums:
+    name: Publish Checksums
+    needs: publish-tauri
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve release tag
+        id: release
+        shell: bash
+        run: |
+          if [ -n "${{ github.event.release.tag_name }}" ]; then
+            echo "tag=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${GITHUB_REF_NAME:-}" ] && [[ "${GITHUB_REF:-}" == refs/tags/* ]]; then
+            echo "tag=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ inputs.tag }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download checksum artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: checksums-*
+          merge-multiple: true
+
+      - name: Combine checksums
+        shell: bash
+        run: |
+          shopt -s nullglob
+          files=(checksums-*.txt)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No checksum artifacts found" >&2
+            exit 1
+          fi
+          cat "${files[@]}" > SHA256SUMS.txt
+
+      - name: Upload checksums to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.release.outputs.tag }}" SHA256SUMS.txt --clobber
