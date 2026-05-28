@@ -12,7 +12,6 @@
         "fullscreen": false,
         "maximized": false,
         "center": true,
-        "decorations": false,
         "alwaysOnTop": false,
         "transparent": false,
         "shadow": true,
