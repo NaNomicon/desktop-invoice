@@ -70,10 +70,15 @@ export function TabBar() {
   const [ctxMenu, setCtxMenu] = useState<ContextMenuState | null>(null)
 
   const tabsRef = useRef(tabs)
-  tabsRef.current = tabs
-
   const activeTabRef = useRef(activeTab)
-  activeTabRef.current = activeTab
+
+  useEffect(() => {
+    tabsRef.current = tabs
+  }, [tabs])
+
+  useEffect(() => {
+    activeTabRef.current = activeTab
+  }, [activeTab])
 
   useEffect(() => {
     const definition = getRouteTabDefinition(location.pathname)
@@ -169,7 +174,8 @@ export function TabBar() {
         const nextIdx = e.shiftKey
           ? (currIdx - 1 + currentTabs.length) % currentTabs.length
           : (currIdx + 1) % currentTabs.length
-        const next = currentTabs[nextIdx]!
+        const next = currentTabs[nextIdx]
+        if (!next) return
         setActiveHomeTab(next.key)
         navigate(next.path)
         return

@@ -136,7 +136,28 @@ export const useUIStore = create<UIState>()(
       resetHomeTabs: () =>
         set({ homeTabs: [], activeHomeTab: null }, undefined, 'resetHomeTabs'),
 
-      reorderHomeTabs: (_fromIndex: number, _toIndex: number) => {},
+      reorderHomeTabs: (fromIndex: number, toIndex: number) =>
+        set(
+          state => {
+            if (
+              fromIndex === toIndex ||
+              fromIndex < 0 ||
+              toIndex < 0 ||
+              fromIndex >= state.homeTabs.length ||
+              toIndex >= state.homeTabs.length
+            ) {
+              return state
+            }
+
+            const homeTabs = [...state.homeTabs]
+            const [movedTab] = homeTabs.splice(fromIndex, 1)
+            if (!movedTab) return state
+            homeTabs.splice(toIndex, 0, movedTab)
+            return { homeTabs }
+          },
+          undefined,
+          'reorderHomeTabs'
+        ),
 
       setHomeBackground: path =>
         set({ homeBackground: path }, undefined, 'setHomeBackground'),
