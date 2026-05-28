@@ -94,8 +94,8 @@ function createSalesReportHtml(options: {
           <td>${escapeHtml(row.customer_name)}</td>
           <td>${escapeHtml(row.customer_type ?? '')}</td>
           <td>${escapeHtml(row.invoice_no)}</td>
-          <td class="num">${dollars(row.discount)}</td>
-          <td class="num">${dollars(row.bill_amount)}</td>
+          <td class="num">Rs ${dollars(row.discount)}</td>
+          <td class="num">Rs ${dollars(row.bill_amount)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -141,7 +141,7 @@ function createSalesReportHtml(options: {
     <div class="summary">
       <div class="card"><div class="label">Invoices</div><div class="value">${rows.length}</div></div>
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
-      <div class="card"><div class="label">Net Sales</div><div class="value">$${dollars(totalAmount)}</div></div>
+      <div class="card"><div class="label">Net Sales</div><div class="value">Rs ${dollars(totalAmount)}</div></div>
     </div>
     <table>
       <thead>
@@ -160,7 +160,7 @@ function createSalesReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">${dollars(totalAmount)}</td>
+          <td class="num">Rs ${dollars(totalAmount)}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -412,14 +412,14 @@ function SalesReport() {
         accessorKey: 'discount',
         header: 'Discount',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
         accessorKey: 'bill_amount',
         header: 'Bill Amount',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
@@ -576,7 +576,7 @@ function SalesReport() {
                   <div key={label}>
                     <div className="flex items-center justify-between bg-muted/50 px-4 py-2 text-sm font-medium text-muted-foreground">
                       <span>{label}</span>
-                      <span className="tabular-nums">${dollars(sectionTotal)}</span>
+                      <span className="tabular-nums">Rs {dollars(sectionTotal)}</span>
                     </div>
                     <table className="w-full text-sm">
                       <thead>
@@ -623,10 +623,10 @@ function SalesReport() {
                             <td className="px-4 py-2">{row.customer_type ?? '—'}</td>
                             <td className="px-4 py-2">{row.invoice_no}</td>
                             <td className="px-4 py-2 text-right tabular-nums">
-                              ${dollars(row.discount)}
+                              Rs ${dollars(row.discount)}
                             </td>
                             <td className="px-4 py-2 text-right tabular-nums">
-                              ${dollars(row.bill_amount)}
+                              Rs ${dollars(row.bill_amount)}
                             </td>
                             <td className="px-4 py-2">{row.checklist_no ?? '—'}</td>
                           </tr>

@@ -173,11 +173,11 @@ function createReceiptReportHtml(options: {
           <td>${escapeHtml(row.customer_name)}</td>
           <td>${escapeHtml(row.customer_type ?? '')}</td>
           <td>${escapeHtml(row.invoice_no ?? '')}</td>
-          <td class="num">${dollars(row.due_amount)}</td>
-          <td class="num">${dollars(row.amount_received)}</td>
+          <td class="num">Rs ${dollars(row.due_amount)}</td>
+          <td class="num">Rs ${dollars(row.amount_received)}</td>
           <td>${escapeHtml(formatChequeNo(row.cheque_no))}</td>
           <td>${escapeHtml(row.payment_mode ?? '')}</td>
-          <td class="num">${dollars(row.balance)}</td>
+          <td class="num">Rs ${dollars(row.balance)}</td>
         </tr>`,
     )
     .join('');
@@ -226,8 +226,8 @@ function createReceiptReportHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Receipts</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Total Received</div><div class="value">$${dollars(totalReceived)}</div></div>
-      <div class="card"><div class="label">Total Balance</div><div class="value">$${dollars(totalBalance)}</div></div>
+      <div class="card"><div class="label">Total Received</div><div class="value">Rs ${dollars(totalReceived)}</div></div>
+      <div class="card"><div class="label">Total Balance</div><div class="value">Rs ${dollars(totalBalance)}</div></div>
     </div>
     <table>
       <thead>
@@ -248,9 +248,9 @@ function createReceiptReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">${dollars(totalReceived)}</td>
+          <td class="num">Rs ${dollars(totalReceived)}</td>
           <td colspan="2"></td>
-          <td class="num">${dollars(totalBalance)}</td>
+          <td class="num">Rs ${dollars(totalBalance)}</td>
         </tr>
       </tfoot>
     </table>
@@ -303,8 +303,8 @@ function createSingleReceiptHtml(row: ReceiptRow): string {
     </div>
 
     <div class="summary">
-      <div class="card"><div class="label">Received</div><div class="value">$${dollars(row.amount_received)}</div></div>
-      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}$${dollars(row.customer_due_amount)}</div></div>
+      <div class="card"><div class="label">Received</div><div class="value">Rs ${dollars(row.amount_received)}</div></div>
+      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}Rs ${dollars(row.customer_due_amount)}</div></div>
       <div class="card"><div class="label">Cheque No</div><div class="value">${escapeHtml(chequeNo)}</div></div>
       <div class="card"><div class="label">Payment Mode</div><div class="value">${escapeHtml(row.payment_mode ?? '—')}</div></div>
     </div>
@@ -313,8 +313,8 @@ function createSingleReceiptHtml(row: ReceiptRow): string {
       <tbody>
         <tr><th>Customer Type</th><td>${escapeHtml(row.customer_type ?? '—')}</td></tr>
         <tr><th>Invoice No</th><td>${escapeHtml(row.invoice_no ?? '—')}</td></tr>
-        <tr><th>Balance Before Receipt</th><td class="amount">$${dollars(row.balance)}</td></tr>
-        <tr><th>Stored Receipt Due</th><td class="amount">$${dollars(row.due_amount)}</td></tr>
+        <tr><th>Balance Before Receipt</th><td class="amount">Rs ${dollars(row.balance)}</td></tr>
+        <tr><th>Stored Receipt Due</th><td class="amount">Rs ${dollars(row.due_amount)}</td></tr>
         <tr><th>Telephone</th><td>${escapeHtml(row.telephone ?? '—')}</td></tr>
         <tr><th>Address</th><td>${escapeHtml(row.address ?? '—')}</td></tr>
       </tbody>
@@ -676,14 +676,14 @@ function ReceiptPreview() {
         accessorKey: 'due_amount',
         header: 'Due Amount',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
         accessorKey: 'amount_received',
         header: 'Received',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
@@ -703,7 +703,7 @@ function ReceiptPreview() {
         accessorKey: 'balance',
         header: 'Balance',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
     ],

@@ -93,10 +93,10 @@ function createStatementReportHtml(options: {
           <td>${escapeHtml(row.date)}</td>
           <td>${escapeHtml(row.type)}</td>
           <td>${escapeHtml(row.checklist_no ?? '-')}</td>
-          <td class="amount">${isPayment ? '' : '$'}${dollars(row.bill_amount)}</td>
-          <td class="amount">${isPayment ? '$' : ''}${dollars(row.paid_amount)}</td>
+          <td class="amount">${isPayment ? '' : 'Rs '}${dollars(row.bill_amount)}</td>
+          <td class="amount">${isPayment ? 'Rs ' : ''}${dollars(row.paid_amount)}</td>
           <td>${escapeHtml(row.cheque_no ?? '-')}</td>
-          <td class="amount">${dollars(row.balance)}</td>
+          <td class="amount">Rs ${dollars(row.balance)}</td>
         </tr>`;
   }).join('');
 
@@ -136,9 +136,9 @@ function createStatementReportHtml(options: {
       </div>
     </div>
     <div class="summary">
-      <div class="card"><div class="label">Opening Balance</div><div class="value">${escapeHtml(`${openingBalance > 0 ? '' : '-'}$${dollars(Math.abs(openingBalance))}`)}</div></div>
+      <div class="card"><div class="label">Opening Balance</div><div class="value">${escapeHtml(`${openingBalance > 0 ? '' : '-'}Rs ${dollars(Math.abs(openingBalance))}`)}</div></div>
       <div class="card"><div class="label">Transactions</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Closing Balance</div><div class="value">${escapeHtml(`${closingBalance > 0 ? '' : '-'}$${dollars(Math.abs(closingBalance))}`)}</div></div>
+      <div class="card"><div class="label">Closing Balance</div><div class="value">${escapeHtml(`${closingBalance > 0 ? '' : '-'}Rs ${dollars(Math.abs(closingBalance))}`)}</div></div>
     </div>
     <table>
       <thead>
@@ -360,7 +360,7 @@ function StatementPreview() {
         header: 'Bill Amount',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">${dollars(d)}</span>;
+          return <span className="tabular-nums">Rs {dollars(d)}</span>;
         },
       },
       {
@@ -368,7 +368,7 @@ function StatementPreview() {
         header: 'Paid Amount',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">${dollars(d)}</span>;
+          return <span className="tabular-nums">Rs {dollars(d)}</span>;
         },
       },
       {
@@ -381,13 +381,14 @@ function StatementPreview() {
         header: 'Balance',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">${dollars(d)}</span>;
+          return <span className="tabular-nums">Rs {dollars(d)}</span>;
         },
       },
     ],
     [],
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: transactions,
     columns,
@@ -587,7 +588,7 @@ function StatementPreview() {
                     >
                       <span>{c.customer_name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {c.due_amount > 0 ? `$${dollars(c.due_amount)}` : ''}
+                        {c.due_amount > 0 ? `Rs ${dollars(c.due_amount)}` : ''}
                       </span>
                     </button>
                   ))}
@@ -659,7 +660,7 @@ function StatementPreview() {
                   <div
                     className={`text-lg font-semibold tabular-nums ${openingBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
                   >
-                    {openingBalance > 0 ? '' : '-'}$
+                    {openingBalance > 0 ? '' : '-'}Rs 
                     {dollars(Math.abs(openingBalance))}
                   </div>
                 </div>
@@ -681,7 +682,7 @@ function StatementPreview() {
                         invoices.reduce((s, i) => s + i.bill_amount, 0) -
                         receipts.reduce((s, r) => s + r.paid_amount, 0);
                       const sign = net > 0 ? '' : '-';
-                      return `${sign}$${dollars(Math.abs(net))}`;
+                      return `${sign}Rs ${dollars(Math.abs(net))}`;
                     })()}
                   </div>
                 </div>
@@ -692,7 +693,7 @@ function StatementPreview() {
                   <div
                     className={`text-lg font-semibold tabular-nums ${runningBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
                   >
-                    {runningBalance > 0 ? '' : '-'}$
+                    {runningBalance > 0 ? '' : '-'}Rs 
                     {dollars(Math.abs(runningBalance))}
                   </div>
                 </div>
