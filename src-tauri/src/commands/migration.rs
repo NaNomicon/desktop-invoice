@@ -206,6 +206,73 @@ static TABLES: &[TableSpec] = &[
             "body",
             "sender_email",
             "sender_pass",
+            "client_email",
+            "sender",
+            "identify",
+            "sub_subject",
+        ],
+        money: &[],
+        dates: &[],
+        blobs: &[],
+    },
+    TableSpec {
+        name: "tbl_wa_template",
+        cols: &[
+            "id",
+            "template_name",
+            "template_id",
+            "body",
+            "status",
+            "created_at",
+            "updated_at",
+        ],
+        money: &[],
+        dates: &[],
+        blobs: &[],
+    },
+    TableSpec {
+        name: "tbl_whatsapp",
+        cols: &[
+            "id",
+            "identify",
+            "content_sid",
+            "body",
+            "header_type",
+            "header_url",
+            "footer",
+            "status",
+        ],
+        money: &[],
+        dates: &[],
+        blobs: &[],
+    },
+    TableSpec {
+        name: "tbl_whatsapp_settings",
+        cols: &[
+            "id",
+            "company_id",
+            "phone_id",
+            "waba_id",
+            "access_token",
+            "display_name",
+            "is_active",
+        ],
+        money: &[],
+        dates: &[],
+        blobs: &[],
+    },
+    TableSpec {
+        name: "tbl_whatsapp_log",
+        cols: &[
+            "id",
+            "customer_id",
+            "identify",
+            "recipient_phone",
+            "message_sid",
+            "status",
+            "error_code",
+            "error_message",
+            "sent_at",
         ],
         money: &[],
         dates: &[],
@@ -610,7 +677,31 @@ fn ensure_sqlite_schema(conn: &Mutex<rusqlite::Connection>) -> Result<(), String
         )",
         "CREATE TABLE IF NOT EXISTS tbl_email (
             id INTEGER PRIMARY KEY, template_type TEXT, subject TEXT, body TEXT,
-            sender_email TEXT, sender_pass TEXT
+            sender_email TEXT, sender_pass TEXT, client_email TEXT,
+            sender TEXT, identify TEXT, sub_subject TEXT
+        )",
+        "CREATE TABLE IF NOT EXISTS tbl_wa_template (
+            id INTEGER PRIMARY KEY, template_name TEXT NOT NULL,
+            template_id TEXT NOT NULL, body TEXT, status TEXT DEFAULT 'PENDING',
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        )",
+        "CREATE TABLE IF NOT EXISTS tbl_whatsapp (
+            id INTEGER PRIMARY KEY, identify TEXT NOT NULL,
+            content_sid TEXT NOT NULL, body TEXT NOT NULL,
+            header_type TEXT, header_url TEXT, footer TEXT, status TEXT
+        )",
+        "CREATE TABLE IF NOT EXISTS tbl_whatsapp_settings (
+            id INTEGER PRIMARY KEY, company_id INTEGER DEFAULT 1,
+            phone_id TEXT NOT NULL, waba_id TEXT NOT NULL,
+            access_token TEXT NOT NULL, display_name TEXT,
+            is_active INTEGER DEFAULT 1
+        )",
+        "CREATE TABLE IF NOT EXISTS tbl_whatsapp_log (
+            id INTEGER PRIMARY KEY, customer_id INTEGER, identify TEXT,
+            recipient_phone TEXT NOT NULL, message_sid TEXT, status TEXT,
+            error_code TEXT, error_message TEXT,
+            sent_at TEXT DEFAULT (datetime('now'))
         )",
         "CREATE TABLE IF NOT EXISTS tbl_invoice_main (
             id INTEGER PRIMARY KEY, customer_id INTEGER, invoice_no TEXT,
@@ -673,6 +764,13 @@ fn ensure_sqlite_schema(conn: &Mutex<rusqlite::Connection>) -> Result<(), String
         "CREATE INDEX IF NOT EXISTS idx_product_type ON tbl_product(type_id)",
         "CREATE INDEX IF NOT EXISTS idx_quotation_cust ON tbl_quotation_main(customer_id)",
         "CREATE INDEX IF NOT EXISTS idx_customer_name ON tbl_customer(customer_name)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_email_template_type ON tbl_email(template_type)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_email_identify ON tbl_email(identify)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_template_name ON tbl_wa_template(template_name)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_wa_template_id ON tbl_wa_template(template_id)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_whatsapp_identify ON tbl_whatsapp(identify)",
+        "CREATE INDEX IF NOT EXISTS idx_whatsapp_log_customer ON tbl_whatsapp_log(customer_id)",
+        "CREATE INDEX IF NOT EXISTS idx_whatsapp_log_status ON tbl_whatsapp_log(status)",
     ];
 
     for sql in indexes {
@@ -741,6 +839,10 @@ async fn resolve_sql_server_addr(cfg: &SqlServerConfig) -> Result<(String, u16),
 
 // ─── Per-Table Migration ─────────────────────────────────────────────────────
 
+fn is_invalid_object_name_error(error: &tiberius::error::Error) -> bool {
+    error.to_string().contains("Invalid object name")
+}
+
 async fn migrate_table(
     client: &mut Client<impl futures::io::AsyncRead + futures::io::AsyncWrite + Unpin + Send>,
     sqlite_conn: &Mutex<rusqlite::Connection>,
@@ -760,15 +862,33 @@ async fn migrate_table(
         },
     );
 
-    // Fetch all rows from SQL Server
     let query_str = format!("SELECT * FROM [{}]", table_name);
-    let rows: Vec<Row> = client
-        .query(query_str, &[])
-        .await
-        .map_err(|e| format!("{table_name}: query failed: {e}"))?
-        .into_first_result()
-        .await
-        .map_err(|e| format!("{table_name}: row fetch failed: {e}"))?;
+    let rows: Vec<Row> = match client.query(query_str, &[]).await {
+        Ok(stream) => stream
+            .into_first_result()
+            .await
+            .map_err(|e| format!("{table_name}: row fetch failed: {e}"))?,
+        Err(e) if is_invalid_object_name_error(&e) => {
+            log::warn!("Skipping {table_name}: source table does not exist");
+            let _ = emitter.emit(
+                MIGRATION_EVENT,
+                MigrationProgress {
+                    table_name: table_name.into(),
+                    rows_migrated: 0,
+                    total_rows: 0,
+                    phase: "skipped".into(),
+                    error: Some("source table does not exist".into()),
+                },
+            );
+            return Ok(TableMigrationResult {
+                table_name: table_name.into(),
+                rows_migrated: 0,
+                success: true,
+                error: None,
+            });
+        }
+        Err(e) => return Err(format!("{table_name}: query failed: {e}")),
+    };
 
     let total = rows.len() as u32;
     if total == 0 {

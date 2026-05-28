@@ -206,7 +206,7 @@ async saveReportPdf(request: SaveReportPdfRequest) : Promise<Result<string, stri
 /**
  * Migrate all data from the local Docker SQL Server (`xpress-sql`)
  * into the app's SQLite database. Optionally accepts custom connection config.
- *
+ * 
  * Emits `migration-progress` events for frontend progress tracking.
  * Creates SQLite tables if they don't exist.
  */
