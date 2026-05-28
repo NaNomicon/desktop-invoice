@@ -1,6 +1,6 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { FolderOpen, LogOut, ShieldAlert } from 'lucide-react'
+import { ChevronDown, FolderOpen, LogOut, ShieldAlert } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { useUIStore, type HomeTabItem } from '@/store/ui-store'
 import { cn } from '@/lib/utils'
@@ -17,7 +17,11 @@ interface NavItem {
 interface NavGroup {
   title: string
   items: NavItem[]
+  defaultCollapsed?: boolean
 }
+
+// Groups that default to collapsed to save space
+const DEFAULT_COLLAPSED_GROUPS = ['File', 'Settings']
 
 const NAV_GROUPS: NavGroup[] = [
   {
@@ -98,6 +102,14 @@ export function Sidebar() {
   const registerHomeTab = useUIStore(state => state.registerHomeTab)
   const resetHomeTabs = useUIStore(state => state.resetHomeTabs)
 
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    DEFAULT_COLLAPSED_GROUPS.forEach(group => {
+      initial[group] = true
+    })
+    return initial
+  })
+
   const groups = useMemo(
     () =>
       NAV_GROUPS.map(group => ({
@@ -109,6 +121,10 @@ export function Sidebar() {
 
   const handleNav = (item: NavItem) => {
     registerHomeTab(buildTab(item))
+  }
+
+  const toggleGroup = (title: string) => {
+    setCollapsedGroups(prev => ({ ...prev, [title]: !prev[title] }))
   }
 
   const handleLogout = () => {
@@ -126,32 +142,47 @@ export function Sidebar() {
         </p>
       </div>
 
-      <nav className="flex-1 space-y-4 overflow-auto p-4 text-sm">
-        {groups.map(group => (
-          <section key={group.title} className="space-y-2">
-            <h3 className="text-muted-foreground px-2 text-xs font-semibold uppercase tracking-[0.18em]">
-              {group.title}
-            </h3>
-            <div className="space-y-1">
-              {group.items.map(item => {
-                const active = location.pathname === item.path
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    onClick={() => handleNav(item)}
-                    className={cn(
-                      'block rounded px-3 py-2 transition-colors hover:bg-accent',
-                      active && 'bg-accent font-medium text-accent-foreground'
-                    )}
-                  >
-                    {item.title}
-                  </Link>
-                )
-              })}
-            </div>
-          </section>
-        ))}
+      <nav className="flex-1 overflow-auto p-4 text-sm">
+        {groups.map(group => {
+          const collapsed = collapsedGroups[group.title]
+          return (
+            <section key={group.title} className="mb-2">
+              <button
+                type="button"
+                onClick={() => toggleGroup(group.title)}
+                className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground transition-colors hover:bg-accent"
+              >
+                <ChevronDown
+                  className={cn(
+                    'size-3 shrink-0 transition-transform',
+                    collapsed && '-rotate-90'
+                  )}
+                />
+                {group.title}
+              </button>
+              {!collapsed && (
+                <div className="mt-1 space-y-1">
+                  {group.items.map(item => {
+                    const active = location.pathname === item.path
+                    return (
+                      <Link
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => handleNav(item)}
+                        className={cn(
+                          'block rounded px-3 py-2 transition-colors hover:bg-accent',
+                          active && 'bg-accent font-medium text-accent-foreground'
+                        )}
+                      >
+                        {item.title}
+                      </Link>
+                    )
+                  })}
+                </div>
+              )}
+            </section>
+          )
+        })}
       </nav>
 
       <div className="border-t p-4">
