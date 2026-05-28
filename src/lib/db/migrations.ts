@@ -1,4 +1,4 @@
-import Database from '@tauri-apps/plugin-sql';
+import type Database from '@tauri-apps/plugin-sql';
 import { SCHEMA_STATEMENTS, REQUIRED_COLUMNS, CURRENT_VERSION } from './schema';
 
 export interface SchemaVersion {
@@ -41,7 +41,7 @@ export async function updateVersion(db: Database, version: SchemaVersion): Promi
 async function addMissingColumns(
   db: Database,
   table: string,
-  columns: Array<{ name: string; type: string }>
+  columns: { name: string; type: string }[]
 ): Promise<void> {
   const existing = await db.select<{ name: string }[]>(`PRAGMA table_info(${table})`);
   const existingNames = new Set(existing.map((c) => c.name));

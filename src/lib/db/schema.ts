@@ -374,7 +374,7 @@ export const SCHEMA_STATEMENTS: string[] = (() => {
   return statements;
 })();
 
-export type RequiredColumns = Record<string, Array<{ name: string; type: string }>>;
+export type RequiredColumns = Record<string, { name: string; type: string }[]>;
 
 function buildRequiredColumnType(col: ColumnDef): string {
   let type = col.type;
