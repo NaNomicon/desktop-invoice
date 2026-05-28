@@ -46,8 +46,8 @@ function ListOutStanding() {
   const setSelectedCustomerId = useOutstandingStore((state) => state.setSelectedCustomerId);
   const { data, isLoading } = useOutstandingData();
   const [sorting, setSorting] = useState<SortingState>([]);
-  const customers = data?.customers ?? [];
-  const companies = data?.companies ?? [];
+  const customers = useMemo(() => data?.customers ?? [], [data?.customers]);
+  const companies = useMemo(() => data?.companies ?? [], [data?.companies]);
   const settings = data?.settings ?? null;
 
   const filtered = useMemo(
@@ -64,7 +64,7 @@ function ListOutStanding() {
     if (!filtered.some((row) => row.id === selectedCustomerId)) {
       setSelectedCustomerId(filtered[0]?.id ?? null);
     }
-  }, [filtered, selectedCustomerId]);
+  }, [filtered, selectedCustomerId, setSelectedCustomerId]);
 
   const selectedCustomer = useMemo(
     () => filtered.find((row) => row.id === selectedCustomerId) ?? null,
@@ -135,7 +135,7 @@ function ListOutStanding() {
         const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
         return [
           customerDisplayName(row),
-          `${amountPrefix}${dollars(Math.abs(row.due_amount))}`,
+          `${amountPrefix}Rs ${dollars(Math.abs(row.due_amount))}`,
           row.ad_due,
         ];
       }),
@@ -155,7 +155,7 @@ function ListOutStanding() {
         cell: (info) => {
           const row = info.row.original;
           const prefix = row.ad_due === 'Advance' ? '-' : '';
-          return `${prefix}$${dollars(Math.abs(info.getValue<number>()))}`;
+          return `${prefix}Rs ${dollars(Math.abs(info.getValue<number>()))}`;
         },
       },
       {
@@ -238,10 +238,10 @@ function ListOutStanding() {
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="font-medium text-red-600">
-          Total Due: ${dollars(totalDue)}
+          Total Due: Rs {dollars(totalDue)}
         </span>
         <span className="font-medium text-green-600">
-          Total Advance: ${dollars(totalAdvance)}
+          Total Advance: Rs {dollars(totalAdvance)}
         </span>
       </div>
 

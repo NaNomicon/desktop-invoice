@@ -25,8 +25,8 @@ function OutstandingReport() {
   const setSearch = useOutstandingStore((state) => state.setSearch);
   const setCompanyFilter = useOutstandingStore((state) => state.setCompanyFilter);
   const { data, isLoading } = useOutstandingData();
-  const customers = data?.customers ?? [];
-  const companies = data?.companies ?? [];
+  const customers = useMemo(() => data?.customers ?? [], [data?.customers]);
+  const companies = useMemo(() => data?.companies ?? [], [data?.companies]);
   const settings = data?.settings ?? null;
 
   useEffect(() => {
@@ -99,7 +99,7 @@ function OutstandingReport() {
         const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
         return [
           customerDisplayName(row),
-          `${amountPrefix}${dollars(Math.abs(row.due_amount))}`,
+          `${amountPrefix}Rs ${dollars(Math.abs(row.due_amount))}`,
           row.ad_due,
         ];
       }),
@@ -151,13 +151,13 @@ function OutstandingReport() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-xs uppercase tracking-wide text-muted-foreground text-red-600">Total Due</div>
-            <div className="mt-1 font-medium text-red-600">${dollars(totalDue)}</div>
+            <div className="mt-1 font-medium text-red-600">Rs {dollars(totalDue)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-xs uppercase tracking-wide text-muted-foreground text-green-600">Total Advance</div>
-            <div className="mt-1 font-medium text-green-600">${dollars(totalAdvance)}</div>
+            <div className="mt-1 font-medium text-green-600">Rs {dollars(totalAdvance)}</div>
           </CardContent>
         </Card>
       </div>
@@ -218,7 +218,7 @@ function OutstandingReport() {
                       <tr key={row.id} className="border-t">
                         <td className="px-4 py-2">{customerDisplayName(row)}</td>
                         <td className={`px-4 py-2 text-right ${statusClass}`}>
-                          {amountPrefix}${dollars(Math.abs(row.due_amount))}
+                          {amountPrefix}Rs {dollars(Math.abs(row.due_amount))}
                         </td>
                         <td className={`px-4 py-2 ${statusClass}`}>{row.ad_due}</td>
                       </tr>
