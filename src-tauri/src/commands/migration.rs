@@ -426,6 +426,30 @@ struct SourceColumnInfo {
     kind: SourceColumnKind,
 }
 
+fn quote_sql_server_ident(name: &str) -> String {
+    format!("[{}]", name.replace(']', "]]"))
+}
+
+fn build_select_list(
+    spec: &TableSpec,
+    source_schema: &std::collections::HashMap<String, SourceColumnInfo>,
+) -> Vec<String> {
+    spec.cols
+        .iter()
+        .filter(|col_name| source_schema.contains_key(**col_name))
+        .map(|col_name| {
+            let ident = quote_sql_server_ident(col_name);
+            let alias = ident.clone();
+            match source_schema.get(*col_name).map(|info| info.kind) {
+                Some(SourceColumnKind::Money) => format!(
+                    "CONVERT(varchar(50), CAST(ROUND(TRY_CONVERT(decimal(38, 4), {ident}) * 100, 0) AS bigint)) AS {alias}"
+                ),
+                _ => ident,
+            }
+        })
+        .collect()
+}
+
 fn source_column_kind(data_type: &str, spec_kind: SourceColumnKind) -> SourceColumnKind {
     match spec_kind {
         SourceColumnKind::Money | SourceColumnKind::Date | SourceColumnKind::Blob => spec_kind,
@@ -532,6 +556,18 @@ fn extract_money(row: &Row, idx: usize) -> Option<String> {
     }
     if let Ok(Some(val)) = row.try_get::<i32, usize>(idx) {
         return Some((val as i64).to_string());
+    }
+    if let Ok(Some(val)) = row.try_get::<&str, usize>(idx) {
+        let trimmed = val.trim();
+        if trimmed.is_empty() {
+            return None;
+        }
+        if let Ok(cents) = trimmed.parse::<i64>() {
+            return Some(cents.to_string());
+        }
+        if let Ok(amount) = trimmed.parse::<f64>() {
+            return Some(((amount * 100.0).round() as i64).to_string());
+        }
     }
     None
 }
@@ -862,7 +898,38 @@ async fn migrate_table(
         },
     );
 
-    let query_str = format!("SELECT * FROM [{}]", table_name);
+    let money_set: std::collections::HashSet<&str> = spec.money.iter().copied().collect();
+    let date_set: std::collections::HashSet<&str> = spec.dates.iter().copied().collect();
+    let blob_set: std::collections::HashSet<&str> = spec.blobs.iter().copied().collect();
+    let source_schema =
+        load_source_schema(client, table_name, &money_set, &date_set, &blob_set).await?;
+    let select_list = build_select_list(spec, &source_schema);
+
+    if select_list.is_empty() {
+        log::warn!("Skipping {table_name}: no matching columns found in source");
+        let _ = emitter.emit(
+            MIGRATION_EVENT,
+            MigrationProgress {
+                table_name: table_name.into(),
+                rows_migrated: 0,
+                total_rows: 0,
+                phase: "skipped".into(),
+                error: Some("no matching columns found in source".into()),
+            },
+        );
+        return Ok(TableMigrationResult {
+            table_name: table_name.into(),
+            rows_migrated: 0,
+            success: true,
+            error: None,
+        });
+    }
+
+    let query_str = format!(
+        "SELECT {} FROM {}",
+        select_list.join(", "),
+        quote_sql_server_ident(table_name)
+    );
     let rows: Vec<Row> = match client.query(query_str, &[]).await {
         Ok(stream) => stream
             .into_first_result()
@@ -912,11 +979,6 @@ async fn migrate_table(
     );
 
     let col_index = build_col_index(&rows[0]);
-    let money_set: std::collections::HashSet<&str> = spec.money.iter().copied().collect();
-    let date_set: std::collections::HashSet<&str> = spec.dates.iter().copied().collect();
-    let blob_set: std::collections::HashSet<&str> = spec.blobs.iter().copied().collect();
-    let source_schema =
-        load_source_schema(client, table_name, &money_set, &date_set, &blob_set).await?;
 
     let present_cols: Vec<&str> = spec
         .cols
