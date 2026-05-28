@@ -37,6 +37,7 @@ interface UIState {
   closeHomeTab: (key: string) => void
   setActiveHomeTab: (key: string | null) => void
   resetHomeTabs: () => void
+  reorderHomeTabs: (fromIndex: number, toIndex: number) => void
   setHomeBackground: (path: string | null) => void
   setProductAutoFill: (fill: ProductAutoFill | null) => void
 }
@@ -134,6 +135,8 @@ export const useUIStore = create<UIState>()(
 
       resetHomeTabs: () =>
         set({ homeTabs: [], activeHomeTab: null }, undefined, 'resetHomeTabs'),
+
+      reorderHomeTabs: (_fromIndex: number, _toIndex: number) => {},
 
       setHomeBackground: path =>
         set({ homeBackground: path }, undefined, 'setHomeBackground'),
