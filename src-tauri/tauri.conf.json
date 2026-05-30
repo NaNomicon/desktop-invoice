@@ -36,7 +36,7 @@
     "macOSPrivateApi": true
   },
   "bundle": {
-    "createUpdaterArtifacts": false,
+    "createUpdaterArtifacts": true,
     "active": true,
     "targets": "all",
     "resources": ["binaries"],
@@ -69,10 +69,10 @@
       "open": true
     },
     "updater": {
-      "active": false,
-      "endpoints": [],
-      "dialog": false,
-      "pubkey": ""
+      "active": true,
+      "endpoints": ["https://xpress-billing-updater.nanomicon.workers.dev/v1/{{target}}/{{arch}}/{{current_version}}"],
+      "dialog": true,
+      "pubkey": "YOUR_UPDATER_PUBLIC_KEY_HERE"
     }
   }
 }
