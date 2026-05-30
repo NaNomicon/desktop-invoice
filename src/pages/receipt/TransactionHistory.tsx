@@ -21,11 +21,14 @@ import {
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
 import {
   Eye,
@@ -505,9 +508,12 @@ function ReceiptList() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   return (
     <>
       <div className="flex h-full flex-col gap-4 overflow-auto p-6">
@@ -564,8 +570,7 @@ function ReceiptList() {
                           <th
                             key={header.id}
                             className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
+                            onClick={header.column.getToggleSortingHandler()} {...getDragHandlers(header.column.id)}>
                             {flexRender(header.column.columnDef.header, header.getContext())}
                             {{ asc: ' ↑', desc: ' ↓' }[header.column.getIsSorted() as string] ?? ''}
                           </th>
@@ -574,7 +579,7 @@ function ReceiptList() {
                     ))}
                   </thead>
                   <tbody>
-                    {table.getRowModel().rows.length === 0 ? (
+                    {table.getPrePaginationRowModel().rows.length === 0 ? (
                       <tr>
                         <td colSpan={columns.length} className="py-8 text-center text-muted-foreground">
                           No receipts found
@@ -604,6 +609,7 @@ function ReceiptList() {
                     )}
                   </tbody>
                 </table>
+                <DataTablePagination table={table} totalLabel="transactions" />
               </div>
             )}
           </CardContent>

@@ -16,11 +16,14 @@ import { Receipt, Search, DollarSign } from 'lucide-react';
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 
 function dollars(c: number): string {
   return (c / 100).toFixed(2);
@@ -262,9 +265,12 @@ function ReceiptForm() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(transTable);
   const filteredCustomers = customerSearch
     ? customers.filter((c) =>
         c.customer_name.toLowerCase().includes(customerSearch.toLowerCase()),
@@ -543,8 +549,7 @@ function ReceiptForm() {
                             <th
                               key={h.id}
                               className="cursor-pointer select-none px-3 py-2 text-left text-xs font-medium uppercase text-muted-foreground"
-                              onClick={h.column.getToggleSortingHandler()}
-                            >
+                              onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                               {flexRender(h.column.columnDef.header, h.getContext())}
                               {{ asc: ' ↑', desc: ' ↓' }[h.column.getIsSorted() as string] ?? ''}
                             </th>
@@ -564,6 +569,7 @@ function ReceiptForm() {
                       ))}
                     </tbody>
                   </table>
+                  <DataTablePagination table={transTable} totalLabel="transactions" />
                 </div>
               )}
             </CardContent>
