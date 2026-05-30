@@ -23,11 +23,14 @@ import {
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import { format, startOfMonth } from 'date-fns';import 'react-day-picker/style.css';
@@ -438,9 +441,12 @@ function SalesReport() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -647,8 +653,7 @@ function SalesReport() {
                         <th
                           key={h.id}
                           className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(
                             h.column.columnDef.header,
                             h.getContext(),
@@ -662,7 +667,7 @@ function SalesReport() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td
                         colSpan={columns.length}
@@ -690,6 +695,7 @@ function SalesReport() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="sales" />
             </div>
           )}
         </CardContent>

@@ -24,11 +24,14 @@ import {
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
@@ -395,9 +398,12 @@ function StatementPreview() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const isLoading = loadingInvoices || loadingReceipts;
   const rangeLabel = dateRange?.from
     ? `${format(dateRange.from, 'MMM d, yyyy')}${dateRange.to ? ` – ${format(dateRange.to, 'MMM d, yyyy')}` : ''}`
@@ -713,8 +719,7 @@ function StatementPreview() {
                             <th
                               key={h.id}
                               className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                              onClick={h.column.getToggleSortingHandler()}
-                            >
+                              onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                               {flexRender(
                                 h.column.columnDef.header,
                                 h.getContext(),
@@ -745,6 +750,7 @@ function StatementPreview() {
                       ))}
                     </tbody>
                   </table>
+                  <DataTablePagination table={table} totalLabel="entries" />
                 </div>
               )}
             </>
