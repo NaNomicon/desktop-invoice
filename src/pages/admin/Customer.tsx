@@ -24,11 +24,14 @@ import {
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Users, Upload, Download, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -227,9 +230,12 @@ function Customer() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const openNew = () => {
     setEditingId(null);
     setForm({ ...emptyForm, company_id: authCompanyId });
@@ -575,8 +581,7 @@ function Customer() {
                         <th
                           key={h.id}
                           className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(h.column.columnDef.header, h.getContext())}
                           {{ asc: ' ↑', desc: ' ↓' }[h.column.getIsSorted() as string] ?? ''}
                         </th>
@@ -585,7 +590,7 @@ function Customer() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td colSpan={columns.length} className="py-8 text-center text-muted-foreground">
                         No customers found
@@ -812,6 +817,7 @@ function Customer() {
                 ))}
               </tbody>
             </table>
+            <DataTablePagination table={table} totalLabel="customers" />
             {(importPreview?.data.length ?? 0) > 10 && (
               <p className="p-2 text-center text-sm text-muted-foreground">
                 ...and {(importPreview?.data.length ?? 0) - 10} more rows

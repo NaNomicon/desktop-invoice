@@ -17,9 +17,12 @@ import {
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Package, Search } from 'lucide-react';
 
@@ -105,8 +108,11 @@ function ProductTypePage() {
     data: types,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const openNew = () => {
     setEditingId(null);
     setTypeName('');
@@ -204,15 +210,14 @@ function ProductTypePage() {
                     {table.getHeaderGroups()[0]?.headers.map((h) => (
                       <th
                         key={h.id}
-                        className="px-4 py-2 text-left font-medium text-muted-foreground"
-                      >
+                        className="px-4 py-2 text-left font-medium text-muted-foreground" {...getDragHandlers(h.column.id)}>
                         {flexRender(h.column.columnDef.header, h.getContext())}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td colSpan={2} className="py-8 text-center text-muted-foreground">
                         No product types found
@@ -235,6 +240,7 @@ function ProductTypePage() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="product types" />
             </div>
           )}
           <p className="mt-2 text-right text-lg font-semibold tracking-tight text-muted-foreground">
