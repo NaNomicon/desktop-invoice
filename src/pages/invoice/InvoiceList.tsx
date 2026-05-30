@@ -18,11 +18,14 @@ import {
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
 import { Eye, FilePenLine, FileText, Search } from 'lucide-react';
 import {
@@ -233,9 +236,12 @@ function InvoiceList() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const handleDelete = useCallback(async () => {
     if (!deleteConfirm) return;
     setDeleting(true);
@@ -302,8 +308,7 @@ function InvoiceList() {
                         <th
                           key={h.id}
                           className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(
                             h.column.columnDef.header,
                             h.getContext(),
@@ -317,7 +322,7 @@ function InvoiceList() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td
                         colSpan={columns.length}
@@ -345,6 +350,7 @@ function InvoiceList() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="invoices" />
             </div>
           )}
         </CardContent>
