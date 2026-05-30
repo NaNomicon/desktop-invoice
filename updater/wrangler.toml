@@ -1,0 +1,11 @@
+name = "xpress-billing-updater"
+compatibility_date = "2024-05-12"
+compatibility_flags = ["nodejs_compat"]
+main = "src/index.ts"
+
+[vars]
+GITHUB_ACCOUNT = "NaNomicon"
+GITHUB_REPO = "desktop-invoice"
+
+# Secrets (set via `wrangler secret put`):
+#   GITHUB_TOKEN  — fine-grained PAT with contents:read on NaNomicon/desktop-invoice

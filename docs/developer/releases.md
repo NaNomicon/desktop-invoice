@@ -1,6 +1,6 @@
 # Releases
 
-Release process, version management, installer builds, and private GitHub Release distribution.
+Release process, version management, installer builds, and auto-update via Cloudflare Worker proxy.
 
 ## Overview
 
@@ -11,18 +11,23 @@ The release system provides:
 - Tauri GitHub Actions builds for installer artifacts
 - Cross-platform bundles for Windows, macOS, and Linux
 - Private GitHub Releases distribution with installers and SHA256 checksums
+- Auto-update via Cloudflare Worker proxy (`updater/`) that authenticates to the private repo server-side
 
 ## Initial Setup
 
-No updater signing key is required while auto-update is disabled.
+Auto-update requires a Tauri signing keypair and a deployed Cloudflare Worker. See [updater/README.md](../../updater/README.md) for the full setup guide.
 
-Configure normal GitHub Actions access only:
+Required secrets in `NaNomicon/desktop-invoice` → Settings → Secrets → Actions:
 
-- Keep this source repository private.
-- Allow Actions to create and write release assets with `contents: write`.
-- Publish releases only to users who should have access to the private repository or to assets you distribute manually.
+| Secret | Value |
+|--------|-------|
+| `TAURI_SIGNING_PRIVATE_KEY` | Contents of `~/.tauri/xpress-billing.key` |
+| `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password chosen during key generation |
 
-Do not embed GitHub tokens in the desktop app. A private GitHub Release requires GitHub authentication, and app-embedded tokens can be extracted by users.
+Required Cloudflare Worker secret (set via `wrangler secret put GITHUB_TOKEN`):
+- A GitHub fine-grained PAT with `Contents: Read-only` on `NaNomicon/desktop-invoice`
+
+Do not embed GitHub tokens in the desktop app. The Cloudflare Worker holds the token server-side.
 
 ## Release Please Flow
 
@@ -111,44 +116,47 @@ The workflow:
 2. Installs Node, Rust, and Linux system dependencies.
 3. Runs `npm run tauri:check`.
 4. Builds platform installers with `tauri-apps/tauri-action`.
-5. Uploads installer artifacts and `SHA256SUMS.txt` to the private draft release.
+5. Uploads installer artifacts, `latest.json` updater manifest, and `SHA256SUMS.txt` to the private draft release.
 
 Release candidates and beta tags containing `-rc.`, `-beta.`, or `-alpha.` are marked prerelease.
 
 ## Auto-Update System
 
-Auto-update is intentionally disabled while releases stay private.
+Auto-update is served via a Cloudflare Worker proxy at `updater/`. The worker authenticates to the private GitHub repo using a server-side PAT — the desktop app never holds a GitHub token.
 
-Why:
+Flow:
 
-- Tauri signing verifies downloaded updates but does not authenticate the app to GitHub.
-- Private GitHub Release assets require a GitHub credential.
-- Embedding a GitHub token in the desktop app would expose the token to users.
+1. App checks `https://xpress-billing-updater.nanomicon.workers.dev/v1/{{target}}/{{arch}}/{{current_version}}`
+2. Worker fetches the latest release from GitHub API using `GITHUB_TOKEN` secret
+3. Worker returns `{ version, url, signature, notes, pub_date }` or `204 No Content`
+4. If an update is available, app downloads the installer via `/download/{filename}` — also proxied through the worker
+5. Tauri verifies the `.sig` signature against the public key embedded in the app before installing
 
 Current config in `src-tauri/tauri.conf.json`:
 
 ```json
 {
   "bundle": {
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": true
   },
   "plugins": {
     "updater": {
-      "active": false,
-      "endpoints": [],
-      "dialog": false,
-      "pubkey": ""
+      "active": true,
+      "endpoints": ["https://xpress-billing-updater.nanomicon.workers.dev/v1/{{target}}/{{arch}}/{{current_version}}"],
+      "dialog": true,
+      "pubkey": "<your-public-key>"
     }
   }
 }
 ```
 
-To re-enable auto-update later, use one of these distribution models:
+To update the worker without shipping a new app version:
 
-1. Public download location for signed artifacts, while keeping source private.
-2. A NaNomicon-owned update backend that authenticates customers, checks entitlement, and serves signed artifacts.
+```bash
+cd updater
+npx wrangler deploy
+```
 
-In both models, Tauri update signing should still be enabled before auto-update ships.
 
 ## Manual QA Before Publishing
 
@@ -160,8 +168,9 @@ Treat this checklist as a release blocker before publishing the draft release.
 4. Validate PDF export and confirm the saved PDF opens automatically.
 5. Validate backup and restore flows if changed.
 6. Validate migration or import flows if changed.
-7. Download the installer from the private GitHub Release as an authorized user.
-8. Confirm `SHA256SUMS.txt` is attached to the release.
+7. Trigger an update check in the running app and confirm the update dialog appears.
+8. Install the update and confirm the app restarts at the new version.
+9. Confirm `SHA256SUMS.txt` is attached to the release.
 
 ## Standalone PDF Renderer Validation
 
@@ -200,5 +209,5 @@ Each production release should include:
 | Release PR is not created | Confirm commits use Conventional Commit types that trigger a release |
 | Tauri build does not run | Confirm Release Please created a GitHub Release and tag |
 | Build fails before bundling | Check CI failures locally with `npm run check:all` and `npm run tauri:check` |
-| Auto-update is unavailable | Expected while releases remain private and updater config is disabled |
-| Download fails | Confirm the user has private repository access and the release asset exists |
+| Auto-update dialog does not appear | Confirm `TAURI_SIGNING_PRIVATE_KEY` secret is set and `pubkey` in `tauri.conf.json` matches the keypair |
+| Download fails | Confirm `GITHUB_TOKEN` Cloudflare secret has `Contents: Read-only` on `NaNomicon/desktop-invoice` |
