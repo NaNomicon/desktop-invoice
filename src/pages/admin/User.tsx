@@ -1,6 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { query, execute } from '@/lib/db';
-import type { Company } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { isAdmin } from '@/lib/rbac';
 import { Card, CardContent } from '@/components/ui/card';
@@ -47,7 +46,6 @@ function UserPage() {
   const admin = isAdmin(currentUserId);
 
   const [users, setUsers] = useState<UserRow[]>([]);
-  const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -59,17 +57,12 @@ function UserPage() {
     password: '',
     confirm_password: '',
     des: 'USER',
-    company_id: 1,
   });
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [userRows, companyRows] = await Promise.all([
-      query<UserRow>('SELECT * FROM tbl_user WHERE is_deleted = 0 ORDER BY user_id'),
-      query<Company>('SELECT id, company_name FROM tbl_company WHERE is_active = 1 ORDER BY company_name'),
-    ]);
+    const userRows = await query<UserRow>('SELECT * FROM tbl_user WHERE is_deleted = 0 ORDER BY user_id');
     setUsers(userRows);
-    setCompanies(companyRows);
     setLoading(false);
   }, []);
 
@@ -129,7 +122,7 @@ function UserPage() {
   const { getDragHandlers } = useColumnOrder(table);
   const openNew = () => {
     setEditingId(null);
-    setForm({ user_id: '', password: '', confirm_password: '', des: 'USER', company_id: companies[0]?.id ?? 1 });
+    setForm({ user_id: '', password: '', confirm_password: '', des: 'USER' });
     setDialogOpen(true);
   };
 
@@ -140,7 +133,6 @@ function UserPage() {
       password: u.password,
       confirm_password: '',
       des: u.des ?? 'USER',
-      company_id: u.company_id,
     });
     setDialogOpen(true);
   };
@@ -163,8 +155,8 @@ function UserPage() {
     try {
       if (editingId) {
         await execute(
-          'UPDATE tbl_user SET user_id = ?, password = ?, des = ?, company_id = ? WHERE id = ?',
-          [form.user_id, form.password, form.des || null, form.company_id, editingId],
+          'UPDATE tbl_user SET user_id = ?, password = ?, des = ? WHERE id = ?',
+          [form.user_id, form.password, form.des || null, editingId],
         );
         toast.success('User updated');
       } else {
@@ -178,8 +170,8 @@ function UserPage() {
           return;
         }
         await execute(
-          'INSERT INTO tbl_user (user_id, password, des, company_id) VALUES (?, ?, ?, ?)',
-          [form.user_id, form.password, form.des || null, form.company_id],
+          'INSERT INTO tbl_user (user_id, password, des) VALUES (?, ?, ?)',
+          [form.user_id, form.password, form.des || null],
         );
         toast.success('User created');
       }
@@ -302,28 +294,16 @@ function UserPage() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="user-des">Role</Label>
-              <Input
-                id="user-des"
-                value={form.des}
-                onChange={(e) => setForm({ ...form, des: e.target.value.toUpperCase() })}
-                placeholder="ADMIN or USER"
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="user-company">Company</Label>
               <Select
-                value={String(form.company_id)}
-                onValueChange={(value) => setForm({ ...form, company_id: parseInt(value) })}
+                value={form.des}
+                onValueChange={(value) => setForm({ ...form, des: value })}
               >
-                <SelectTrigger id="user-company">
-                  <SelectValue />
+                <SelectTrigger id="user-des">
+                  <SelectValue placeholder="Select role" />
                 </SelectTrigger>
                 <SelectContent>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={String(company.id)}>
-                      {company.company_name ?? `Company ${company.id}`}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="ADMIN">ADMIN</SelectItem>
+                  <SelectItem value="USER">USER</SelectItem>
                 </SelectContent>
               </Select>
             </div>

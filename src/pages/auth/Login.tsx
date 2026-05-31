@@ -35,6 +35,7 @@ function Login() {
           des: r.des,
         }));
         setUsers(opts);
+        if (opts.length > 0) setSelectedUser(opts[0]!.user_id);
       },
     );
   }, []);
