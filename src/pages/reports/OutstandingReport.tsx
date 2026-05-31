@@ -3,9 +3,18 @@ import { toast } from 'sonner';
 import { buildReportPdfPath, downloadExcelXml, openPrintableReport } from '@/lib/report-output';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/store/ui-store';
+import { useOutstandingStore } from '@/store/outstanding-store';
 import {
   createOutstandingReportHtml,
   customerDisplayName,
@@ -13,33 +22,23 @@ import {
   filterOutstandingRows,
   getOutstandingCompanyLabel,
   getOutstandingTotals,
-  loadOutstandingData,
-  type OutstandingRow,
 } from '@/pages/outstanding/outstanding-report-helpers';
-import { Download, FileText, Search, X } from 'lucide-react';
+import { useOutstandingData } from '@/services/outstanding';
+import { Download, FileText, Search, X, ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 function OutstandingReport() {
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
-  const [customers, setCustomers] = useState<OutstandingRow[]>([]);
-  const [companies, setCompanies] = useState<{ id: number; company_name: string | null }[]>([]);
-  const [settings, setSettings] = useState<{ report_path: string | null } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const { customers: customerRows, companies: companyRows, settings: currentSettings } =
-      await loadOutstandingData();
-    setCustomers(customerRows);
-    setCompanies(companyRows);
-    setSettings(currentSettings);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
+  const search = useOutstandingStore((state) => state.search);
+  const companyFilter = useOutstandingStore((state) => state.companyFilter);
+  const setSearch = useOutstandingStore((state) => state.setSearch);
+  const setCompanyFilter = useOutstandingStore((state) => state.setCompanyFilter);
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+  const { data, isLoading } = useOutstandingData();
+  const customers = useMemo(() => data?.customers ?? [], [data?.customers]);
+  const companies = useMemo(() => data?.companies ?? [], [data?.companies]);
+  const settings = data?.settings ?? null;
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -111,7 +110,7 @@ function OutstandingReport() {
         const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
         return [
           customerDisplayName(row),
-          `${amountPrefix}${dollars(Math.abs(row.due_amount))}`,
+          `${amountPrefix}Rs ${dollars(Math.abs(row.due_amount))}`,
           row.ad_due,
         ];
       }),
@@ -163,13 +162,13 @@ function OutstandingReport() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-xs uppercase tracking-wide text-muted-foreground text-red-600">Total Due</div>
-            <div className="mt-1 font-medium text-red-600">${dollars(totalDue)}</div>
+            <div className="mt-1 font-medium text-red-600">Rs {dollars(totalDue)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-xs uppercase tracking-wide text-muted-foreground text-green-600">Total Advance</div>
-            <div className="mt-1 font-medium text-green-600">${dollars(totalAdvance)}</div>
+            <div className="mt-1 font-medium text-green-600">Rs {dollars(totalAdvance)}</div>
           </CardContent>
         </Card>
       </div>
@@ -186,23 +185,61 @@ function OutstandingReport() {
                 className="pl-8"
               />
             </div>
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
-                {companies.map((company) => (
-                  <SelectItem key={company.id} value={String(company.id)}>
-                    {company.company_name ?? `Company ${company.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyFilter === 'all'
+                    ? 'All Companies'
+                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="all"
+                        onSelect={() => {
+                          setCompanyFilter('all');
+                          setCompanyOpen(false);
+                        }}
+                      >
+                        <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        All Companies
+                      </CommandItem>
+                      {(companySearch
+                        ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
+                        : companies
+                      ).map((company) => (
+                        <CommandItem
+                          key={company.id}
+                          value={String(company.id)}
+                          onSelect={(currentValue) => {
+                            setCompanyFilter(currentValue);
+                            setCompanyOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 size-4', companyFilter === String(company.id) ? 'opacity-100' : 'opacity-0')} />
+                          {company.company_name ?? `Company ${company.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <p className="py-8 text-center text-muted-foreground">Loading...</p>
           ) : filtered.length === 0 ? (
             <p className="py-8 text-center text-muted-foreground">No outstanding balances found</p>
@@ -230,7 +267,7 @@ function OutstandingReport() {
                       <tr key={row.id} className="border-t">
                         <td className="px-4 py-2">{customerDisplayName(row)}</td>
                         <td className={`px-4 py-2 text-right ${statusClass}`}>
-                          {amountPrefix}${dollars(Math.abs(row.due_amount))}
+                          {amountPrefix}Rs {dollars(Math.abs(row.due_amount))}
                         </td>
                         <td className={`px-4 py-2 ${statusClass}`}>{row.ad_due}</td>
                       </tr>

@@ -15,30 +15,35 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import { format } from 'date-fns';
 import 'react-day-picker/style.css';
-import { Download, FileText, Calendar, Search, Mail } from 'lucide-react';
+import { Download, FileText, Calendar, Search, Mail, ChevronsUpDown, Check } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 interface StatementRow {
   id: number;
@@ -93,10 +98,10 @@ function createStatementReportHtml(options: {
           <td>${escapeHtml(row.date)}</td>
           <td>${escapeHtml(row.type)}</td>
           <td>${escapeHtml(row.checklist_no ?? '-')}</td>
-          <td class="amount">${isPayment ? '' : '$'}${dollars(row.bill_amount)}</td>
-          <td class="amount">${isPayment ? '$' : ''}${dollars(row.paid_amount)}</td>
+          <td class="amount">${isPayment ? '' : 'Rs '}${dollars(row.bill_amount)}</td>
+          <td class="amount">${isPayment ? 'Rs ' : ''}${dollars(row.paid_amount)}</td>
           <td>${escapeHtml(row.cheque_no ?? '-')}</td>
-          <td class="amount">${dollars(row.balance)}</td>
+          <td class="amount">Rs ${dollars(row.balance)}</td>
         </tr>`;
   }).join('');
 
@@ -136,9 +141,9 @@ function createStatementReportHtml(options: {
       </div>
     </div>
     <div class="summary">
-      <div class="card"><div class="label">Opening Balance</div><div class="value">${escapeHtml(`${openingBalance > 0 ? '' : '-'}$${dollars(Math.abs(openingBalance))}`)}</div></div>
+      <div class="card"><div class="label">Opening Balance</div><div class="value">${escapeHtml(`${openingBalance > 0 ? '' : '-'}Rs ${dollars(Math.abs(openingBalance))}`)}</div></div>
       <div class="card"><div class="label">Transactions</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Closing Balance</div><div class="value">${escapeHtml(`${closingBalance > 0 ? '' : '-'}$${dollars(Math.abs(closingBalance))}`)}</div></div>
+      <div class="card"><div class="label">Closing Balance</div><div class="value">${escapeHtml(`${closingBalance > 0 ? '' : '-'}Rs ${dollars(Math.abs(closingBalance))}`)}</div></div>
     </div>
     <table>
       <thead>
@@ -162,7 +167,9 @@ function createStatementReportHtml(options: {
 
 function StatementPreview() {
   const [customerId, setCustomerId] = useState<string>('');
-  const [companyFilter, setCompanyFilter] = useState<string>('ALL');
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+    const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -360,7 +367,7 @@ function StatementPreview() {
         header: 'Bill Amount',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">${dollars(d)}</span>;
+          return <span className="tabular-nums">Rs {dollars(d)}</span>;
         },
       },
       {
@@ -368,7 +375,7 @@ function StatementPreview() {
         header: 'Paid Amount',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">${dollars(d)}</span>;
+          return <span className="tabular-nums">Rs {dollars(d)}</span>;
         },
       },
       {
@@ -381,22 +388,26 @@ function StatementPreview() {
         header: 'Balance',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">${dollars(d)}</span>;
+          return <span className="tabular-nums">Rs {dollars(d)}</span>;
         },
       },
     ],
     [],
   );
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data: transactions,
     columns,
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const isLoading = loadingInvoices || loadingReceipts;
   const rangeLabel = dateRange?.from
     ? `${format(dateRange.from, 'MMM d, yyyy')}${dateRange.to ? ` – ${format(dateRange.to, 'MMM d, yyyy')}` : ''}`
@@ -587,27 +598,47 @@ function StatementPreview() {
                     >
                       <span>{c.customer_name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {c.due_amount > 0 ? `$${dollars(c.due_amount)}` : ''}
+                        {c.due_amount > 0 ? `Rs ${dollars(c.due_amount)}` : ''}
                       </span>
                     </button>
                   ))}
                 </div>
               )}
-            </div>
-
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            </div>            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyFilter === 'ALL'
+                    ? 'All Companies'
+                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="ALL" onSelect={() => { setCompanyFilter('ALL'); setCompanyOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', companyFilter === 'ALL' ? 'opacity-100' : 'opacity-0')} />
+                        All Companies
+                      </CommandItem>
+                      {companies.map((c) => (
+                        <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                          {c.company_name ?? `Company ${c.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
               <PopoverTrigger asChild>
@@ -659,7 +690,7 @@ function StatementPreview() {
                   <div
                     className={`text-lg font-semibold tabular-nums ${openingBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
                   >
-                    {openingBalance > 0 ? '' : '-'}$
+                    {openingBalance > 0 ? '' : '-'}Rs 
                     {dollars(Math.abs(openingBalance))}
                   </div>
                 </div>
@@ -681,7 +712,7 @@ function StatementPreview() {
                         invoices.reduce((s, i) => s + i.bill_amount, 0) -
                         receipts.reduce((s, r) => s + r.paid_amount, 0);
                       const sign = net > 0 ? '' : '-';
-                      return `${sign}$${dollars(Math.abs(net))}`;
+                      return `${sign}Rs ${dollars(Math.abs(net))}`;
                     })()}
                   </div>
                 </div>
@@ -692,7 +723,7 @@ function StatementPreview() {
                   <div
                     className={`text-lg font-semibold tabular-nums ${runningBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
                   >
-                    {runningBalance > 0 ? '' : '-'}$
+                    {runningBalance > 0 ? '' : '-'}Rs 
                     {dollars(Math.abs(runningBalance))}
                   </div>
                 </div>
@@ -712,8 +743,7 @@ function StatementPreview() {
                             <th
                               key={h.id}
                               className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                              onClick={h.column.getToggleSortingHandler()}
-                            >
+                              onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                               {flexRender(
                                 h.column.columnDef.header,
                                 h.getContext(),
@@ -744,6 +774,7 @@ function StatementPreview() {
                       ))}
                     </tbody>
                   </table>
+                  <DataTablePagination table={table} totalLabel="entries" />
                 </div>
               )}
             </>

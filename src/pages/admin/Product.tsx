@@ -17,24 +17,30 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, ShoppingBag, Upload, Download, Loader2 } from 'lucide-react';
+import { Plus, Pencil, Trash2, ShoppingBag, Upload, Download, Loader2, ChevronsUpDown, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { open, save } from '@tauri-apps/plugin-dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 interface ProductRow {
   id: number;
@@ -63,6 +69,10 @@ function ProductPage() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+  const [typeOpen, setTypeOpen] = useState(false);
+  const [prodCompanyOpen, setProdCompanyOpen] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -107,6 +117,24 @@ function ProductPage() {
     setLoading(false);
   }, []);
 
+  const openNew = useCallback(
+    (targetForm?: 'invoice' | 'quotation') => {
+      if (targetForm) {
+        setProductAutoFill({ targetForm, productId: null, productName: '', unitPrice: 0 });
+      }
+      setEditingId(null);
+      setForm({
+        product_name: '',
+        product_id: '',
+        type_id: 'none',
+        company_id: authCompanyId,
+        price: '',
+      });
+      setDialogOpen(true);
+    },
+    [authCompanyId, setProductAutoFill],
+  );
+
   useEffect(() => {
     void loadData();
   }, [loadData]);
@@ -124,8 +152,7 @@ function ProductPage() {
         setProductAutoFill({ targetForm: target, productId: null, productName: '', unitPrice: 0 });
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]);
+  }, [openNew, productAutoFill, searchParams, setProductAutoFill]);
 
   const filtered = useMemo(() => {
     let rows = products;
@@ -137,7 +164,7 @@ function ProductPage() {
           (p.product_id ?? '').toLowerCase().includes(s) ||
           (p.type_name ?? '').toLowerCase().includes(s) ||
           (p.price && String(p.price).includes(s)) ||
-          ((p.price ?? 0) > 0 && `$${(p.price / 100).toFixed(2)}`.includes(s)),
+          ((p.price ?? 0) > 0 && `Rs ${(p.price / 100).toFixed(2)}`.includes(s)),
       );
     }
     if (companyFilter !== 'all') {
@@ -168,7 +195,7 @@ function ProductPage() {
         header: 'Price',
         cell: (info) => {
           const cents = info.getValue<number>();
-          return `$${(cents / 100).toFixed(2)}`;
+          return `Rs ${(cents / 100).toFixed(2)}`;
         },
       },
       {
@@ -206,24 +233,12 @@ function ProductPage() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
-  const openNew = (targetForm?: 'invoice' | 'quotation') => {
-    if (targetForm) {
-      setProductAutoFill({ targetForm, productId: null, productName: '', unitPrice: 0 });
-    }
-    setEditingId(null);
-    setForm({
-      product_name: '',
-      product_id: '',
-      type_id: 'none',
-      company_id: authCompanyId,
-      price: '',
-    });
-    setDialogOpen(true);
-  };
-
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const openEdit = (p: ProductRow) => {
     setEditingId(p.id);
     setForm({
@@ -344,7 +359,7 @@ function ProductPage() {
         setImporting(false);
         return;
       }
-      const jsonData = XLSX.utils.sheet_to_json<unknown[]>(firstSheet, { header: 1 });
+      const jsonData = XLSX.utils.sheet_to_json(firstSheet, { header: 1 }) as unknown[];
 
       if (jsonData.length < 2 || !jsonData[0]) {
         toast.error('File is empty or has no data rows');
@@ -352,17 +367,18 @@ function ProductPage() {
         return;
       }
 
-      const headerRow = jsonData[0];
-      if (!headerRow) {
+      const headerRow = Array.isArray(jsonData[0]) ? jsonData[0] : [];
+      if (headerRow.length === 0) {
         toast.error('File is empty or has no data rows');
         setImporting(false);
         return;
       }
-      const headers = headerRow.map((h) => String(h ?? '').trim());
-      const data = jsonData.slice(1).map((row) => {
+      const headers = headerRow.map((headerCell: unknown) => String(headerCell ?? '').trim());
+      const data = jsonData.slice(1).map((row: unknown) => {
+        const cells = Array.isArray(row) ? row : [];
         const obj: Record<string, unknown> = {};
-        headers.forEach((header, idx) => {
-          obj[header] = row[idx];
+        headers.forEach((header: string, idx: number) => {
+          obj[header] = cells[idx];
         });
         return obj;
       });
@@ -521,20 +537,41 @@ function ProductPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-xs"
-            />
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            />            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyFilter === 'all'
+                    ? 'All Companies'
+                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="all" onSelect={() => { setCompanyFilter('all'); setCompanyOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        All Companies
+                      </CommandItem>
+                      {companies.map((c) => (
+                        <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                          {c.company_name ?? `Company ${c.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
@@ -550,8 +587,7 @@ function ProductPage() {
                         <th
                           key={h.id}
                           className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(h.column.columnDef.header, h.getContext())}
                           {{ asc: ' ↑', desc: ' ↓' }[h.column.getIsSorted() as string] ?? ''}
                         </th>
@@ -560,7 +596,7 @@ function ProductPage() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="py-8 text-center text-muted-foreground">
                         No products found
@@ -610,7 +646,7 @@ function ProductPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="prod-price">Price ($)</Label>
+              <Label htmlFor="prod-price">Price (Rs)</Label>
               <Input
                 id="prod-price"
                 type="number"
@@ -624,22 +660,41 @@ function ProductPage() {
             <div className="space-y-1">
               <Label htmlFor="prod-type">Product Type</Label>
               <div className="flex gap-2">
-                <Select
-                  value={form.type_id}
-                  onValueChange={(v) => setForm({ ...form, type_id: v })}
-                >
-                  <SelectTrigger id="prod-type" className="flex-1">
-                    <SelectValue placeholder="None" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">None</SelectItem>
-                    {typeOptions.map((t) => (
-                      <SelectItem key={t.id} value={String(t.id)}>
-                        {t.type_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Popover open={typeOpen} onOpenChange={setTypeOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      id="prod-type"
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={typeOpen}
+                      className="flex-1 justify-between font-normal"
+                    >
+                      {form.type_id === 'none' || !form.type_id
+                        ? 'None'
+                        : typeOptions.find((t) => String(t.id) === form.type_id)?.type_name ?? 'None'}
+                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[200px] p-0" align="start">
+                    <Command>
+                      <CommandList>
+                        <CommandEmpty>No type found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem value="none" onSelect={() => { setForm({ ...form, type_id: 'none' }); setTypeOpen(false); }}>
+                            <Check className={cn('mr-2 size-4', (!form.type_id || form.type_id === 'none') ? 'opacity-100' : 'opacity-0')} />
+                            None
+                          </CommandItem>
+                          {typeOptions.map((t) => (
+                            <CommandItem key={t.id} value={String(t.id)} onSelect={(v) => { setForm({ ...form, type_id: v }); setTypeOpen(false); }}>
+                              <Check className={cn('mr-2 size-4', form.type_id === String(t.id) ? 'opacity-100' : 'opacity-0')} />
+                              {t.type_name}
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
                 <Button
                   variant="outline"
                   size="icon"
@@ -652,21 +707,35 @@ function ProductPage() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="prod-comp">Company</Label>
-              <Select
-                value={String(form.company_id)}
-                onValueChange={(v) => setForm({ ...form, company_id: parseInt(v) })}
-              >
-                <SelectTrigger id="prod-comp">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.company_name ?? `Company ${c.id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={prodCompanyOpen} onOpenChange={setProdCompanyOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="prod-comp"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={prodCompanyOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {companies.find((c) => c.id === form.company_id)?.company_name ?? `Company ${form.company_id}`}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandList>
+                      <CommandEmpty>No company found.</CommandEmpty>
+                      <CommandGroup>
+                        {companies.map((c) => (
+                          <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setForm({ ...form, company_id: parseInt(v) }); setProdCompanyOpen(false); }}>
+                            <Check className={cn('mr-2 size-4', form.company_id === c.id ? 'opacity-100' : 'opacity-0')} />
+                            {c.company_name ?? `Company ${c.id}`}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <DialogFooter>
@@ -728,6 +797,7 @@ function ProductPage() {
                 ))}
               </tbody>
             </table>
+            <DataTablePagination table={table} totalLabel="products" />
             {(importPreview?.data.length ?? 0) > 10 && (
               <p className="p-2 text-center text-sm text-muted-foreground">
                 ...and {(importPreview?.data.length ?? 0) - 10} more rows

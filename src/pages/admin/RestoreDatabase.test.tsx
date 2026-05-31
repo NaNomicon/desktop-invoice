@@ -87,9 +87,11 @@ describe('RestoreDatabase', () => {
     const closeDbOrder = closeDbMock.mock.invocationCallOrder[0]
     const restoreOrder = restoreDatabaseMock.mock.invocationCallOrder[0]
 
-    expect(closeDbOrder).toBeDefined()
-    expect(restoreOrder).toBeDefined()
-    expect(closeDbOrder!).toBeLessThan(restoreOrder!)
+    if (closeDbOrder === undefined || restoreOrder === undefined) {
+      throw new Error('Expected close and restore calls to be recorded')
+    }
+
+    expect(closeDbOrder).toBeLessThan(restoreOrder)
   })
 
   it('shows a restore error and does not relaunch when the backend fails', async () => {

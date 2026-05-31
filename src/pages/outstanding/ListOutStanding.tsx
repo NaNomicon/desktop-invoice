@@ -1,28 +1,32 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { buildReportPdfPath, downloadExcelXml, openPrintableReport } from '@/lib/report-output';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { useUIStore } from '@/store/ui-store';
+import { useOutstandingStore } from '@/store/outstanding-store';
 import {
   createOutstandingReportHtml,
   customerDisplayName,
   dollars,
   filterOutstandingRows,
-  loadOutstandingData,
   type OutstandingRow,
 } from './outstanding-report-helpers';
+import { useOutstandingData } from '@/services/outstanding';
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   CreditCard,
   Download,
@@ -32,33 +36,35 @@ import {
   Receipt,
   Search,
   X,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 function ListOutStanding() {
   const navigate = useNavigate();
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
-  const [customers, setCustomers] = useState<OutstandingRow[]>([]);
-  const [companies, setCompanies] = useState<{ id: number; company_name: string | null }[]>([]);
-  const [settings, setSettings] = useState<{ report_path: string | null } | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
-  const [sorting, setSorting] = useState<SortingState>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
-
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    const { customers: customerRows, companies: companyRows, settings: currentSettings } =
-      await loadOutstandingData();
-    setCustomers(customerRows);
-    setCompanies(companyRows);
-    setSettings(currentSettings);
-    setLoading(false);
-  }, []);
-
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
+  const search = useOutstandingStore((state) => state.search);
+  const companyFilter = useOutstandingStore((state) => state.companyFilter);
+  const selectedCustomerId = useOutstandingStore((state) => state.selectedCustomerId);
+  const setSearch = useOutstandingStore((state) => state.setSearch);
+  const setCompanyFilter = useOutstandingStore((state) => state.setCompanyFilter);
+  const setSelectedCustomerId = useOutstandingStore((state) => state.setSelectedCustomerId);
+  const { data, isLoading } = useOutstandingData();
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+    const [sorting, setSorting] = useState<SortingState>([]);
+  const customers = useMemo(() => data?.customers ?? [], [data?.customers]);
+  const companies = useMemo(() => data?.companies ?? [], [data?.companies]);
+  const settings = data?.settings ?? null;
 
   const filtered = useMemo(
     () => filterOutstandingRows(customers, search, companyFilter),
@@ -74,7 +80,7 @@ function ListOutStanding() {
     if (!filtered.some((row) => row.id === selectedCustomerId)) {
       setSelectedCustomerId(filtered[0]?.id ?? null);
     }
-  }, [filtered, selectedCustomerId]);
+  }, [filtered, selectedCustomerId, setSelectedCustomerId]);
 
   const selectedCustomer = useMemo(
     () => filtered.find((row) => row.id === selectedCustomerId) ?? null,
@@ -145,7 +151,7 @@ function ListOutStanding() {
         const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
         return [
           customerDisplayName(row),
-          `${amountPrefix}${dollars(Math.abs(row.due_amount))}`,
+          `${amountPrefix}Rs ${dollars(Math.abs(row.due_amount))}`,
           row.ad_due,
         ];
       }),
@@ -165,7 +171,7 @@ function ListOutStanding() {
         cell: (info) => {
           const row = info.row.original;
           const prefix = row.ad_due === 'Advance' ? '-' : '';
-          return `${prefix}$${dollars(Math.abs(info.getValue<number>()))}`;
+          return `${prefix}Rs ${dollars(Math.abs(info.getValue<number>()))}`;
         },
       },
       {
@@ -192,9 +198,12 @@ function ListOutStanding() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const { totalDue, totalAdvance } = useMemo(
     () =>
       filtered.reduce(
@@ -248,10 +257,10 @@ function ListOutStanding() {
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="font-medium text-red-600">
-          Total Due: ${dollars(totalDue)}
+          Total Due: Rs {dollars(totalDue)}
         </span>
         <span className="font-medium text-green-600">
-          Total Advance: ${dollars(totalAdvance)}
+          Total Advance: Rs {dollars(totalAdvance)}
         </span>
       </div>
 
@@ -266,24 +275,45 @@ function ListOutStanding() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8"
               />
-            </div>
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            </div>            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyFilter === 'all'
+                    ? 'All Companies'
+                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="all" onSelect={() => { setCompanyFilter('all'); setCompanyOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        All Companies
+                      </CommandItem>
+                      {companies.map((c) => (
+                        <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                          {c.company_name ?? `Company ${c.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {isLoading ? (
             <p className="py-8 text-center text-muted-foreground">Loading...</p>
           ) : (
             <div className="overflow-x-auto rounded-md border">
@@ -295,8 +325,7 @@ function ListOutStanding() {
                         <th
                           key={h.id}
                           className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(h.column.columnDef.header, h.getContext())}
                           {{ asc: '  ↑', desc: '  ↓' }[h.column.getIsSorted() as string] ?? ''}
                         </th>
@@ -305,7 +334,7 @@ function ListOutStanding() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td colSpan={columns.length} className="py-8 text-center text-muted-foreground">
                         No outstanding balances found
@@ -340,6 +369,7 @@ function ListOutStanding() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="outstanding invoices" />
             </div>
           )}
         </CardContent>

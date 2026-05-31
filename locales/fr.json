@@ -67,8 +67,8 @@
   "commands.showRightSidebar.description": "Afficher la barre latérale droite",
   "commands.hideRightSidebar.label": "Masquer la barre latérale droite",
   "commands.hideRightSidebar.description": "Masquer la barre latérale droite",
-  "commands.openPreferences.label": "Ouvrir les préférences",
-  "commands.openPreferences.description": "Ouvrir les préférences de l'application",
+  "commands.openSettings.label": "Paramètres de l'application",
+  "commands.openSettings.description": "Ouvrir les paramètres de l'application",
 
   "commands.windowClose.label": "Fermer la fenêtre",
   "commands.windowClose.description": "Fermer la fenêtre actuelle",

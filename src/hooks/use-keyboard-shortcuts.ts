@@ -6,9 +6,8 @@ import type { CommandContext } from '@/lib/commands/types'
  * Handles global keyboard shortcuts for the application.
  *
  * Currently handles:
- * - Cmd/Ctrl+, : Open preferences
+ * - Cmd/Ctrl+, : Open application settings
  * - Cmd/Ctrl+1 : Toggle left sidebar
- * - Cmd/Ctrl+2 : Toggle right sidebar
  */
 export function useKeyboardShortcuts(commandContext: CommandContext) {
   useEffect(() => {
@@ -17,7 +16,7 @@ export function useKeyboardShortcuts(commandContext: CommandContext) {
         switch (e.key) {
           case ',': {
             e.preventDefault()
-            commandContext.openPreferences()
+            commandContext.openSettings()
             break
           }
           case '1': {
@@ -25,13 +24,6 @@ export function useKeyboardShortcuts(commandContext: CommandContext) {
             const { leftSidebarVisible, setLeftSidebarVisible } =
               useUIStore.getState()
             setLeftSidebarVisible(!leftSidebarVisible)
-            break
-          }
-          case '2': {
-            e.preventDefault()
-            const { rightSidebarVisible, setRightSidebarVisible } =
-              useUIStore.getState()
-            setRightSidebarVisible(!rightSidebarVisible)
             break
           }
         }

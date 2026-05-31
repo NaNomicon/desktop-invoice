@@ -2,7 +2,7 @@ use tauri_specta::{collect_commands, Builder};
 
 pub fn generate_bindings() -> Builder<tauri::Wry> {
     use crate::commands::{
-        database, email, notifications, preferences, quick_pane, recovery, reports,
+        database, email, migration, notifications, preferences, quick_pane, recovery, reports,
     };
 
     Builder::<tauri::Wry>::new().commands(collect_commands![
@@ -24,6 +24,7 @@ pub fn generate_bindings() -> Builder<tauri::Wry> {
         database::restore_database,
         reports::validate_bundled_pdf_renderer,
         reports::save_report_pdf,
+        migration::migrate_from_sqlserver,
     ])
 }
 

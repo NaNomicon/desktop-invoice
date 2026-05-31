@@ -33,6 +33,20 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { ChevronsUpDown, Check } from 'lucide-react';
+import {
   Mail,
   Plus,
   Printer,
@@ -43,7 +57,7 @@ import {
   RotateCcw,
   Search,
 } from 'lucide-react';
-
+import { cn } from '@/lib/utils';
 interface LineItem {
   uid: string;
   id: number;
@@ -133,8 +147,8 @@ function InvoiceForm() {
   const discountInputRef = useRef<HTMLInputElement | null>(null);
 
   const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customerOpen, setCustomerOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
-  const [customerSearchIndex, setCustomerSearchIndex] = useState(0);
   const [editingId, setEditingId] = useState<number | null>(invoicePrefill?.invoiceId ?? null);
   const [deletedLineItemIds, setDeletedLineItemIds] = useState<number[]>([]);
   const [companyId, setCompanyId] = useState(authCompanyId);
@@ -142,9 +156,11 @@ function InvoiceForm() {
   const [invoiceDate, setInvoiceDate] = useState(today());
   const [paidAmount, setPaidAmount] = useState('');
   const [caseDebit, setCaseDebit] = useState('CREDIT');
+  const [caseDebitOpen, setCaseDebitOpen] = useState(false);
   const [refNo, setRefNo] = useState('');
   const [checklistNo, setChecklistNo] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [productSearchIndex, setProductSearchIndex] = useState(0);
   const [per, setPer] = useState('');
@@ -186,11 +202,11 @@ function InvoiceForm() {
 
   const signedBalanceLabel = useMemo(() => {
     if (!selectedCustomer) {
-      return '$0.00';
+      return 'Rs 0.00';
     }
 
     const prefix = selectedCustomer.ad_due === 'Advance' ? '-' : '';
-    return `${prefix}$${dollars(selectedCustomer.due_amount)}`;
+    return `${prefix}Rs ${dollars(selectedCustomer.due_amount)}`;
   }, [selectedCustomer]);
 
   const filteredProducts = useMemo(() => {
@@ -225,15 +241,6 @@ function InvoiceForm() {
     });
   }, [customerSearch, customers]);
 
-  useEffect(() => {
-    setCustomerSearchIndex(0);
-  }, [customerSearch]);
-
-  useEffect(() => {
-    if (customerSearchIndex >= filteredCustomers.length) {
-      setCustomerSearchIndex(0);
-    }
-  }, [customerSearchIndex, filteredCustomers.length]);
 
   useEffect(() => {
     setProductSearchIndex(0);
@@ -403,46 +410,9 @@ function InvoiceForm() {
   const selectCustomer = useCallback((customer: Customer) => {
     setCustomerId(customer.id);
     setCustomerSearch('');
-    setCustomerSearchIndex(0);
+    setCustomerOpen(false);
   }, []);
 
-  const handleCustomerSearchKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'ArrowDown') {
-        if (filteredCustomers.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        setCustomerSearchIndex((current) => Math.min(current + 1, filteredCustomers.length - 1));
-        return;
-      }
-
-      if (event.key === 'ArrowUp') {
-        if (filteredCustomers.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        setCustomerSearchIndex((current) => Math.max(current - 1, 0));
-        return;
-      }
-
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        const selectedMatch = filteredCustomers[customerSearchIndex] ?? filteredCustomers[0];
-        if (selectedMatch) {
-          selectCustomer(selectedMatch);
-        }
-        return;
-      }
-
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setCustomerSearch('');
-        return;
-      }
-    },
-    [customerSearchIndex, filteredCustomers, selectCustomer],
-  );
 
   const toggleDeleteLineItem = useCallback(
     (uid: string) => {
@@ -478,7 +448,6 @@ function InvoiceForm() {
       setDeletedLineItemIds([]);
       setCustomerId(null);
       setCustomerSearch('');
-      setCustomerSearchIndex(0);
       setCompanyId(authCompanyId);
       setInvoiceDate(today());
       setPaidAmount('');
@@ -531,7 +500,6 @@ function InvoiceForm() {
         setEditingId(null);
         setDeletedLineItemIds([]);
         setCustomerSearch('');
-        setCustomerSearchIndex(0);
         setCustomerId(invoice.customer_id);
         setCompanyId(invoice.company_id);
         setInvoiceNumber(String(nextRows[0]?.invoice_no ?? invoice.invoice_no));
@@ -568,7 +536,6 @@ function InvoiceForm() {
       setEditingId(invoice.id);
       setDeletedLineItemIds([]);
       setCustomerSearch('');
-      setCustomerSearchIndex(0);
       setCustomerId(invoice.customer_id);
       setCompanyId(invoice.company_id);
       setInvoiceNumber(invoice.invoice_no);
@@ -615,7 +582,6 @@ function InvoiceForm() {
     setEditingId(null);
     setDeletedLineItemIds([]);
     setCustomerSearch('');
-    setCustomerSearchIndex(0);
     setTypeFilter('all');
     setProductSearch('');
     setProductSearchIndex(0);
@@ -837,8 +803,7 @@ function InvoiceForm() {
       }
     }
     setProductAutoFill(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productAutoFill, products]);
+  }, [productAutoFill, products, lineItems, setProductAutoFill, updateLineItem]);
 
   const handleSave = useCallback(async () => {
     const result = await persistInvoice();
@@ -1045,38 +1010,49 @@ function InvoiceForm() {
 
           <div className="space-y-1">
             <Label>Customer *</Label>
-            <div className="space-y-2">
-              <Input
-                value={customerSearch}
-                onChange={(event) => setCustomerSearch(event.target.value)}
-                onKeyDown={handleCustomerSearchKeyDown}
-                placeholder="Search customer by name, phone, email, or address"
-              />
-              <Select
-                value={customerId ? String(customerId) : ''}
-                onValueChange={(v) => {
-                  const selected = customers.find((customer) => customer.id === parseInt(v, 10));
-                  if (selected) {
-                    selectCustomer(selected);
-                    return;
-                  }
-                  setCustomerId(parseInt(v, 10));
-                  setCustomerSearchIndex(0);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredCustomers.slice(0, 100).map((c, index) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {index === customerSearchIndex ? '→ ' : ''}
-                      {[c.title_name?.trim(), c.customer_name, c.telephone?.trim()].filter(Boolean).join(' - ')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={customerOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  <span className="truncate">
+                    {selectedCustomer
+                      ? [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name, selectedCustomer.telephone?.trim()].filter(Boolean).join(' - ')
+                      : 'Select customer...'}
+                  </span>
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Search by name, phone, email..."
+                    value={customerSearch}
+                    onValueChange={setCustomerSearch}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No customer found.</CommandEmpty>
+                    <CommandGroup>
+                      {filteredCustomers.slice(0, 100).map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={[c.title_name, c.customer_name, c.telephone, c.email, c.address].filter(Boolean).join(' ')}
+                          onSelect={() => selectCustomer(c)}
+                        >
+                          <Check
+                            className={cn('mr-2 size-4', customerId === c.id ? 'opacity-100' : 'opacity-0')}
+                          />
+                          {[c.title_name?.trim(), c.customer_name, c.telephone?.trim()].filter(Boolean).join(' - ')}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="space-y-1">
@@ -1090,15 +1066,29 @@ function InvoiceForm() {
 
           <div className="space-y-1">
             <Label>Case Debit *</Label>
-            <Select value={caseDebit} onValueChange={setCaseDebit}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CASH">CASH</SelectItem>
-                <SelectItem value="CREDIT">CREDIT</SelectItem>
-              </SelectContent>
-            </Select>
+            <Popover open={caseDebitOpen} onOpenChange={setCaseDebitOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={caseDebitOpen} className="w-full justify-between font-normal">
+                  {caseDebit || 'Select...'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[160px] p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandEmpty>No option found.</CommandEmpty>
+                    <CommandGroup>
+                      {(['CASH', 'CREDIT'] as const).map((val) => (
+                        <CommandItem key={val} value={val} onSelect={(v) => { setCaseDebit(v); setCaseDebitOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', caseDebit === val ? 'opacity-100' : 'opacity-0')} />
+                          {val}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="space-y-1">
@@ -1119,19 +1109,33 @@ function InvoiceForm() {
 
           <div className="space-y-1">
             <Label>Product Type</Label>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {productTypes.map((type) => (
-                  <SelectItem key={type.id} value={String(type.id)}>
-                    {type.type_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={typeFilterOpen} onOpenChange={setTypeFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button variant="outline" role="combobox" aria-expanded={typeFilterOpen} className="w-full justify-between font-normal">
+                  {typeFilter === 'all' ? 'All Types' : productTypes.find((t) => String(t.id) === typeFilter)?.type_name ?? 'All Types'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandEmpty>No type found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="all" onSelect={() => { setTypeFilter('all'); setTypeFilterOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', typeFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        All Types
+                      </CommandItem>
+                      {productTypes.map((type) => (
+                        <CommandItem key={type.id} value={String(type.id)} onSelect={(v) => { setTypeFilter(v); setTypeFilterOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', typeFilter === String(type.id) ? 'opacity-100' : 'opacity-0')} />
+                          {type.type_name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="flex items-end">
@@ -1154,7 +1158,7 @@ function InvoiceForm() {
               <div className="space-y-1">
                 <Label>Customer Balance</Label>
                 <Input
-                  value={`$${dollars(selectedCustomer.due_amount)}`}
+                  value={`Rs ${dollars(selectedCustomer.due_amount)}`}
                   disabled
                   className="bg-muted"
                 />
@@ -1215,7 +1219,7 @@ function InvoiceForm() {
                   >
                     <td className="px-3 py-2">{product.product_id ?? '-'}</td>
                     <td className="px-3 py-2">{product.product_name}</td>
-                    <td className="px-3 py-2 text-right">${dollars(product.price)}</td>
+                    <td className="px-3 py-2 text-right">Rs {dollars(product.price)}</td>
                     <td className="px-3 py-2 text-right">
                       {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
                     </td>
@@ -1302,7 +1306,7 @@ function InvoiceForm() {
                     <SelectContent>
                       {companyProducts.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
-                          {p.product_name} - ${dollars(p.price)}
+                          {p.product_name} - Rs {dollars(p.price)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1356,7 +1360,7 @@ function InvoiceForm() {
                           </td>
                           <td className="px-3 py-1.5">
                             {li.deleted ? (
-                              <span className="text-muted-foreground">${dollars(li.unit_price)}</span>
+                              <span className="text-muted-foreground">Rs {dollars(li.unit_price)}</span>
                             ) : (
                               <Input
                                 type="number"
@@ -1371,7 +1375,7 @@ function InvoiceForm() {
                             )}
                           </td>
                           <td className="px-3 py-1.5 font-medium">
-                            ${dollars(li.row_total)}
+                            Rs {dollars(li.row_total)}
                           </td>
                           <td className="px-3 py-1.5">
                             <Button
@@ -1391,7 +1395,7 @@ function InvoiceForm() {
                         <td colSpan={4} className="px-3 py-2 text-right font-medium">
                           Subtotal
                         </td>
-                        <td className="px-3 py-2 font-semibold">${dollars(companySubtotal)}</td>
+                        <td className="px-3 py-2 font-semibold">Rs {dollars(companySubtotal)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
@@ -1418,21 +1422,21 @@ function InvoiceForm() {
                 <Label className="text-xs text-muted-foreground">
                   {company.company_name ?? company.company_code ?? `Company ${company.id}`}
                 </Label>
-                <p className="text-lg font-medium">${dollars(companySubtotal)}</p>
+                <p className="text-lg font-medium">Rs {dollars(companySubtotal)}</p>
               </div>
             );
           })}
           {settings?.isvat === 1 && calResult.vat > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">VAT</Label>
-              <p className="text-lg font-medium">${dollars(calResult.vat)}</p>
+              <p className="text-lg font-medium">Rs {dollars(calResult.vat)}</p>
             </div>
           )}
           {calResult.discount > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Discount</Label>
               <p className="text-lg font-medium text-destructive">
-                -${dollars(calResult.discount)}
+                -Rs {dollars(calResult.discount)}
               </p>
             </div>
           )}
@@ -1444,7 +1448,7 @@ function InvoiceForm() {
                   ? 'Add Due'
                   : 'New Total'}
             </Label>
-            <p className="text-lg font-medium">${dollars(calResult.new_tot)}</p>
+            <p className="text-lg font-medium">Rs {dollars(calResult.new_tot)}</p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Discount %</Label>
@@ -1462,12 +1466,12 @@ function InvoiceForm() {
           <div className="space-y-1 md:col-span-2">
             <Label className="text-xs text-muted-foreground">Grand Total</Label>
             <p className="text-2xl font-bold">
-              ${dollars(calResult.total)}
+              Rs {dollars(calResult.total)}
             </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Balance</Label>
-            <p className="text-lg font-medium">${dollars(caseDebit === 'CREDIT' ? calResult.total : balance)}</p>
+            <p className="text-lg font-medium">Rs {dollars(caseDebit === 'CREDIT' ? calResult.total : balance)}</p>
           </div>
         </CardContent>
       </Card>

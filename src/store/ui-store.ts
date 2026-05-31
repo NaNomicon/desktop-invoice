@@ -17,7 +17,6 @@ export interface ProductAutoFill {
 
 interface UIState {
   leftSidebarVisible: boolean
-  rightSidebarVisible: boolean
   commandPaletteOpen: boolean
   preferencesOpen: boolean
   lastQuickPaneEntry: string | null
@@ -28,8 +27,6 @@ interface UIState {
 
   toggleLeftSidebar: () => void
   setLeftSidebarVisible: (visible: boolean) => void
-  toggleRightSidebar: () => void
-  setRightSidebarVisible: (visible: boolean) => void
   toggleCommandPalette: () => void
   setCommandPaletteOpen: (open: boolean) => void
   togglePreferences: () => void
@@ -40,6 +37,7 @@ interface UIState {
   closeHomeTab: (key: string) => void
   setActiveHomeTab: (key: string | null) => void
   resetHomeTabs: () => void
+  reorderHomeTabs: (fromIndex: number, toIndex: number) => void
   setHomeBackground: (path: string | null) => void
   setProductAutoFill: (fill: ProductAutoFill | null) => void
 }
@@ -48,7 +46,6 @@ export const useUIStore = create<UIState>()(
   devtools(
     set => ({
       leftSidebarVisible: true,
-      rightSidebarVisible: true,
       commandPaletteOpen: false,
       preferencesOpen: false,
       lastQuickPaneEntry: null,
@@ -69,20 +66,6 @@ export const useUIStore = create<UIState>()(
           { leftSidebarVisible: visible },
           undefined,
           'setLeftSidebarVisible'
-        ),
-
-      toggleRightSidebar: () =>
-        set(
-          state => ({ rightSidebarVisible: !state.rightSidebarVisible }),
-          undefined,
-          'toggleRightSidebar'
-        ),
-
-      setRightSidebarVisible: visible =>
-        set(
-          { rightSidebarVisible: visible },
-          undefined,
-          'setRightSidebarVisible'
         ),
 
       toggleCommandPalette: () =>
@@ -152,6 +135,29 @@ export const useUIStore = create<UIState>()(
 
       resetHomeTabs: () =>
         set({ homeTabs: [], activeHomeTab: null }, undefined, 'resetHomeTabs'),
+
+      reorderHomeTabs: (fromIndex: number, toIndex: number) =>
+        set(
+          state => {
+            if (
+              fromIndex === toIndex ||
+              fromIndex < 0 ||
+              toIndex < 0 ||
+              fromIndex >= state.homeTabs.length ||
+              toIndex >= state.homeTabs.length
+            ) {
+              return state
+            }
+
+            const homeTabs = [...state.homeTabs]
+            const [movedTab] = homeTabs.splice(fromIndex, 1)
+            if (!movedTab) return state
+            homeTabs.splice(toIndex, 0, movedTab)
+            return { homeTabs }
+          },
+          undefined,
+          'reorderHomeTabs'
+        ),
 
       setHomeBackground: path =>
         set({ homeBackground: path }, undefined, 'setHomeBackground'),

@@ -15,20 +15,31 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import { format, startOfMonth } from 'date-fns';
@@ -41,11 +52,6 @@ import {
   Printer,
   Search,
 } from 'lucide-react';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
 
 interface InvoiceListRow {
   sales_id: number;
@@ -98,8 +104,8 @@ function createInvoiceListReportHtml(options: {
           <td>${escapeHtml(row.invoice_no)}</td>
           <td>${escapeHtml(formatDisplayDate(row.invoice_date))}</td>
           <td class="num">${row.vat_per}%</td>
-          <td class="num">${dollars(row.discount)}</td>
-          <td class="num">${dollars(row.sub_total)}</td>
+          <td class="num">Rs ${dollars(row.discount)}</td>
+          <td class="num">Rs ${dollars(row.sub_total)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -144,8 +150,8 @@ function createInvoiceListReportHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Invoices</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Sub Total</div><div class="value">$${dollars(totalSubTotal)}</div></div>
-      <div class="card"><div class="label">Discount</div><div class="value">$${dollars(totalDiscount)}</div></div>
+      <div class="card"><div class="label">Sub Total</div><div class="value">Rs ${dollars(totalSubTotal)}</div></div>
+      <div class="card"><div class="label">Discount</div><div class="value">Rs ${dollars(totalDiscount)}</div></div>
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
     </div>
     <table>
@@ -166,8 +172,8 @@ function createInvoiceListReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">$${dollars(totalDiscount)}</td>
-          <td class="num">$${dollars(totalSubTotal)}</td>
+          <td class="num">Rs ${dollars(totalDiscount)}</td>
+          <td class="num">Rs ${dollars(totalSubTotal)}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -187,6 +193,8 @@ function InvoiceListReport() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
   const closeHomeTab = useUIStore(state => state.closeHomeTab);
 
   useEffect(() => {
@@ -279,6 +287,13 @@ function InvoiceListReport() {
     },
     staleTime: 30_000,
   });
+
+  const filteredCompanies = useMemo(() => {
+    if (!companySearch.trim()) return companies;
+    return companies.filter((c) =>
+      c.company_name?.toLowerCase().includes(companySearch.toLowerCase())
+    );
+  }, [companies, companySearch]);
 
   const companyLabel = useMemo(() => {
     if (companyFilter === 'ALL') {
@@ -400,14 +415,14 @@ function InvoiceListReport() {
         accessorKey: 'discount',
         header: 'Discount',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
         accessorKey: 'sub_total',
         header: 'Sub Total',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
@@ -426,9 +441,12 @@ function InvoiceListReport() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -497,19 +515,68 @@ function InvoiceListReport() {
               </PopoverContent>
             </Popover>
 
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyLabel}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[300px] p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Search company..."
+                    value={companySearch}
+                    onValueChange={setCompanySearch}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="ALL"
+                        onSelect={() => {
+                          setCompanyFilter('ALL');
+                          setCompanyOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            'mr-2 size-4',
+                            companyFilter === 'ALL' ? 'opacity-100' : 'opacity-0'
+                          )}
+                        />
+                        All Companies
+                      </CommandItem>
+                      {filteredCompanies.map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={String(c.id)}
+                          onSelect={() => {
+                            setCompanyFilter(String(c.id));
+                            setCompanyOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 size-4',
+                              companyFilter === String(c.id)
+                                ? 'opacity-100'
+                                : 'opacity-0'
+                            )}
+                          />
+                          {c.company_name ?? `Company ${c.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
             <div className="relative min-w-64 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -547,8 +614,7 @@ function InvoiceListReport() {
                         <th
                           key={h.id}
                           className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(
                             h.column.columnDef.header,
                             h.getContext(),
@@ -562,7 +628,7 @@ function InvoiceListReport() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td
                         colSpan={columns.length}
@@ -594,6 +660,7 @@ function InvoiceListReport() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="invoices" />
             </div>
           )}
         </CardContent>

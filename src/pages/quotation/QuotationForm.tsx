@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
+import { sendEmail } from '@/lib/email/send';
+import { getQuotationPdfPath } from '@/lib/pdf/path';
 import { quoCal } from '@/lib/quotation/cal';
 import { saveQuotation } from '@/lib/quotation/saved';
 import { splitQuotation } from '@/lib/quotation/splitQuotation';
@@ -27,6 +29,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 import { toast } from 'sonner';
 import {
@@ -34,6 +47,7 @@ import {
   Eraser,
   FilePlus2,
   FileText,
+  Mail,
   Plus,
   Printer,
   Save,
@@ -118,6 +132,8 @@ function QuotationForm() {
 
   const [editingId, setEditingId] = useState<number | null>(routeState?.quotationId ?? null);
   const [customerId, setCustomerId] = useState<number | null>(null);
+  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerOpen, setCustomerOpen] = useState(false);
   const [companyId, setCompanyId] = useState(authCompanyId);
   const [quotationNumber, setQuotationNumber] = useState('0');
   const [quotationDate, setQuotationDate] = useState(today());
@@ -134,6 +150,26 @@ function QuotationForm() {
     () => customers.find((customer) => customer.id === customerId) ?? null,
     [customers, customerId],
   );
+
+  const filteredCustomers = useMemo(() => {
+    const search = customerSearch.trim().toLowerCase();
+    if (!search) {
+      return customers;
+    }
+
+    return customers.filter((customer) => {
+      const values = [
+        customer.customer_name,
+        customer.title_name,
+        customer.telephone,
+        customer.contact,
+        customer.address,
+        customer.email,
+      ];
+
+      return values.some((value) => (value ?? '').toLowerCase().includes(search));
+    });
+  }, [customerSearch, customers]);
 
   const subTotal = useMemo(
     () =>
@@ -182,6 +218,8 @@ function QuotationForm() {
     });
   }, [productSearch, products, typeFilter]);
 
+
+
   const reindexLineItems = useCallback((items: LineItem[]) => {
     let serial = 1;
     return items.map((item) => {
@@ -198,6 +236,7 @@ function QuotationForm() {
     (nextQuotationNumber?: string) => {
       setEditingId(null);
       setCustomerId(null);
+      setCustomerSearch('');
       setCompanyId(authCompanyId);
       setQuotationDate(today());
       setChecklistNo('');
@@ -309,6 +348,7 @@ function QuotationForm() {
           : [createBlankLineItem()],
       );
       setTypeFilter('all');
+      setCustomerSearch('');
       setProductSearch('');
       navigate(location.pathname, { replace: true, state: null });
     },
@@ -430,8 +470,59 @@ function QuotationForm() {
       });
     }
     setProductAutoFill(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [productAutoFill, products]);
+  }, [addLineItem, lineItems, productAutoFill, products, setProductAutoFill, updateLineItem]);
+
+  const selectCustomer = useCallback((customer: Customer) => {
+    setCustomerId(customer.id);
+    setCustomerSearch('');
+    setCustomerOpen(false);
+  }, []);
+
+
+
+  const handleLineItemsKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (!lineItems.some((item) => !item.deleted)) {
+        return;
+      }
+
+      if (event.ctrlKey && event.key.toLowerCase() === 'i') {
+        event.preventDefault();
+        addLineItem();
+        return;
+      }
+
+      if (event.ctrlKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        const activeLine = [...lineItems].reverse().find((item) => !item.deleted);
+        if (activeLine) {
+          toggleDeleteLineItem(activeLine.uid);
+        }
+      }
+    },
+    [addLineItem, lineItems, toggleDeleteLineItem],
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.ctrlKey && event.key.toLowerCase() === 'i') {
+        event.preventDefault();
+        addLineItem();
+        return;
+      }
+
+      if (event.ctrlKey && event.key.toLowerCase() === 'd') {
+        event.preventDefault();
+        const activeLine = [...lineItems].reverse().find((item) => !item.deleted);
+        if (activeLine) {
+          toggleDeleteLineItem(activeLine.uid);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [addLineItem, lineItems, toggleDeleteLineItem]);
 
   const persistQuotation = useCallback(async () => {
     if (!customerId) {
@@ -450,8 +541,23 @@ function QuotationForm() {
     setSaving(true);
     try {
       const activeItems = lineItems.filter((item) => !item.deleted && item.product_id);
-      const activeCompanyIds = [...new Set(activeItems.map((item) => item.company_id).filter((cid): cid is number => cid !== null))];
+      const activeCompanyIds = [
+        ...new Set(activeItems.map((item) => item.company_id).filter((cid): cid is number => cid !== null)),
+      ];
       const hasSplit = activeCompanyIds.length >= 2;
+      const splitLineItems = activeItems.flatMap((item) =>
+        item.company_id === null
+          ? []
+          : [{
+              id: item.id > 0 ? item.id : undefined,
+              qty: item.qty,
+              product_id: item.product_id,
+              unit_price: item.unit_price,
+              row_total: item.row_total,
+              s_no: item.s_no,
+              company_id: item.company_id,
+            }],
+      );
 
       if (hasSplit) {
         const result = await splitQuotation({
@@ -467,18 +573,16 @@ function QuotationForm() {
           per: parseFloat(per || '0'),
           isvat: settings?.isvat ?? 0,
           vat_per: settings?.vat_per ?? 0,
-          line_items: activeItems.map((item) => ({
-            id: item.id > 0 ? item.id : undefined,
-            qty: item.qty,
-            product_id: item.product_id,
-            unit_price: item.unit_price,
-            row_total: item.row_total,
-            s_no: item.s_no,
-            company_id: item.company_id!,
-          })),
+          line_items: splitLineItems,
         });
         await loadInitialData();
-        return { ...result, nextQuotationNumber: String((await query<NumberSequence>('SELECT quo_no FROM tbl_numbers WHERE id = 1 LIMIT 1'))[0]?.quo_no ?? 0) };
+        return {
+          ...result,
+          nextQuotationNumber: String(
+            (await query<NumberSequence>('SELECT quo_no FROM tbl_numbers WHERE id = 1 LIMIT 1'))[0]
+              ?.quo_no ?? 0,
+          ),
+        };
       }
 
       const result = await saveQuotation({
@@ -486,7 +590,10 @@ function QuotationForm() {
         customer_id: customerId,
         quo_no: quotationNumber,
         checklist_no: checklistNo.trim() || null,
-        company_id: activeCompanyIds.length === 1 ? activeCompanyIds[0]! : companyId,
+        company_id:
+          activeCompanyIds.length === 1 && activeCompanyIds[0] !== undefined
+            ? activeCompanyIds[0]
+            : companyId,
         sub_total: subTotal,
         amount_due: selectedCustomer?.due_amount ?? 0,
         vat: calcResult.vat,
@@ -581,6 +688,57 @@ function QuotationForm() {
     });
   }, [navigate, persistQuotation]);
 
+  const handleSend = useCallback(async () => {
+    if (!selectedCustomer) {
+      toast.error('Please select a customer before sending a quotation email');
+      return;
+    }
+    if (!selectedCustomer.email?.trim()) {
+      toast.error('The selected customer does not have an email address');
+      return;
+    }
+
+    const result = await persistQuotation();
+    if (!result) {
+      return;
+    }
+
+    const resultId = 'id' in result ? result.id : result.quotation1_id;
+    const quotationRows = await query<QuotationMain>(
+      'SELECT * FROM tbl_quotation_main WHERE id = ? LIMIT 1',
+      [resultId],
+    );
+    const quotation = quotationRows[0];
+    if (!quotation) {
+      toast.error('Quotation was saved but could not be reloaded for sending');
+      return;
+    }
+
+    const customerName = [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name.trim()]
+      .filter(Boolean)
+      .join(' ');
+    const sendResult = await sendEmail({
+      to: selectedCustomer.email.trim(),
+      template_type: 'QUOTATION',
+      variables: {
+        date: quotation.quo_date,
+        contact_person: selectedCustomer.title_name?.trim() || '',
+        name: selectedCustomer.customer_name,
+      },
+      pdf_path: await getQuotationPdfPath(quotation),
+    });
+
+    if (!sendResult.success) {
+      toast.error(sendResult.error ?? 'Failed to send quotation email');
+      return;
+    }
+
+    toast.success(`Quotation emailed to ${customerName}`, {
+      description: 'Quotation email sent',
+    });
+    resetForm(result.nextQuotationNumber);
+  }, [persistQuotation, resetForm, selectedCustomer]);
+
   const openCustomers = useCallback(() => {
     navigate('/customers');
   }, [navigate]);
@@ -623,6 +781,10 @@ function QuotationForm() {
             <Printer className="size-4" />
             Preview
           </Button>
+          <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
+            <Mail className="size-4" />
+            Send
+          </Button>
           <Button variant="default" onClick={() => void handleSaveAndPrint()} disabled={saving}>
             <Printer className="size-4" />
             Save & Print
@@ -649,21 +811,59 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Customer *</Label>
-            <Select
-              value={customerId ? String(customerId) : ''}
-              onValueChange={(value) => setCustomerId(parseInt(value, 10))}
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Select customer..." />
-              </SelectTrigger>
-              <SelectContent>
-                {customers.map((customer) => (
-                  <SelectItem key={customer.id} value={String(customer.id)}>
-                    {customer.customer_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={customerOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {customerId
+                    ? (() => {
+                        const c = customers.find((c) => c.id === customerId);
+                        return c
+                          ? [c.title_name?.trim(), c.customer_name, c.telephone?.trim()]
+                              .filter(Boolean)
+                              .join(' - ')
+                          : 'Select customer...';
+                      })()
+                    : 'Select customer...'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Search customer by name, phone, email, or address"
+                    value={customerSearch}
+                    onValueChange={setCustomerSearch}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No customer found.</CommandEmpty>
+                    <CommandGroup>
+                      {filteredCustomers.slice(0, 100).map((customer) => (
+                        <CommandItem
+                          key={customer.id}
+                          value={String(customer.id)}
+                          onSelect={() => selectCustomer(customer)}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 size-4',
+                              customerId === customer.id ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                          {[customer.title_name?.trim(), customer.customer_name, customer.telephone?.trim()]
+                            .filter(Boolean)
+                            .join(' - ')}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="space-y-1">
             <Label>Checklist No</Label>
@@ -675,23 +875,63 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Customer Due</Label>
-            <Input value={`$${dollars(selectedCustomer?.due_amount ?? 0)}`} disabled className="bg-muted" />
+            <Input value={`Rs ${dollars(selectedCustomer?.due_amount ?? 0)}`} disabled className="bg-muted" />
           </div>
           <div className="space-y-1">
             <Label>Product Type</Label>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {productTypes.map((type) => (
-                  <SelectItem key={type.id} value={String(type.id)}>
-                    {type.type_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-between font-normal"
+                >
+                  {typeFilter === "all"
+                    ? "All Types"
+                    : (productTypes.find((t) => String(t.id) === typeFilter)?.type_name ?? "All Types")}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search types..." />
+                  <CommandList>
+                    <CommandEmpty>No type found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="all"
+                        onSelect={() => setTypeFilter("all")}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 size-4",
+                            typeFilter === "all" ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        All Types
+                      </CommandItem>
+                      {productTypes.map((type) => (
+                        <CommandItem
+                          key={type.id}
+                          value={type.type_name}
+                          onSelect={() => setTypeFilter(String(type.id))}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 size-4",
+                              typeFilter === String(type.id)
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                          {type.type_name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardContent>
       </Card>
@@ -723,10 +963,15 @@ function QuotationForm() {
               </thead>
               <tbody>
                 {filteredProducts.slice(0, 12).map((product) => (
-                  <tr key={product.id} className="border-t hover:bg-muted/30">
+                  <tr
+                    key={product.id}
+                    className="border-t hover:bg-muted/30"
+                  >
                     <td className="px-3 py-2">{product.product_id ?? '-'}</td>
-                    <td className="px-3 py-2">{product.product_name}</td>
-                    <td className="px-3 py-2 text-right">${dollars(product.price)}</td>
+                    <td className="px-3 py-2">
+                      {product.product_name}
+                    </td>
+                    <td className="px-3 py-2 text-right">Rs {dollars(product.price)}</td>
                     <td className="px-3 py-2 text-right">
                       {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
                     </td>
@@ -812,7 +1057,7 @@ function QuotationForm() {
                     <SelectContent>
                       {companyProducts.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
-                          {p.product_name} - ${dollars(p.price)}
+                          {p.product_name} - Rs {dollars(p.price)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -824,7 +1069,8 @@ function QuotationForm() {
                 </div>
               </div>
             </CardHeader>
-            <CardContent>
+              <CardContent onKeyDown={handleLineItemsKeyDown} tabIndex={-1}>
+
               {companyItems.length === 0 ? (
                 <p className="py-4 text-center text-sm text-muted-foreground">No items for {companyName}</p>
               ) : (
@@ -866,7 +1112,7 @@ function QuotationForm() {
                           </td>
                           <td className="px-3 py-1.5">
                             {li.deleted ? (
-                              <span className="text-muted-foreground">${dollars(li.unit_price)}</span>
+                              <span className="text-muted-foreground">Rs {dollars(li.unit_price)}</span>
                             ) : (
                               <Input
                                 type="number"
@@ -881,7 +1127,7 @@ function QuotationForm() {
                             )}
                           </td>
                           <td className="px-3 py-1.5 font-medium">
-                            ${dollars(li.row_total)}
+                            Rs {dollars(li.row_total)}
                           </td>
                           <td className="px-3 py-1.5">
                             <Button
@@ -901,7 +1147,7 @@ function QuotationForm() {
                         <td colSpan={4} className="px-3 py-2 text-right font-medium">
                           Subtotal
                         </td>
-                        <td className="px-3 py-2 font-semibold">${dollars(companySubtotal)}</td>
+                        <td className="px-3 py-2 font-semibold">Rs {dollars(companySubtotal)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
@@ -928,27 +1174,29 @@ function QuotationForm() {
                 <Label className="text-xs text-muted-foreground">
                   {company.company_name ?? company.company_code ?? `Company ${company.id}`}
                 </Label>
-                <p className="text-lg font-medium">${dollars(companySubtotal)}</p>
+                <p className="text-lg font-medium">Rs {dollars(companySubtotal)}</p>
               </div>
             );
           })}
           {settings?.isvat === 1 && calcResult.vat > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">VAT</Label>
-              <p className="text-lg font-medium">${dollars(calcResult.vat)}</p>
+              <p className="text-lg font-medium">Rs {dollars(calcResult.vat)}</p>
             </div>
           )}
-          {calcResult.discount > 0 && (
+          {resolvedDiscount > 0 && (
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Discount</Label>
+              <Label className="text-xs text-muted-foreground">
+                {parseFloat(per || '0') > 0 ? 'Discount' : 'Manual Discount'}
+              </Label>
               <p className="text-lg font-medium text-destructive">
-                -${dollars(calcResult.discount)}
+                -Rs {dollars(resolvedDiscount)}
               </p>
             </div>
           )}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">New Total</Label>
-            <p className="text-lg font-medium">${dollars(total)}</p>
+            <p className="text-lg font-medium">Rs {dollars(total)}</p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Discount %</Label>
@@ -962,9 +1210,22 @@ function QuotationForm() {
               placeholder="0"
             />
           </div>
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Manual Discount</Label>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              className="h-8 w-28"
+              value={manualDiscount}
+              onChange={(e) => setManualDiscount(e.target.value)}
+              disabled={parseFloat(per || '0') > 0}
+              placeholder="0.00"
+            />
+          </div>
           <div className="space-y-1 md:col-span-2">
             <Label className="text-xs text-muted-foreground">Grand Total</Label>
-            <p className="text-2xl font-bold">${dollars(total)}</p>
+            <p className="text-2xl font-bold">Rs {dollars(total)}</p>
           </div>
         </CardContent>
       </Card>

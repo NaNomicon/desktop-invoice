@@ -9,7 +9,7 @@ mod commands;
 mod types;
 mod utils;
 
-use tauri::{Manager, RunEvent, WindowEvent};
+use tauri::{Emitter, Manager, RunEvent, WindowEvent};
 
 // Re-export only what's needed externally
 pub use types::DEFAULT_QUICK_PANE_SHORTCUT;
@@ -156,23 +156,18 @@ pub fn run() {
                 event: WindowEvent::CloseRequested { api, .. },
                 ..
             } if label == "main" => {
+                api.prevent_close();
+
                 #[cfg(target_os = "macos")]
                 {
-                    api.prevent_close();
-
-                    // Save window state before hiding
                     use tauri_plugin_window_state::{AppHandleExt, StateFlags};
                     if let Err(e) = app_handle.save_window_state(StateFlags::all()) {
                         log::warn!("Failed to save window state: {e}");
                     }
+                }
 
-                    // Hide the window, not the app. app_handle.hide() calls NSApplication.hide()
-                    // which sets system-level hidden state — showing an NSPanel while hidden
-                    // causes macOS to unhide the entire app, including the main window.
-                    if let Some(window) = app_handle.get_webview_window("main") {
-                        let _ = window.hide();
-                        log::info!("Main window hidden");
-                    }
+                if let Some(window) = app_handle.get_webview_window("main") {
+                    let _ = window.emit("app-close-requested", ());
                 }
             }
 

@@ -9,15 +9,17 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import { toast } from 'sonner';
-import { Loader2, Mail, Paperclip, SendHorizontal, Trash2 } from 'lucide-react';
+import { ChevronsUpDown, Check, Loader2, Mail, Paperclip, SendHorizontal, Trash2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const TEMPLATE_TYPES = ['INVOICE', 'QUOTATION', 'STATEMENT', 'RECEIPT'] as const;
 
@@ -51,6 +53,7 @@ function DirectEmailPage() {
   const [sending, setSending] = useState(false);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [selectedTemplateType, setSelectedTemplateType] = useState<TemplateType | 'none'>('none');
+  const [templateOpen, setTemplateOpen] = useState(false);
 
   const selectedCount = useMemo(
     () => attachments.filter((attachment) => attachment.selected).length,
@@ -229,19 +232,39 @@ function DirectEmailPage() {
           <h1 className="text-2xl font-semibold">Direct Email</h1>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-          <Select value={selectedTemplateType} onValueChange={(value) => void handleTemplateChange(value as TemplateType | 'none')}>
-            <SelectTrigger className="w-full sm:w-[220px]" disabled={loadingTemplate || sending}>
-              <SelectValue placeholder="Load template" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">No template</SelectItem>
-              {TEMPLATE_TYPES.map((type) => (
-                <SelectItem key={type} value={type}>
-                  Load {type}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <Popover open={templateOpen} onOpenChange={setTemplateOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={templateOpen}
+                className="w-full justify-between font-normal sm:w-[220px]"
+                disabled={loadingTemplate || sending}
+              >
+                {selectedTemplateType === 'none' ? 'Load template' : `Load ${selectedTemplateType}`}
+                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[220px] p-0" align="end">
+              <Command>
+                <CommandList>
+                  <CommandEmpty>No template found.</CommandEmpty>
+                  <CommandGroup>
+                    <CommandItem value="none" onSelect={() => { void handleTemplateChange('none'); setTemplateOpen(false); }}>
+                      <Check className={cn('mr-2 size-4', selectedTemplateType === 'none' ? 'opacity-100' : 'opacity-0')} />
+                      No template
+                    </CommandItem>
+                    {TEMPLATE_TYPES.map((type) => (
+                      <CommandItem key={type} value={type} onSelect={() => { void handleTemplateChange(type); setTemplateOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', selectedTemplateType === type ? 'opacity-100' : 'opacity-0')} />
+                        Load {type}
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
           <Button variant="outline" onClick={resetForm} disabled={sending}>
             Clear
           </Button>

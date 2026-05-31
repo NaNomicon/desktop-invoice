@@ -9,22 +9,19 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
-import { Eye, FilePenLine, FileText, Plus, Search } from 'lucide-react';
+import { Eye, FilePenLine, FileText, Plus, Search, ChevronsUpDown, Check } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +29,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 interface InvoiceRow extends InvoiceMain {
   customer_name: string;
@@ -51,6 +57,8 @@ function InvoiceList() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -151,7 +159,7 @@ function InvoiceList() {
         header: () => <span className="block w-full text-right">Total</span>,
         cell: (info) => (
           <span className="text-right block w-full">
-            ${dollars(info.getValue<number>())}
+            Rs {dollars(info.getValue<number>())}
           </span>
         ),
       },
@@ -160,7 +168,7 @@ function InvoiceList() {
         header: () => <span className="block w-full text-right">Paid</span>,
         cell: (info) => (
           <span className="text-right block w-full">
-            ${dollars(info.getValue<number>())}
+            Rs {dollars(info.getValue<number>())}
           </span>
         ),
       },
@@ -175,7 +183,7 @@ function InvoiceList() {
                 v > 0 ? 'font-medium text-orange-600' : ''
               }`}
             >
-              ${dollars(Math.abs(v))}
+              Rs {dollars(Math.abs(v))}
               {v < 0 ? ' (overpaid)' : ''}
             </span>
           );
@@ -265,9 +273,12 @@ function InvoiceList() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const handleDelete = useCallback(async () => {
     if (!deleteConfirm) return;
     setDeleting(true);
@@ -312,20 +323,41 @@ function InvoiceList() {
                   }
                 }}
               />
-            </div>
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            </div>            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyFilter === 'all'
+                    ? 'All Companies'
+                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="all" onSelect={() => { setCompanyFilter('all'); setCompanyOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        All Companies
+                      </CommandItem>
+                      {companies.map((c) => (
+                        <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                          {c.company_name ?? `Company ${c.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
@@ -334,73 +366,69 @@ function InvoiceList() {
               Loading...
             </p>
           ) : (
-            <>
-              <div className="overflow-x-auto rounded-md border">
-                <table className="w-full text-sm">
-                  <thead>
-                    {table.getHeaderGroups().map((hg) => (
-                      <tr key={hg.id} className="bg-muted/50">
-                        {hg.headers.map((h) => (
-                          <th
-                            key={h.id}
-                            className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
-                            onClick={h.column.getToggleSortingHandler()}
-                          >
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead>
+                  {table.getHeaderGroups().map((hg) => (
+                    <tr key={hg.id} className="bg-muted/50">
+                      {hg.headers.map((h) => (
+                        <th
+                          key={h.id}
+                          className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}
+                        >
+                          {flexRender(
+                            h.column.columnDef.header,
+                            h.getContext(),
+                          )}
+                          {{ asc: ' ↑', desc: ' ↓' }[
+                            h.column.getIsSorted() as string
+                          ] ?? ''}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={columns.length}
+                        className="py-8 text-center text-muted-foreground"
+                      >
+                        No invoices found
+                      </td>
+                    </tr>
+                  ) : (
+                    table.getRowModel().rows.map((row) => (
+                      <tr
+                        key={row.id}
+                        className="cursor-pointer border-t hover:bg-muted/30"
+                        onDoubleClick={() => handleEdit(row.original.id)}
+                        onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            handleEdit(row.original.id);
+                          }
+                        }}
+                        tabIndex={0}
+                        title="Double-click to edit"
+                      >
+                        {row.getVisibleCells().map((cell) => (
+                          <td key={cell.id} className="px-4 py-2">
                             {flexRender(
-                              h.column.columnDef.header,
-                              h.getContext(),
+                              cell.column.columnDef.cell,
+                              cell.getContext(),
                             )}
-                            {{ asc: ' ↑', desc: ' ↓' }[
-                              h.column.getIsSorted() as string
-                            ] ?? ''}
-                          </th>
+                          </td>
                         ))}
                       </tr>
-                    ))}
-                  </thead>
-                  <tbody>
-                    {table.getRowModel().rows.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={columns.length}
-                          className="py-8 text-center text-muted-foreground"
-                        >
-                          No invoices found
-                        </td>
-                      </tr>
-                    ) : (
-                      table.getRowModel().rows.map((row) => (
-                        <tr
-                          key={row.id}
-                          className="cursor-pointer border-t hover:bg-muted/30"
-                          onDoubleClick={() => handleEdit(row.original.id)}
-                          onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
-                            if (event.key === 'Enter') {
-                              event.preventDefault();
-                              handleEdit(row.original.id);
-                            }
-                          }}
-                          tabIndex={0}
-                          title="Double-click to edit"
-                        >
-                          {row.getVisibleCells().map((cell) => (
-                            <td key={cell.id} className="px-4 py-2">
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext(),
-                              )}
-                            </td>
-                          ))}
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-2 text-sm text-muted-foreground">
-                Total: {filtered.length} invoice{filtered.length !== 1 ? 's' : ''}
-              </div>
-            </>
+                    ))
+                  )}
+                </tbody>
+              </table>
+              <DataTablePagination table={table} totalLabel="invoices" />
+            </div>
           )}
         </CardContent>
       </Card>

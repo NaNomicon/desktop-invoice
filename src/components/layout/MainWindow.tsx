@@ -7,7 +7,6 @@ import {
 } from '@/components/ui/resizable'
 import { TitleBar } from '@/components/titlebar/TitleBar'
 import { LeftSideBar } from './LeftSideBar'
-import { RightSideBar } from './RightSideBar'
 import { MainWindowContent } from './MainWindowContent'
 import { CommandPalette } from '@/components/command-palette/CommandPalette'
 import { PreferencesDialog } from '@/components/preferences/PreferencesDialog'
@@ -21,17 +20,12 @@ import type { Setting } from '@/lib/types'
 
 const LAYOUT = {
   leftSidebar: { default: 20, min: 15, max: 40 },
-  rightSidebar: { default: 20, min: 15, max: 40 },
   main: { min: 30 },
 } as const
-
-const MAIN_CONTENT_DEFAULT =
-  100 - LAYOUT.leftSidebar.default - LAYOUT.rightSidebar.default
 
 export function MainWindow() {
   const { theme } = useTheme()
   const leftSidebarVisible = useUIStore(state => state.leftSidebarVisible)
-  const rightSidebarVisible = useUIStore(state => state.rightSidebarVisible)
   const setHomeBackground = useUIStore(state => state.setHomeBackground)
 
   useMainWindowEventListeners()
@@ -69,22 +63,8 @@ export function MainWindow() {
 
           <ResizableHandle className={cn(!leftSidebarVisible && 'hidden')} />
 
-          <ResizablePanel
-            defaultSize={MAIN_CONTENT_DEFAULT}
-            minSize={LAYOUT.main.min}
-          >
+          <ResizablePanel minSize={LAYOUT.main.min}>
             <MainWindowContent />
-          </ResizablePanel>
-
-          <ResizableHandle className={cn(!rightSidebarVisible && 'hidden')} />
-
-          <ResizablePanel
-            defaultSize={LAYOUT.rightSidebar.default}
-            minSize={LAYOUT.rightSidebar.min}
-            maxSize={LAYOUT.rightSidebar.max}
-            className={cn(!rightSidebarVisible && 'hidden')}
-          >
-            <RightSideBar />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>

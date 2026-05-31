@@ -221,8 +221,8 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-right">{line.qty}</td>
-                        <td className="px-4 py-2.5 text-right">${dollars(line.unit_price)}</td>
-                        <td className="px-4 py-2.5 text-right">${dollars(line.row_total)}</td>
+                        <td className="px-4 py-2.5 text-right">Rs {dollars(line.unit_price)}</td>
+                        <td className="px-4 py-2.5 text-right">Rs {dollars(line.row_total)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -245,7 +245,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                     <tr className="border-b">
                       <td className="px-4 py-2.5">Sub Total</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">
-                        ${dollars(data.invoice.sub_total)}
+                        Rs {dollars(data.invoice.sub_total)}
                       </td>
                     </tr>
                     {data.invoice.discount > 0 && (
@@ -254,7 +254,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                           Discount
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-green-700">
-                          -${dollars(data.invoice.discount)}
+                          -Rs {dollars(data.invoice.discount)}
                         </td>
                       </tr>
                     )}
@@ -264,20 +264,20 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                           VAT ({data.invoice.per}%)
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums">
-                          ${dollars(data.invoice.vat)}
+                          Rs {dollars(data.invoice.vat)}
                         </td>
                       </tr>
                     )}
                     <tr className="border-b bg-muted/20 font-semibold">
                       <td className="px-4 py-2.5">Total</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">
-                        ${dollars(data.invoice.total)}
+                        Rs {dollars(data.invoice.total)}
                       </td>
                     </tr>
                     <tr className="border-b">
                       <td className="px-4 py-2.5 text-green-700">Paid</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-green-700">
-                        ${dollars(data.invoice.paid_amount)}
+                        Rs {dollars(data.invoice.paid_amount)}
                       </td>
                     </tr>
                     <tr>
@@ -289,7 +289,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                           data.invoice.balance > 0 ? 'text-destructive' : ''
                         }`}
                       >
-                        ${dollars(data.invoice.balance)}
+                        Rs {dollars(data.invoice.balance)}
                       </td>
                     </tr>
                   </tbody>
