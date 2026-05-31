@@ -22,7 +22,7 @@ interface NavGroup {
 
 // All groups collapse by default
 const DEFAULT_COLLAPSED_GROUPS: string[] = [
-  'File', 'Master', 'Invoice', 'Quotation', 'Outstanding', 'Report', 'Settings',
+  'File', 'Master', 'Billing', 'Report', 'Settings',
 ]
 
 const NAV_GROUPS: NavGroup[] = [
@@ -46,25 +46,12 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
-    title: 'Invoice',
+    title: 'Billing',
     items: [
-      { title: 'Add Invoice', path: '/invoices/new' },
-      { title: 'View Invoice', path: '/invoices', closable: false },
-    ],
-  },
-  {
-    title: 'Quotation',
-    items: [
-      { title: 'Add Quotation', path: '/quotations/new' },
-      { title: 'View Quotation', path: '/quotations' },
-    ],
-  },
-  {
-    title: 'Outstanding',
-    items: [
-      { title: 'Outstanding List', path: '/outstanding' },
-      { title: 'Add Receipt', path: '/receipts/new' },
-      { title: 'View Receipt', path: '/history' },
+      { title: 'Invoices', path: '/invoices', closable: false },
+      { title: 'Quotations', path: '/quotations' },
+      { title: 'Outstanding', path: '/outstanding' },
+      { title: 'Receipt', path: '/history' },
     ],
   },
   {
@@ -79,12 +66,12 @@ const NAV_GROUPS: NavGroup[] = [
   },
   {
     title: 'Settings',
-      items: [
-        { title: 'Application Settings', path: '/settings' },
-        { title: 'E-mail Config', path: '/email-templates' },
-        { title: 'Direct Email', path: '/direct-email' },
-        { title: 'WhatsApp Templates', path: '/whatsapp-templates' },
-      ],
+    items: [
+      { title: 'Application Settings', path: '/settings' },
+      { title: 'E-mail Config', path: '/email-templates' },
+      { title: 'Direct Email', path: '/direct-email' },
+      { title: 'WhatsApp Templates', path: '/whatsapp-templates' },
+    ],
   },
 ]
 
