@@ -16,12 +16,13 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   flexRender,
   getCoreRowModel,
@@ -44,7 +45,10 @@ import {
   FileText,
   Printer,
   Search,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Popover,
   PopoverContent,
@@ -368,6 +372,8 @@ function ReceiptPreview() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
 
   useEffect(() => {
@@ -802,19 +808,57 @@ function ReceiptPreview() {
                 </PopoverContent>
               </Popover>
 
-              <Select value={companyFilter} onValueChange={setCompanyFilter}>
-                <SelectTrigger className="w-44">
-                  <SelectValue placeholder="All Companies" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Companies</SelectItem>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.company_name ?? `Company ${c.id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={companyOpen}
+                    className="w-44 justify-between font-normal"
+                  >
+                    {companyFilter === 'ALL'
+                      ? 'All Companies'
+                      : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                    <CommandList>
+                      <CommandEmpty>No company found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="ALL"
+                          onSelect={() => {
+                            setCompanyFilter('ALL');
+                            setCompanyOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 size-4', companyFilter === 'ALL' ? 'opacity-100' : 'opacity-0')} />
+                          All Companies
+                        </CommandItem>
+                        {(companySearch
+                          ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
+                          : companies
+                        ).map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={String(c.id)}
+                            onSelect={(currentValue) => {
+                              setCompanyFilter(currentValue);
+                              setCompanyOpen(false);
+                            }}
+                          >
+                            <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                            {c.company_name ?? `Company ${c.id}`}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
 
               <div className="relative min-w-64 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
