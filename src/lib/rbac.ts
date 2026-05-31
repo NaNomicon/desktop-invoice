@@ -6,6 +6,6 @@ export const ROLES = {
 export type Role = (typeof ROLES)[keyof typeof ROLES];
 
 export const isAdmin = (role: string): boolean =>
-  role.trim().toUpperCase() !== ROLES.USER;
+  role.trim().toUpperCase() === ROLES.ADMIN;
 
 export const canDelete = (role: string): boolean => isAdmin(role);
