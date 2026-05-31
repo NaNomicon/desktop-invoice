@@ -136,8 +136,8 @@ describe('Outstanding report flows', () => {
 
     expect(await screen.findByText('Outstanding Report')).toBeInTheDocument();
     expect(await screen.findByText('Total Due')).toBeInTheDocument();
-    expect(screen.getAllByText('$25.00').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('$8.00').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/25\.00/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/8\.00/).length).toBeGreaterThan(0);
 
     await user.type(screen.getByPlaceholderText('Search customers...'), 'Alice');
     await user.click(screen.getByRole('button', { name: 'Print' }));

@@ -143,6 +143,12 @@ function SettingsPage() {
     setSettings((prev) => ({ ...prev, [field]: value }));
   };
 
+  const handleBgRemove = useCallback(() => {
+    setBgPreview(null);
+    updateField('back_path', '');
+    if (bgInputRef.current) bgInputRef.current.value = '';
+  }, []);
+
   if (loading) {
     return (
       <div className="flex h-full items-center justify-center">
@@ -152,12 +158,6 @@ function SettingsPage() {
   }
 
   const isVatEnabled = settings.isvat === 1;
-
-  const handleBgRemove = useCallback(() => {
-    setBgPreview(null);
-    updateField('back_path', '');
-    if (bgInputRef.current) bgInputRef.current.value = '';
-  }, []);
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-auto p-6">

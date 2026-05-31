@@ -116,7 +116,7 @@ export function useCommandContext(): CommandContext {
 - `show-sidebar` - Show sidebar (only when hidden)
 - `hide-sidebar` - Hide sidebar (only when visible)
 - `toggle-command-palette` - Show/hide command palette
-- `open-preferences` - Open preferences dialog
+- `open-settings` - Open application settings page
 
 ## Command Structure (Simplified)
 

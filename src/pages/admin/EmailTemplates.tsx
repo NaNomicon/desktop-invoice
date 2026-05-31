@@ -25,9 +25,12 @@ import {
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   useReactTable,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Mail } from 'lucide-react';
 
@@ -173,8 +176,11 @@ function EmailTemplatesPage() {
     data: templates,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const openNew = () => {
     setEditingId(null);
     setForm({
@@ -299,15 +305,14 @@ function EmailTemplatesPage() {
                     {table.getHeaderGroups()[0]?.headers.map((h) => (
                       <th
                         key={h.id}
-                        className="px-4 py-2 text-left font-medium text-muted-foreground"
-                      >
+                        className="px-4 py-2 text-left font-medium text-muted-foreground" {...getDragHandlers(h.column.id)}>
                         {flexRender(h.column.columnDef.header, h.getContext())}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="py-8 text-center text-muted-foreground">
                         No templates found
@@ -326,6 +331,7 @@ function EmailTemplatesPage() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="templates" />
             </div>
           )}
         </CardContent>

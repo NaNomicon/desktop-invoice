@@ -14,23 +14,29 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Users, Upload, Download, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Plus, Pencil, Trash2, Users, Upload, Download, Loader2, ChevronsUpDown, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { open, save } from '@tauri-apps/plugin-dialog';
 
@@ -82,10 +88,17 @@ function Customer() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState<string>('all');
+  const [companyFilterOpen, setCompanyFilterOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<CustomerFormData>(emptyForm);
+  const [titleOpen, setTitleOpen] = useState(false);
+  const [customerTypeOpen, setCustomerTypeOpen] = useState(false);
+  const [adDueOpen, setAdDueOpen] = useState(false);
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companyDlgSearch, setCompanyDlgSearch] = useState('');
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [importing, setImporting] = useState(false);
@@ -171,7 +184,7 @@ function Customer() {
         header: 'Due',
         cell: (info) => {
           const cents = info.getValue<number>();
-          return `$${(cents / 100).toFixed(2)}`;
+          return `Rs ${(cents / 100).toFixed(2)}`;
         },
       },
       {
@@ -228,9 +241,12 @@ function Customer() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const openNew = () => {
     setEditingId(null);
     setForm({ ...emptyForm, company_id: authCompanyId });
@@ -551,19 +567,57 @@ function Customer() {
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-xs"
             />
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover open={companyFilterOpen} onOpenChange={setCompanyFilterOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyFilterOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyFilter === 'all'
+                    ? 'All Companies'
+                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="all"
+                        onSelect={() => {
+                          setCompanyFilter('all');
+                          setCompanyFilterOpen(false);
+                        }}
+                      >
+                        <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        All Companies
+                      </CommandItem>
+                      {(companySearch
+                        ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
+                        : companies
+                      ).map((c) => (
+                        <CommandItem
+                          key={c.id}
+                          value={String(c.id)}
+                          onSelect={(currentValue) => {
+                            setCompanyFilter(currentValue);
+                            setCompanyFilterOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                          {c.company_name ?? `Company ${c.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
@@ -579,8 +633,7 @@ function Customer() {
                         <th
                           key={h.id}
                           className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(h.column.columnDef.header, h.getContext())}
                           {{ asc: ' ↑', desc: ' ↓' }[h.column.getIsSorted() as string] ?? ''}
                         </th>
@@ -589,7 +642,7 @@ function Customer() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td colSpan={columns.length} className="py-8 text-center text-muted-foreground">
                         No customers found
@@ -629,39 +682,81 @@ function Customer() {
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-1">
               <Label htmlFor="cust-title">Title</Label>
-              <Select
-                value={form.title_name ?? 'Mr'}
-                onValueChange={(value) => setForm({ ...form, title_name: value })}
-              >
-                <SelectTrigger id="cust-title">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {TITLE_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={titleOpen} onOpenChange={setTitleOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="cust-title"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={titleOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {form.title_name ?? 'Mr'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandList>
+                      <CommandEmpty>No option found.</CommandEmpty>
+                      <CommandGroup>
+                        {TITLE_OPTIONS.map((option) => (
+                          <CommandItem
+                            key={option}
+                            value={option}
+                            onSelect={(currentValue) => {
+                              setForm({ ...form, title_name: currentValue });
+                              setTitleOpen(false);
+                            }}
+                          >
+                            <Check className={cn('mr-2 size-4', form.title_name === option ? 'opacity-100' : 'opacity-0')} />
+                            {option}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1">
               <Label htmlFor="cust-type">Customer Type *</Label>
-              <Select
-                value={form.customer_type ?? 'Individual'}
-                onValueChange={(value) => setForm({ ...form, customer_type: value })}
-              >
-                <SelectTrigger id="cust-type">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {CUSTOMER_TYPE_OPTIONS.map((option) => (
-                    <SelectItem key={option} value={option}>
-                      {option}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={customerTypeOpen} onOpenChange={setCustomerTypeOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="cust-type"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={customerTypeOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {form.customer_type ?? 'Individual'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandList>
+                      <CommandEmpty>No option found.</CommandEmpty>
+                      <CommandGroup>
+                        {CUSTOMER_TYPE_OPTIONS.map((option) => (
+                          <CommandItem
+                            key={option}
+                            value={option}
+                            onSelect={(currentValue) => {
+                              setForm({ ...form, customer_type: currentValue });
+                              setCustomerTypeOpen(false);
+                            }}
+                          >
+                            <Check className={cn('mr-2 size-4', form.customer_type === option ? 'opacity-100' : 'opacity-0')} />
+                            {option}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1 md:col-span-2">
               <Label htmlFor="cust-name">Customer Name *</Label>
@@ -706,19 +801,59 @@ function Customer() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="cust-addue">Advance / Due</Label>
-              <Select
-                value={form.ad_due}
-                onValueChange={(v) => setForm({ ...form, ad_due: v })}
-              >
-                <SelectTrigger id="cust-addue">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Advance">Advance</SelectItem>
-                  <SelectItem value="Due">Due</SelectItem>
-                  <SelectItem value="">None</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover open={adDueOpen} onOpenChange={setAdDueOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="cust-addue"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={adDueOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {form.ad_due || 'None'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandList>
+                      <CommandEmpty>No option found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="Advance"
+                          onSelect={() => {
+                            setForm({ ...form, ad_due: 'Advance' });
+                            setAdDueOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 size-4', form.ad_due === 'Advance' ? 'opacity-100' : 'opacity-0')} />
+                          Advance
+                        </CommandItem>
+                        <CommandItem
+                          value="Due"
+                          onSelect={() => {
+                            setForm({ ...form, ad_due: 'Due' });
+                            setAdDueOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 size-4', form.ad_due === 'Due' ? 'opacity-100' : 'opacity-0')} />
+                          Due
+                        </CommandItem>
+                        <CommandItem
+                          value=""
+                          onSelect={() => {
+                            setForm({ ...form, ad_due: '' });
+                            setAdDueOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 size-4', form.ad_due === '' ? 'opacity-100' : 'opacity-0')} />
+                          None
+                        </CommandItem>
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1">
               <Label htmlFor="cust-regdate">Register Date</Label>
@@ -747,21 +882,48 @@ function Customer() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="cust-comp">Company</Label>
-              <Select
-                value={String(form.company_id)}
-                onValueChange={(v) => setForm({ ...form, company_id: parseInt(v) })}
-              >
-                <SelectTrigger id="cust-comp">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.company_name ?? `Company ${c.id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="cust-comp"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={companyOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {form.company_id
+                      ? companies.find((c) => c.id === form.company_id)?.company_name ?? `Company ${form.company_id}`
+                      : 'Select company...'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search company..." value={companyDlgSearch} onValueChange={setCompanyDlgSearch} />
+                    <CommandList>
+                      <CommandEmpty>No company found.</CommandEmpty>
+                      <CommandGroup>
+                        {(companyDlgSearch
+                          ? companies.filter((c) => c.company_name?.toLowerCase().includes(companyDlgSearch.toLowerCase()))
+                          : companies
+                        ).map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={String(c.id)}
+                            onSelect={(currentValue) => {
+                              setForm({ ...form, company_id: parseInt(currentValue) });
+                              setCompanyOpen(false);
+                            }}
+                          >
+                            <Check className={cn('mr-2 size-4', form.company_id === c.id ? 'opacity-100' : 'opacity-0')} />
+                            {c.company_name ?? `Company ${c.id}`}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
           <DialogFooter>
@@ -825,6 +987,7 @@ function Customer() {
                 ))}
               </tbody>
             </table>
+            <DataTablePagination table={table} totalLabel="customers" />
             {(importPreview?.data.length ?? 0) > 10 && (
               <p className="p-2 text-center text-sm text-muted-foreground">
                 ...and {(importPreview?.data.length ?? 0) - 10} more rows

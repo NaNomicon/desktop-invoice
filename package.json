@@ -3,8 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "author": "Danny Smith",
-  "copyright": "Copyright © 2025 Danny Smith. All rights reserved.",
+  "author": "NaNomicon",
+  "homepage": "https://nanomicon.com",
+  "copyright": "Copyright © 2025 NaNomicon. All rights reserved.",
   "license": "MIT",
   "overrides": {
     "typescript-eslint": {

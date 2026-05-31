@@ -104,7 +104,7 @@ export function createOutstandingReportHtml(
   const tableRows = rows
     .map((row) => {
       const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
-      const amount = `${amountPrefix}$${dollars(Math.abs(row.due_amount))}`;
+      const amount = `${amountPrefix}Rs ${dollars(Math.abs(row.due_amount))}`;
       const statusClass = row.ad_due === 'Advance' ? 'advance' : 'due';
       return `
         <tr>
@@ -149,15 +149,15 @@ export function createOutstandingReportHtml(
       <div class="meta">
         <div><strong>Company:</strong> ${escapeHtml(companyLabel)}</div>
         <div><strong>Customers:</strong> ${rows.length}</div>
-        <div><strong>Total Due:</strong> $${dollars(totalDue)}</div>
-        <div><strong>Total Advance:</strong> $${dollars(totalAdvance)}</div>
+        <div><strong>Total Due:</strong> Rs ${dollars(totalDue)}</div>
+        <div><strong>Total Advance:</strong> Rs ${dollars(totalAdvance)}</div>
       </div>
     </div>
     <div class="summary">
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
       <div class="card"><div class="label">Customers</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Total Due</div><div class="value">$${dollars(totalDue)}</div></div>
-      <div class="card"><div class="label">Total Advance</div><div class="value">$${dollars(totalAdvance)}</div></div>
+      <div class="card"><div class="label">Total Due</div><div class="value">Rs ${dollars(totalDue)}</div></div>
+      <div class="card"><div class="label">Total Advance</div><div class="value">Rs ${dollars(totalAdvance)}</div></div>
     </div>
     <table>
       <thead>

@@ -1,7 +1,5 @@
 import { useState, useEffect } from 'react'
-import { query } from '@/lib/db'
-import { commands } from '@/lib/bindings'
-import type { Setting } from '@/lib/types'
+import { getBackupPath, runBackup } from '@/lib/backup'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
@@ -13,9 +11,9 @@ function BackupDatabase() {
   const [backingUp, setBackingUp] = useState(false)
 
   useEffect(() => {
-    query<Setting>('SELECT backup_path FROM tbl_setting WHERE id = 1 LIMIT 1')
-      .then((rows) => {
-        setBackupPath(rows[0]?.backup_path ?? '')
+    getBackupPath()
+      .then((path) => {
+        setBackupPath(path ?? '')
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -29,16 +27,8 @@ function BackupDatabase() {
 
     setBackingUp(true)
     try {
-      const now = new Date()
-      const ts = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`
-      const destPath = `${backupPath.replace(/\/$/, '')}/xpress_backup_${ts}.db`
-
-      const res = await commands.backupDatabase(destPath)
-      if (res.status === 'ok') {
-        toast.success(`Backup created: xpress_backup_${ts}.db`)
-      } else {
-        toast.error(`Backup failed: ${res.error}`)
-      }
+      await runBackup(backupPath)
+      toast.success('Backup created successfully')
     } catch (err) {
       toast.error(`Backup failed: ${String(err)}`)
     } finally {

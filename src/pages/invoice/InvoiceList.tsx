@@ -9,22 +9,19 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
-import { Eye, FilePenLine, FileText, Search } from 'lucide-react';
+import { Eye, FilePenLine, FileText, Plus, Search, ChevronsUpDown, Check } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Dialog,
   DialogContent,
@@ -32,6 +29,15 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 interface InvoiceRow extends InvoiceMain {
   customer_name: string;
@@ -51,7 +57,9 @@ function InvoiceList() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+    const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -129,12 +137,12 @@ function InvoiceList() {
       {
         accessorKey: 'total',
         header: 'Total',
-        cell: (info) => `$${dollars(info.getValue<number>())}`,
+        cell: (info) => `Rs ${dollars(info.getValue<number>())}`,
       },
       {
         accessorKey: 'paid_amount',
         header: 'Paid',
-        cell: (info) => `$${dollars(info.getValue<number>())}`,
+        cell: (info) => `Rs ${dollars(info.getValue<number>())}`,
       },
       {
         accessorKey: 'balance',
@@ -143,7 +151,7 @@ function InvoiceList() {
           const v = info.getValue<number>();
           return (
             <span className={v > 0 ? 'font-medium text-orange-600' : ''}>
-              ${dollars(Math.abs(v))}
+              Rs {dollars(Math.abs(v))}
               {v < 0 ? ' (overpaid)' : ''}
             </span>
           );
@@ -233,9 +241,12 @@ function InvoiceList() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   const handleDelete = useCallback(async () => {
     if (!deleteConfirm) return;
     setDeleting(true);
@@ -258,6 +269,10 @@ function InvoiceList() {
           <FileText className="size-5" />
           <h1 className="text-2xl font-semibold">Invoices</h1>
         </div>
+        <Button onClick={() => navigate('/invoices/new')}>
+          <Plus className="size-4" />
+          Add Invoice
+        </Button>
       </div>
 
       <Card>
@@ -271,20 +286,41 @@ function InvoiceList() {
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8"
               />
-            </div>
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            </div>            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyFilter === 'all'
+                    ? 'All Companies'
+                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="all" onSelect={() => { setCompanyFilter('all'); setCompanyOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        All Companies
+                      </CommandItem>
+                      {companies.map((c) => (
+                        <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                          {c.company_name ?? `Company ${c.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardHeader>
         <CardContent>
@@ -302,8 +338,7 @@ function InvoiceList() {
                         <th
                           key={h.id}
                           className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(
                             h.column.columnDef.header,
                             h.getContext(),
@@ -317,7 +352,7 @@ function InvoiceList() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td
                         colSpan={columns.length}
@@ -345,6 +380,7 @@ function InvoiceList() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="invoices" />
             </div>
           )}
         </CardContent>

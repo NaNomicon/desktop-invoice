@@ -67,8 +67,8 @@
   "commands.showRightSidebar.description": "Show the right sidebar",
   "commands.hideRightSidebar.label": "Hide Right Sidebar",
   "commands.hideRightSidebar.description": "Hide the right sidebar",
-  "commands.openPreferences.label": "Open Preferences",
-  "commands.openPreferences.description": "Open the application preferences",
+  "commands.openSettings.label": "Application Settings",
+  "commands.openSettings.description": "Open the application settings",
 
   "commands.windowClose.label": "Close Window",
   "commands.windowClose.description": "Close the current window",

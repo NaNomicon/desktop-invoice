@@ -16,20 +16,24 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
 import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import { format, startOfMonth } from 'date-fns';
@@ -41,7 +45,10 @@ import {
   FileText,
   Printer,
   Search,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Popover,
   PopoverContent,
@@ -173,11 +180,11 @@ function createReceiptReportHtml(options: {
           <td>${escapeHtml(row.customer_name)}</td>
           <td>${escapeHtml(row.customer_type ?? '')}</td>
           <td>${escapeHtml(row.invoice_no ?? '')}</td>
-          <td class="num">${dollars(row.due_amount)}</td>
-          <td class="num">${dollars(row.amount_received)}</td>
+          <td class="num">Rs ${dollars(row.due_amount)}</td>
+          <td class="num">Rs ${dollars(row.amount_received)}</td>
           <td>${escapeHtml(formatChequeNo(row.cheque_no))}</td>
           <td>${escapeHtml(row.payment_mode ?? '')}</td>
-          <td class="num">${dollars(row.balance)}</td>
+          <td class="num">Rs ${dollars(row.balance)}</td>
         </tr>`,
     )
     .join('');
@@ -226,8 +233,8 @@ function createReceiptReportHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Receipts</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Total Received</div><div class="value">$${dollars(totalReceived)}</div></div>
-      <div class="card"><div class="label">Total Balance</div><div class="value">$${dollars(totalBalance)}</div></div>
+      <div class="card"><div class="label">Total Received</div><div class="value">Rs ${dollars(totalReceived)}</div></div>
+      <div class="card"><div class="label">Total Balance</div><div class="value">Rs ${dollars(totalBalance)}</div></div>
     </div>
     <table>
       <thead>
@@ -248,9 +255,9 @@ function createReceiptReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">${dollars(totalReceived)}</td>
+          <td class="num">Rs ${dollars(totalReceived)}</td>
           <td colspan="2"></td>
-          <td class="num">${dollars(totalBalance)}</td>
+          <td class="num">Rs ${dollars(totalBalance)}</td>
         </tr>
       </tfoot>
     </table>
@@ -303,8 +310,8 @@ function createSingleReceiptHtml(row: ReceiptRow): string {
     </div>
 
     <div class="summary">
-      <div class="card"><div class="label">Received</div><div class="value">$${dollars(row.amount_received)}</div></div>
-      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}$${dollars(row.customer_due_amount)}</div></div>
+      <div class="card"><div class="label">Received</div><div class="value">Rs ${dollars(row.amount_received)}</div></div>
+      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}Rs ${dollars(row.customer_due_amount)}</div></div>
       <div class="card"><div class="label">Cheque No</div><div class="value">${escapeHtml(chequeNo)}</div></div>
       <div class="card"><div class="label">Payment Mode</div><div class="value">${escapeHtml(row.payment_mode ?? '—')}</div></div>
     </div>
@@ -313,8 +320,8 @@ function createSingleReceiptHtml(row: ReceiptRow): string {
       <tbody>
         <tr><th>Customer Type</th><td>${escapeHtml(row.customer_type ?? '—')}</td></tr>
         <tr><th>Invoice No</th><td>${escapeHtml(row.invoice_no ?? '—')}</td></tr>
-        <tr><th>Balance Before Receipt</th><td class="amount">$${dollars(row.balance)}</td></tr>
-        <tr><th>Stored Receipt Due</th><td class="amount">$${dollars(row.due_amount)}</td></tr>
+        <tr><th>Balance Before Receipt</th><td class="amount">Rs ${dollars(row.balance)}</td></tr>
+        <tr><th>Stored Receipt Due</th><td class="amount">Rs ${dollars(row.due_amount)}</td></tr>
         <tr><th>Telephone</th><td>${escapeHtml(row.telephone ?? '—')}</td></tr>
         <tr><th>Address</th><td>${escapeHtml(row.address ?? '—')}</td></tr>
       </tbody>
@@ -365,6 +372,8 @@ function ReceiptPreview() {
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
 
   useEffect(() => {
@@ -676,14 +685,14 @@ function ReceiptPreview() {
         accessorKey: 'due_amount',
         header: 'Due Amount',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
         accessorKey: 'amount_received',
         header: 'Received',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
@@ -703,7 +712,7 @@ function ReceiptPreview() {
         accessorKey: 'balance',
         header: 'Balance',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
     ],
@@ -717,9 +726,12 @@ function ReceiptPreview() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   return (
       <div className="flex h-full flex-col gap-4 overflow-auto p-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -796,19 +808,57 @@ function ReceiptPreview() {
                 </PopoverContent>
               </Popover>
 
-              <Select value={companyFilter} onValueChange={setCompanyFilter}>
-                <SelectTrigger className="w-44">
-                  <SelectValue placeholder="All Companies" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Companies</SelectItem>
-                  {companies.map((c) => (
-                    <SelectItem key={c.id} value={String(c.id)}>
-                      {c.company_name ?? `Company ${c.id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={companyOpen}
+                    className="w-44 justify-between font-normal"
+                  >
+                    {companyFilter === 'ALL'
+                      ? 'All Companies'
+                      : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                    <CommandList>
+                      <CommandEmpty>No company found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem
+                          value="ALL"
+                          onSelect={() => {
+                            setCompanyFilter('ALL');
+                            setCompanyOpen(false);
+                          }}
+                        >
+                          <Check className={cn('mr-2 size-4', companyFilter === 'ALL' ? 'opacity-100' : 'opacity-0')} />
+                          All Companies
+                        </CommandItem>
+                        {(companySearch
+                          ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
+                          : companies
+                        ).map((c) => (
+                          <CommandItem
+                            key={c.id}
+                            value={String(c.id)}
+                            onSelect={(currentValue) => {
+                              setCompanyFilter(currentValue);
+                              setCompanyOpen(false);
+                            }}
+                          >
+                            <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                            {c.company_name ?? `Company ${c.id}`}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
 
               <div className="relative min-w-64 flex-1">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -845,8 +895,7 @@ function ReceiptPreview() {
                         <th
                           key={h.id}
                           className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(
                             h.column.columnDef.header,
                             h.getContext(),
@@ -861,7 +910,7 @@ function ReceiptPreview() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td
                         colSpan={columns.length}
@@ -889,6 +938,7 @@ function ReceiptPreview() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="receipts" />
             </div>
           )}
         </CardContent>

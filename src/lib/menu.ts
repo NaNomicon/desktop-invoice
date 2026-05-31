@@ -55,29 +55,13 @@ export async function buildAppMenu(): Promise<Menu> {
       ],
     })
 
-    const invoiceSubmenu = await Submenu.new({
-      text: 'Invoice',
+    const billingSubmenu = await Submenu.new({
+      text: 'Billing',
       items: [
-        await createNavItem('Add Invoice', '/invoices/new'),
-        await createNavItem('View Invoice', '/invoices'),
-        await createNavItem('Sales Report', '/reports/sales'),
-      ],
-    })
-
-    const quotationSubmenu = await Submenu.new({
-      text: 'Quotation',
-      items: [
-        await createNavItem('Add Quotation', '/quotations/new'),
-        await createNavItem('View Quotation', '/quotations'),
-      ],
-    })
-
-    const outstandingSubmenu = await Submenu.new({
-      text: 'Outstanding',
-      items: [
-        await createNavItem('Outstanding List', '/outstanding'),
-        await createNavItem('Add Receipt', '/receipts/new'),
-        await createNavItem('View Receipt', '/history'),
+        await createNavItem('Invoices', '/invoices'),
+        await createNavItem('Quotations', '/quotations'),
+        await createNavItem('Outstanding', '/outstanding'),
+        await createNavItem('Receipt', '/history'),
       ],
     })
 
@@ -99,12 +83,6 @@ export async function buildAppMenu(): Promise<Menu> {
         await createNavItem('E-mail Config', '/email-templates'),
         await createNavItem('Direct Email', '/direct-email'),
         await createNavItem('WhatsApp Templates', '/whatsapp-templates'),
-        await MenuItem.new({
-          id: 'preferences',
-          text: t('menu.preferences'),
-          accelerator: 'CmdOrCtrl+,',
-          action: handleOpenPreferences,
-        }),
       ],
     })
 
@@ -152,12 +130,6 @@ export async function buildAppMenu(): Promise<Menu> {
           accelerator: 'CmdOrCtrl+1',
           action: handleToggleLeftSidebar,
         }),
-        await MenuItem.new({
-          id: 'toggle-right-sidebar',
-          text: t('menu.toggleRightSidebar'),
-          accelerator: 'CmdOrCtrl+2',
-          action: handleToggleRightSidebar,
-        }),
       ],
     })
 
@@ -166,9 +138,7 @@ export async function buildAppMenu(): Promise<Menu> {
         appSubmenu,
         fileSubmenu,
         masterSubmenu,
-        invoiceSubmenu,
-        quotationSubmenu,
-        outstandingSubmenu,
+        billingSubmenu,
         reportSubmenu,
         settingsSubmenu,
         viewSubmenu,
@@ -231,19 +201,9 @@ async function handleCheckForUpdates(): Promise<void> {
   }
 }
 
-function handleOpenPreferences(): void {
-  logger.info('Preferences menu item clicked')
-  useUIStore.getState().setPreferencesOpen(true)
-}
-
 function handleToggleLeftSidebar(): void {
   logger.info('Toggle Left Sidebar menu item clicked')
   useUIStore.getState().toggleLeftSidebar()
-}
-
-function handleToggleRightSidebar(): void {
-  logger.info('Toggle Right Sidebar menu item clicked')
-  useUIStore.getState().toggleRightSidebar()
 }
 
 function handleNavigate(path: string, title?: string): void {

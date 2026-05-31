@@ -21,8 +21,8 @@ export interface CommandGroup {
 }
 
 export interface CommandContext {
-  // Preferences
-  openPreferences: () => void
+  // Settings
+  openSettings: () => void
 
   // Notifications
   showToast: (message: string, type?: 'success' | 'error' | 'info') => void

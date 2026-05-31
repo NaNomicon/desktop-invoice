@@ -14,20 +14,16 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { DayPicker } from 'react-day-picker';
 import type { DateRange } from 'react-day-picker';
 import { format, startOfMonth } from 'date-fns';import 'react-day-picker/style.css';
@@ -38,12 +34,23 @@ import {
   FileText,
   Printer,
   Search,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 interface SalesRow {
   sales_id: number;
@@ -94,8 +101,8 @@ function createSalesReportHtml(options: {
           <td>${escapeHtml(row.customer_name)}</td>
           <td>${escapeHtml(row.customer_type ?? '')}</td>
           <td>${escapeHtml(row.invoice_no)}</td>
-          <td class="num">${dollars(row.discount)}</td>
-          <td class="num">${dollars(row.bill_amount)}</td>
+          <td class="num">Rs ${dollars(row.discount)}</td>
+          <td class="num">Rs ${dollars(row.bill_amount)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -141,7 +148,7 @@ function createSalesReportHtml(options: {
     <div class="summary">
       <div class="card"><div class="label">Invoices</div><div class="value">${rows.length}</div></div>
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
-      <div class="card"><div class="label">Net Sales</div><div class="value">$${dollars(totalAmount)}</div></div>
+      <div class="card"><div class="label">Net Sales</div><div class="value">Rs ${dollars(totalAmount)}</div></div>
     </div>
     <table>
       <thead>
@@ -160,7 +167,7 @@ function createSalesReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">${dollars(totalAmount)}</td>
+          <td class="num">Rs ${dollars(totalAmount)}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -177,8 +184,11 @@ function SalesReport() {
     from: startOfMonth(new Date()),
     to: new Date(),
   });
-  const [companyFilter, setCompanyFilter] = useState<string>('ALL');
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+    const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [groupBy, setGroupBy] = useState<GroupBy>('none');
+  const [groupByOpen, setGroupByOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -412,14 +422,14 @@ function SalesReport() {
         accessorKey: 'discount',
         header: 'Discount',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
         accessorKey: 'bill_amount',
         header: 'Bill Amount',
         cell: (info) => (
-          <span className="tabular-nums">${dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
         ),
       },
       {
@@ -438,9 +448,12 @@ function SalesReport() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -507,21 +520,41 @@ function SalesReport() {
                   }}
                 />
               </PopoverContent>
+            </Popover>            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={companyOpen}
+                  className="w-44 justify-between font-normal"
+                >
+                  {companyFilter === 'ALL'
+                    ? 'All Companies'
+                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                  <CommandList>
+                    <CommandEmpty>No company found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="ALL" onSelect={() => { setCompanyFilter('ALL'); setCompanyOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', companyFilter === 'ALL' ? 'opacity-100' : 'opacity-0')} />
+                        All Companies
+                      </CommandItem>
+                      {companies.map((c) => (
+                        <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                          {c.company_name ?? `Company ${c.id}`}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
             </Popover>
-
-            <Select value={companyFilter} onValueChange={setCompanyFilter}>
-              <SelectTrigger className="w-44">
-                <SelectValue placeholder="All Companies" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Companies</SelectItem>
-                {companies.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.company_name ?? `Company ${c.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
 
             <div className="relative min-w-64 flex-1">
               <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -533,20 +566,34 @@ function SalesReport() {
               />
             </div>
 
-            <Select
-              value={groupBy}
-              onValueChange={(v: string) => setGroupBy(v as GroupBy)}
-            >
-              <SelectTrigger className="w-40">
-                <SelectValue placeholder="Group by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No grouping</SelectItem>
-                <SelectItem value="date">By Date</SelectItem>
-                <SelectItem value="customer">By Customer</SelectItem>
-                <SelectItem value="company">By Company</SelectItem>
-              </SelectContent>
-            </Select>
+            <Popover open={groupByOpen} onOpenChange={setGroupByOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={groupByOpen}
+                  className="w-40 justify-between font-normal"
+                >
+                  {groupBy === 'none' ? 'No grouping' : groupBy === 'date' ? 'By Date' : groupBy === 'customer' ? 'By Customer' : 'By Company'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[180px] p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandEmpty>No option found.</CommandEmpty>
+                    <CommandGroup>
+                      {(['none', 'date', 'customer', 'company'] as const).map((val) => (
+                        <CommandItem key={val} value={val} onSelect={(v) => { setGroupBy(v as GroupBy); setGroupByOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', groupBy === val ? 'opacity-100' : 'opacity-0')} />
+                          {val === 'none' ? 'No grouping' : val === 'date' ? 'By Date' : val === 'customer' ? 'By Customer' : 'By Company'}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
 
             {salesData.length > 0 && (
               <span className="text-sm text-muted-foreground">
@@ -576,7 +623,7 @@ function SalesReport() {
                   <div key={label}>
                     <div className="flex items-center justify-between bg-muted/50 px-4 py-2 text-sm font-medium text-muted-foreground">
                       <span>{label}</span>
-                      <span className="tabular-nums">${dollars(sectionTotal)}</span>
+                      <span className="tabular-nums">Rs {dollars(sectionTotal)}</span>
                     </div>
                     <table className="w-full text-sm">
                       <thead>
@@ -623,10 +670,10 @@ function SalesReport() {
                             <td className="px-4 py-2">{row.customer_type ?? '—'}</td>
                             <td className="px-4 py-2">{row.invoice_no}</td>
                             <td className="px-4 py-2 text-right tabular-nums">
-                              ${dollars(row.discount)}
+                              Rs ${dollars(row.discount)}
                             </td>
                             <td className="px-4 py-2 text-right tabular-nums">
-                              ${dollars(row.bill_amount)}
+                              Rs ${dollars(row.bill_amount)}
                             </td>
                             <td className="px-4 py-2">{row.checklist_no ?? '—'}</td>
                           </tr>
@@ -647,8 +694,7 @@ function SalesReport() {
                         <th
                           key={h.id}
                           className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                          onClick={h.column.getToggleSortingHandler()}
-                        >
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
                           {flexRender(
                             h.column.columnDef.header,
                             h.getContext(),
@@ -662,7 +708,7 @@ function SalesReport() {
                   ))}
                 </thead>
                 <tbody>
-                  {table.getRowModel().rows.length === 0 ? (
+                  {table.getPrePaginationRowModel().rows.length === 0 ? (
                     <tr>
                       <td
                         colSpan={columns.length}
@@ -690,6 +736,7 @@ function SalesReport() {
                   )}
                 </tbody>
               </table>
+              <DataTablePagination table={table} totalLabel="sales" />
             </div>
           )}
         </CardContent>

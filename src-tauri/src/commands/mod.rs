@@ -5,6 +5,7 @@
 
 pub mod database;
 pub mod email;
+pub mod migration;
 pub mod notifications;
 pub mod preferences;
 pub mod quick_pane;

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { check } from '@tauri-apps/plugin-updater'
+import { execute } from '@/lib/db'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { toast } from 'sonner'
 import { initializeCommandSystem } from './lib/commands'
@@ -15,12 +16,14 @@ import Login from './pages/auth/Login'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { SplashScreen } from './components/SplashScreen'
 import { useSquareCornersEffect } from './hooks/useSquareCornersEffect'
+import { useCloseWithBackupPrompt } from './hooks/useCloseWithBackupPrompt'
 import { useAuthStore } from './store/authStore'
 
 const MIN_SPLASH_DURATION_MS = 2500
 
 function App() {
   useSquareCornersEffect()
+  useCloseWithBackupPrompt()
   const [isInitializing, setIsInitializing] = useState(true)
 
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn)
@@ -97,6 +100,13 @@ function App() {
     // Clean up old recovery files on startup
     cleanupOldFiles().catch(error => {
       logger.warn('Failed to cleanup old recovery files', { error })
+    })
+
+    execute(
+      `UPDATE tbl_user SET des = CASE WHEN UPPER(TRIM(COALESCE(des,''))) = 'USER' THEN 'USER' ELSE 'ADMIN' END WHERE UPPER(TRIM(COALESCE(des,''))) NOT IN ('ADMIN','USER')`,
+      [],
+    ).catch(error => {
+      logger.warn('Failed to normalize user roles', { error })
     })
 
     // Example of logging with context

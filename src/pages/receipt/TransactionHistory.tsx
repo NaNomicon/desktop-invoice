@@ -12,21 +12,18 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   flexRender,
   getCoreRowModel,
+  getPaginationRowModel,
   getSortedRowModel,
   useReactTable,
   type SortingState,
   type ColumnDef,
 } from '@tanstack/react-table';
+import { useColumnOrder } from '@/hooks/useColumnOrder';
+import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Eye,
   FilePenLine,
@@ -35,6 +32,8 @@ import {
   Receipt,
   Search,
   Trash2,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -46,6 +45,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 interface ReceiptListRow extends ReceiptRecord {
   customer_name: string;
@@ -173,8 +181,8 @@ function createReceiptPdfHtml(receipt: ReceiptListRow): string {
     </div>
 
     <div class="summary">
-      <div class="card"><div class="label">Received</div><div class="value">$${dollars(receipt.amount_received)}</div></div>
-      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}$${dollars(receipt.customer_due_amount)}</div></div>
+      <div class="card"><div class="label">Received</div><div class="value">Rs ${dollars(receipt.amount_received)}</div></div>
+      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}Rs ${dollars(receipt.customer_due_amount)}</div></div>
       <div class="card"><div class="label">Cheque No</div><div class="value">${escapeHtml(chequeNo)}</div></div>
       <div class="card"><div class="label">Payment Mode</div><div class="value">${escapeHtml(receipt.payment_mode ?? '—')}</div></div>
     </div>
@@ -183,8 +191,8 @@ function createReceiptPdfHtml(receipt: ReceiptListRow): string {
       <tbody>
         <tr><th>Customer Email</th><td>${escapeHtml(receipt.customer_email ?? '—')}</td></tr>
         <tr><th>Contact Person</th><td>${escapeHtml(receipt.customer_contact ?? '—')}</td></tr>
-        <tr><th>Balance Before Receipt</th><td class="amount">$${dollars(receipt.balance ?? 0)}</td></tr>
-        <tr><th>Stored Receipt Due</th><td class="amount">$${dollars(receipt.due_amount ?? 0)}</td></tr>
+        <tr><th>Balance Before Receipt</th><td class="amount">Rs ${dollars(receipt.balance ?? 0)}</td></tr>
+        <tr><th>Stored Receipt Due</th><td class="amount">Rs ${dollars(receipt.due_amount ?? 0)}</td></tr>
       </tbody>
     </table>
 
@@ -203,7 +211,9 @@ function ReceiptList() {
   const admin = isAdmin(userId);
 
   const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+    const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -397,7 +407,7 @@ function ReceiptList() {
       {
         accessorKey: 'amount_received',
         header: 'Amount Received',
-        cell: (info) => <span className="text-right tabular-nums">${dollars(info.getValue<number>())}</span>,
+        cell: (info) => <span className="text-right tabular-nums">Rs {dollars(info.getValue<number>())}</span>,
       },
       {
         id: 'due_amount_after',
@@ -405,7 +415,7 @@ function ReceiptList() {
         cell: (info) => {
           const row = info.row.original;
           const prefix = row.customer_ad_due === 'Advance' ? '-' : '';
-          return <span className="text-right tabular-nums">{prefix}${dollars(row.customer_due_amount)}</span>;
+          return <span className="text-right tabular-nums">{prefix}Rs {dollars(row.customer_due_amount)}</span>;
         },
       },
       {
@@ -505,9 +515,12 @@ function ReceiptList() {
     state: { sorting },
     onSortingChange: setSorting,
     getCoreRowModel: getCoreRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
   });
 
+  
+  const { getDragHandlers } = useColumnOrder(table);
   return (
     <>
       <div className="flex h-full flex-col gap-4 overflow-auto p-6">
@@ -535,20 +548,41 @@ function ReceiptList() {
                   onChange={(event) => setSearch(event.target.value)}
                   className="pl-8"
                 />
-              </div>
-              <Select value={companyFilter} onValueChange={setCompanyFilter}>
-                <SelectTrigger className="w-44">
-                  <SelectValue placeholder="All Companies" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Companies</SelectItem>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={String(company.id)}>
-                      {company.company_name ?? `Company ${company.id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              </div>              <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={companyOpen}
+                    className="w-44 justify-between font-normal"
+                  >
+                    {companyFilter === 'all'
+                      ? 'All Companies'
+                      : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                    <CommandList>
+                      <CommandEmpty>No company found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="all" onSelect={() => { setCompanyFilter('all'); setCompanyOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                          All Companies
+                        </CommandItem>
+                        {companies.map((c) => (
+                          <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
+                            <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                            {c.company_name ?? `Company ${c.id}`}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </CardHeader>
           <CardContent>
@@ -564,8 +598,7 @@ function ReceiptList() {
                           <th
                             key={header.id}
                             className="cursor-pointer select-none px-4 py-2 text-left font-medium text-muted-foreground"
-                            onClick={header.column.getToggleSortingHandler()}
-                          >
+                            onClick={header.column.getToggleSortingHandler()} {...getDragHandlers(header.column.id)}>
                             {flexRender(header.column.columnDef.header, header.getContext())}
                             {{ asc: ' ↑', desc: ' ↓' }[header.column.getIsSorted() as string] ?? ''}
                           </th>
@@ -574,7 +607,7 @@ function ReceiptList() {
                     ))}
                   </thead>
                   <tbody>
-                    {table.getRowModel().rows.length === 0 ? (
+                    {table.getPrePaginationRowModel().rows.length === 0 ? (
                       <tr>
                         <td colSpan={columns.length} className="py-8 text-center text-muted-foreground">
                           No receipts found
@@ -604,6 +637,7 @@ function ReceiptList() {
                     )}
                   </tbody>
                 </table>
+                <DataTablePagination table={table} totalLabel="transactions" />
               </div>
             )}
           </CardContent>
