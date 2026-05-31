@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { deleteInvoice } from '@/lib/invoice/delete';
@@ -59,7 +59,7 @@ function InvoiceList() {
   const [search, setSearch] = useState('');
   const [companyOpen, setCompanyOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
-    const [companyFilter, setCompanyFilter] = useState<string>('all');
+  const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -99,7 +99,8 @@ function InvoiceList() {
       rows = rows.filter(
         (inv) =>
           inv.customer_name.toLowerCase().includes(s) ||
-          inv.invoice_no.toLowerCase().includes(s),
+          inv.invoice_no.toLowerCase().includes(s) ||
+          (inv.checklist_no?.toLowerCase().includes(s) ?? false),
       );
     }
     if (companyFilter !== 'all') {
@@ -115,6 +116,16 @@ function InvoiceList() {
     [navigate],
   );
 
+  const formatDate = (dateStr: string | null | undefined): string => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    return `${dd}-${mm}-${yyyy}`;
+  };
+
   const columns = useMemo<ColumnDef<InvoiceRow>[]>(
     () => [
       {
@@ -127,7 +138,7 @@ function InvoiceList() {
       {
         accessorKey: 'invoice_date',
         header: 'Date',
-        cell: (info) => info.getValue<string>(),
+        cell: (info) => formatDate(info.getValue<string | null>()),
       },
       {
         accessorKey: 'customer_name',
@@ -135,22 +146,43 @@ function InvoiceList() {
         cell: (info) => info.getValue<string>(),
       },
       {
+        accessorKey: 'checklist_no',
+        header: () => <span className="block w-full text-center">Checklist</span>,
+        cell: (info) => (
+          <span className="text-center block w-full">
+            {info.getValue<string | null>() || '-'}
+          </span>
+        ),
+      },
+      {
         accessorKey: 'total',
-        header: 'Total',
-        cell: (info) => `Rs ${dollars(info.getValue<number>())}`,
+        header: () => <span className="block w-full text-right">Total</span>,
+        cell: (info) => (
+          <span className="text-right block w-full">
+            Rs {dollars(info.getValue<number>())}
+          </span>
+        ),
       },
       {
         accessorKey: 'paid_amount',
-        header: 'Paid',
-        cell: (info) => `Rs ${dollars(info.getValue<number>())}`,
+        header: () => <span className="block w-full text-right">Paid</span>,
+        cell: (info) => (
+          <span className="text-right block w-full">
+            Rs {dollars(info.getValue<number>())}
+          </span>
+        ),
       },
       {
         accessorKey: 'balance',
-        header: 'Due',
+        header: () => <span className="block w-full text-right">Due</span>,
         cell: (info) => {
           const v = info.getValue<number>();
           return (
-            <span className={v > 0 ? 'font-medium text-orange-600' : ''}>
+            <span
+              className={`text-right block w-full ${
+                v > 0 ? 'font-medium text-orange-600' : ''
+              }`}
+            >
               Rs {dollars(Math.abs(v))}
               {v < 0 ? ' (overpaid)' : ''}
             </span>
@@ -285,6 +317,11 @@ function InvoiceList() {
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="pl-8"
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setSearch('');
+                  }
+                }}
               />
             </div>            <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
               <PopoverTrigger asChild>
@@ -338,7 +375,8 @@ function InvoiceList() {
                         <th
                           key={h.id}
                           className="px-4 py-2 text-left font-medium text-muted-foreground cursor-pointer select-none"
-                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}>
+                          onClick={h.column.getToggleSortingHandler()} {...getDragHandlers(h.column.id)}
+                        >
                           {flexRender(
                             h.column.columnDef.header,
                             h.getContext(),
@@ -365,7 +403,16 @@ function InvoiceList() {
                     table.getRowModel().rows.map((row) => (
                       <tr
                         key={row.id}
-                        className="border-t hover:bg-muted/30"
+                        className="cursor-pointer border-t hover:bg-muted/30"
+                        onDoubleClick={() => handleEdit(row.original.id)}
+                        onKeyDown={(event: KeyboardEvent<HTMLTableRowElement>) => {
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            handleEdit(row.original.id);
+                          }
+                        }}
+                        tabIndex={0}
+                        title="Double-click to edit"
                       >
                         {row.getVisibleCells().map((cell) => (
                           <td key={cell.id} className="px-4 py-2">
