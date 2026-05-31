@@ -12,13 +12,6 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
   flexRender,
   getCoreRowModel,
   getPaginationRowModel,
@@ -30,6 +23,7 @@ import {
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
 import { toast } from 'sonner';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Eye,
   FilePenLine,
@@ -38,6 +32,8 @@ import {
   Receipt,
   Search,
   Trash2,
+  ChevronsUpDown,
+  Check,
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -49,6 +45,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { cn } from '@/lib/utils';
 
 interface ReceiptListRow extends ReceiptRecord {
   customer_name: string;
@@ -206,7 +211,9 @@ function ReceiptList() {
   const admin = isAdmin(userId);
 
   const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
+  const [companyOpen, setCompanyOpen] = useState(false);
+  const [companySearch, setCompanySearch] = useState('');
+    const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -541,20 +548,41 @@ function ReceiptList() {
                   onChange={(event) => setSearch(event.target.value)}
                   className="pl-8"
                 />
-              </div>
-              <Select value={companyFilter} onValueChange={setCompanyFilter}>
-                <SelectTrigger className="w-44">
-                  <SelectValue placeholder="All Companies" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Companies</SelectItem>
-                  {companies.map((company) => (
-                    <SelectItem key={company.id} value={String(company.id)}>
-                      {company.company_name ?? `Company ${company.id}`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              </div>              <Popover open={companyOpen} onOpenChange={setCompanyOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={companyOpen}
+                    className="w-44 justify-between font-normal"
+                  >
+                    {companyFilter === 'all'
+                      ? 'All Companies'
+                      : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
+                    <CommandList>
+                      <CommandEmpty>No company found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="all" onSelect={() => { setCompanyFilter('all'); setCompanyOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                          All Companies
+                        </CommandItem>
+                        {companies.map((c) => (
+                          <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
+                            <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
+                            {c.company_name ?? `Company ${c.id}`}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
           </CardHeader>
           <CardContent>

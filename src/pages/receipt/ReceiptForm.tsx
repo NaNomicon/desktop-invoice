@@ -9,10 +9,19 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Receipt, Search, DollarSign } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { Receipt, DollarSign, ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   flexRender,
   getCoreRowModel,
@@ -64,11 +73,13 @@ function ReceiptForm() {
   const [receiptDate, setReceiptDate] = useState(new Date().toISOString().slice(0, 10));
   const [customerId, setCustomerId] = useState<number>(0);
   const [customerSearch, setCustomerSearch] = useState('');
+  const [customerOpen, setCustomerOpen] = useState(false);
   const [dueAmount, setDueAmount] = useState(0);
   const [adDueStatus, setAdDueStatus] = useState('');
   const [loadDuaAmount, setLoadDuaAmount] = useState(0);
   const [amountReceived, setAmountReceived] = useState('');
   const [paymentMode, setPaymentMode] = useState('');
+  const [paymentModeOpen, setPaymentModeOpen] = useState(false);
   const [chequeNo, setChequeNo] = useState('');
   const [notes, setNotes] = useState('');
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
@@ -395,43 +406,58 @@ function ReceiptForm() {
                 </div>
 
                 <div className="space-y-1 md:col-span-2">
-                  <Label htmlFor="customer-search">Customer</Label>
-                  <div className="relative">
-                    <Search className="absolute left-2.5 top-2.5 size-4 text-muted-foreground" />
-                    <Input
-                      id="customer-search"
-                      placeholder="Search customers..."
-                      value={customerSearch}
-                      onChange={(e) => setCustomerSearch(e.target.value)}
-                      className="pl-8"
-                      disabled={isEditing}
-                    />
-                  </div>
-                  {!isEditing && customerSearch && filteredCustomers.length > 0 && (
-                    <div className="max-h-40 overflow-auto rounded-md border">
-                      {filteredCustomers.map((c) => (
-                        <button
-                          key={c.id}
-                          type="button"
-                          className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm hover:bg-muted"
-                          onClick={() => {
-                            applyCustomerSelection(c);
-                            setCustomerSearch(c.customer_name);
-                          }}
-                        >
-                          <span>{c.customer_name}</span>
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            {c.ad_due === 'Advance' ? '-' : ''}Rs {dollars(c.due_amount)}
-                          </span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {customerId > 0 && (
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Selected: {customers.find((c) => c.id === customerId)?.customer_name}
-                    </p>
-                  )}
+                  <Label>Customer</Label>
+                  <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={customerOpen}
+                        className="w-full justify-between font-normal"
+                        disabled={isEditing}
+                      >
+                        {customerId > 0
+                          ? customers.find((c) => c.id === customerId)?.customer_name ?? 'Select customer...'
+                          : 'Select customer...'}
+                        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[400px] p-0" align="start">
+                      <Command>
+                        <CommandInput
+                          placeholder="Search customers..."
+                          value={customerSearch}
+                          onValueChange={setCustomerSearch}
+                        />
+                        <CommandList>
+                          <CommandEmpty>No customer found.</CommandEmpty>
+                          <CommandGroup>
+                            {filteredCustomers.map((c) => (
+                              <CommandItem
+                                key={c.id}
+                                value={String(c.id)}
+                                onSelect={() => {
+                                  applyCustomerSelection(c);
+                                  setCustomerOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    'mr-2 size-4',
+                                    customerId === c.id ? 'opacity-100' : 'opacity-0',
+                                  )}
+                                />
+                                <span>{c.customer_name}</span>
+                                <span className="ml-auto text-xs text-muted-foreground">
+                                  {c.ad_due === 'Advance' ? '-' : ''}Rs {dollars(c.due_amount)}
+                                </span>
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="space-y-1">
@@ -461,18 +487,46 @@ function ReceiptForm() {
 
                 <div className="space-y-1">
                   <Label htmlFor="payment-mode">Payment Mode</Label>
-                  <Select value={paymentMode} onValueChange={setPaymentMode}>
-                    <SelectTrigger id="payment-mode">
-                      <SelectValue placeholder="Select..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {paymentModes.map((m) => (
-                        <SelectItem key={m} value={m ?? ''}>
-                          {m}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <Popover open={paymentModeOpen} onOpenChange={setPaymentModeOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={paymentModeOpen}
+                        className="w-full justify-between font-normal"
+                      >
+                        {paymentMode || 'Select...'}
+                        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[200px] p-0" align="start">
+                      <Command>
+                        <CommandList>
+                          <CommandEmpty>No option found.</CommandEmpty>
+                          <CommandGroup>
+                            {paymentModes.map((m) => (
+                              <CommandItem
+                                key={m}
+                                value={m ?? ''}
+                                onSelect={(currentValue) => {
+                                  setPaymentMode(currentValue);
+                                  setPaymentModeOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    'mr-2 size-4',
+                                    paymentMode === m ? 'opacity-100' : 'opacity-0',
+                                  )}
+                                />
+                                {m}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="space-y-1">
