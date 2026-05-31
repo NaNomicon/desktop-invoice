@@ -29,6 +29,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 import { toast } from 'sonner';
 import {
@@ -122,7 +133,7 @@ function QuotationForm() {
   const [editingId, setEditingId] = useState<number | null>(routeState?.quotationId ?? null);
   const [customerId, setCustomerId] = useState<number | null>(null);
   const [customerSearch, setCustomerSearch] = useState('');
-  const [customerSearchIndex, setCustomerSearchIndex] = useState(0);
+  const [customerOpen, setCustomerOpen] = useState(false);
   const [companyId, setCompanyId] = useState(authCompanyId);
   const [quotationNumber, setQuotationNumber] = useState('0');
   const [quotationDate, setQuotationDate] = useState(today());
@@ -132,7 +143,6 @@ function QuotationForm() {
   const [per, setPer] = useState('0');
   const [manualDiscount, setManualDiscount] = useState('0.00');
   const [productSearch, setProductSearch] = useState('');
-  const [productSearchIndex, setProductSearchIndex] = useState(0);
   const [lineItems, setLineItems] = useState<LineItem[]>([createBlankLineItem()]);
   const [deletedLineItemIds, setDeletedLineItemIds] = useState<number[]>([]);
 
@@ -208,25 +218,7 @@ function QuotationForm() {
     });
   }, [productSearch, products, typeFilter]);
 
-  useEffect(() => {
-    setCustomerSearchIndex(0);
-  }, [customerSearch]);
 
-  useEffect(() => {
-    if (customerSearchIndex >= filteredCustomers.length) {
-      setCustomerSearchIndex(0);
-    }
-  }, [customerSearchIndex, filteredCustomers.length]);
-
-  useEffect(() => {
-    setProductSearchIndex(0);
-  }, [productSearch]);
-
-  useEffect(() => {
-    if (productSearchIndex >= filteredProducts.length) {
-      setProductSearchIndex(0);
-    }
-  }, [filteredProducts.length, productSearchIndex]);
 
   const reindexLineItems = useCallback((items: LineItem[]) => {
     let serial = 1;
@@ -245,7 +237,6 @@ function QuotationForm() {
       setEditingId(null);
       setCustomerId(null);
       setCustomerSearch('');
-      setCustomerSearchIndex(0);
       setCompanyId(authCompanyId);
       setQuotationDate(today());
       setChecklistNo('');
@@ -254,7 +245,6 @@ function QuotationForm() {
       setPer('0');
       setManualDiscount('0.00');
       setProductSearch('');
-      setProductSearchIndex(0);
       setLineItems([createBlankLineItem()]);
       setDeletedLineItemIds([]);
       if (nextQuotationNumber) {
@@ -359,9 +349,7 @@ function QuotationForm() {
       );
       setTypeFilter('all');
       setCustomerSearch('');
-      setCustomerSearchIndex(0);
       setProductSearch('');
-      setProductSearchIndex(0);
       navigate(location.pathname, { replace: true, state: null });
     },
     [location.pathname, navigate],
@@ -458,7 +446,6 @@ function QuotationForm() {
         company_id: product.company_id,
       });
       setProductSearch('');
-      setProductSearchIndex(0);
     },
     [addLineItem, lineItems, updateLineItem],
   );
@@ -488,82 +475,10 @@ function QuotationForm() {
   const selectCustomer = useCallback((customer: Customer) => {
     setCustomerId(customer.id);
     setCustomerSearch('');
-    setCustomerSearchIndex(0);
+    setCustomerOpen(false);
   }, []);
 
-  const handleCustomerSearchKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'ArrowDown') {
-        if (filteredCustomers.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        setCustomerSearchIndex((current) => Math.min(current + 1, filteredCustomers.length - 1));
-        return;
-      }
 
-      if (event.key === 'ArrowUp') {
-        if (filteredCustomers.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        setCustomerSearchIndex((current) => Math.max(current - 1, 0));
-        return;
-      }
-
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        const selectedMatch = filteredCustomers[customerSearchIndex] ?? filteredCustomers[0];
-        if (selectedMatch) {
-          selectCustomer(selectedMatch);
-        }
-        return;
-      }
-
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setCustomerSearch('');
-      }
-    },
-    [customerSearchIndex, filteredCustomers, selectCustomer],
-  );
-
-  const handleProductSearchKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'ArrowDown') {
-        if (filteredProducts.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        setProductSearchIndex((current) => Math.min(current + 1, filteredProducts.length - 1));
-        return;
-      }
-
-      if (event.key === 'ArrowUp') {
-        if (filteredProducts.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        setProductSearchIndex((current) => Math.max(current - 1, 0));
-        return;
-      }
-
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        const selectedMatch = filteredProducts[productSearchIndex] ?? filteredProducts[0];
-        if (selectedMatch) {
-          handleProductPick(selectedMatch);
-        }
-        return;
-      }
-
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setProductSearch('');
-      }
-    },
-    [filteredProducts, handleProductPick, productSearchIndex],
-  );
 
   const handleLineItemsKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -896,44 +811,59 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Customer *</Label>
-            <div className="space-y-2">
-              <Input
-                value={customerSearch}
-                onChange={(event) => setCustomerSearch(event.target.value)}
-                onKeyDown={handleCustomerSearchKeyDown}
-                placeholder="Search customer by name, phone, email, or address"
-              />
-              <Select
-                value={customerId ? String(customerId) : ''}
-                onValueChange={(value) => {
-                  const selected = customers.find((customer) => customer.id === parseInt(value, 10));
-                  if (selected) {
-                    selectCustomer(selected);
-                    return;
-                  }
-                  setCustomerId(parseInt(value, 10));
-                  setCustomerSearchIndex(0);
-                }}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select customer..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {filteredCustomers.slice(0, 100).map((customer, index) => (
-                    <SelectItem key={customer.id} value={String(customer.id)}>
-                      {index === customerSearchIndex ? '→ ' : ''}
-                      {[
-                        customer.title_name?.trim(),
-                        customer.customer_name,
-                        customer.telephone?.trim(),
-                      ]
-                        .filter(Boolean)
-                        .join(' - ')}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={customerOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {customerId
+                    ? (() => {
+                        const c = customers.find((c) => c.id === customerId);
+                        return c
+                          ? [c.title_name?.trim(), c.customer_name, c.telephone?.trim()]
+                              .filter(Boolean)
+                              .join(' - ')
+                          : 'Select customer...';
+                      })()
+                    : 'Select customer...'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[400px] p-0" align="start">
+                <Command>
+                  <CommandInput
+                    placeholder="Search customer by name, phone, email, or address"
+                    value={customerSearch}
+                    onValueChange={setCustomerSearch}
+                  />
+                  <CommandList>
+                    <CommandEmpty>No customer found.</CommandEmpty>
+                    <CommandGroup>
+                      {filteredCustomers.slice(0, 100).map((customer) => (
+                        <CommandItem
+                          key={customer.id}
+                          value={String(customer.id)}
+                          onSelect={() => selectCustomer(customer)}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 size-4',
+                              customerId === customer.id ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                          {[customer.title_name?.trim(), customer.customer_name, customer.telephone?.trim()]
+                            .filter(Boolean)
+                            .join(' - ')}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
           <div className="space-y-1">
             <Label>Checklist No</Label>
@@ -949,19 +879,59 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Product Type</Label>
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger>
-                <SelectValue placeholder="All types" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {productTypes.map((type) => (
-                  <SelectItem key={type.id} value={String(type.id)}>
-                    {type.type_name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  className="w-full justify-between font-normal"
+                >
+                  {typeFilter === "all"
+                    ? "All Types"
+                    : (productTypes.find((t) => String(t.id) === typeFilter)?.type_name ?? "All Types")}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search types..." />
+                  <CommandList>
+                    <CommandEmpty>No type found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem
+                        value="all"
+                        onSelect={() => setTypeFilter("all")}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 size-4",
+                            typeFilter === "all" ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        All Types
+                      </CommandItem>
+                      {productTypes.map((type) => (
+                        <CommandItem
+                          key={type.id}
+                          value={type.type_name}
+                          onSelect={() => setTypeFilter(String(type.id))}
+                        >
+                          <Check
+                            className={cn(
+                              "mr-2 size-4",
+                              typeFilter === String(type.id)
+                                ? "opacity-100"
+                                : "opacity-0",
+                            )}
+                          />
+                          {type.type_name}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
         </CardContent>
       </Card>
@@ -978,7 +948,6 @@ function QuotationForm() {
             placeholder="Search by product code or name"
             value={productSearch}
             onChange={(event) => setProductSearch(event.target.value)}
-            onKeyDown={handleProductSearchKeyDown}
             className="max-w-md"
           />
           <div className="max-h-52 overflow-auto rounded-md border">
@@ -993,14 +962,13 @@ function QuotationForm() {
                 </tr>
               </thead>
               <tbody>
-                {filteredProducts.slice(0, 12).map((product, index) => (
+                {filteredProducts.slice(0, 12).map((product) => (
                   <tr
                     key={product.id}
-                    className={`border-t hover:bg-muted/30 ${index === productSearchIndex ? 'bg-muted/40' : ''}`}
+                    className="border-t hover:bg-muted/30"
                   >
                     <td className="px-3 py-2">{product.product_id ?? '-'}</td>
                     <td className="px-3 py-2">
-                      {index === productSearchIndex ? '→ ' : ''}
                       {product.product_name}
                     </td>
                     <td className="px-3 py-2 text-right">Rs {dollars(product.price)}</td>
