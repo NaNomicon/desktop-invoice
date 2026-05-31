@@ -6,13 +6,16 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import { ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface UserOption {
   user_id: string;
@@ -26,6 +29,7 @@ function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [userOpen, setUserOpen] = useState(false);
 
   useEffect(() => {
     query<User>('SELECT user_id, des FROM tbl_user WHERE is_deleted = 0 ORDER BY user_id').then(
@@ -78,19 +82,49 @@ function Login() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1">
-            <Label htmlFor="user-select">User</Label>
-            <Select value={selectedUser} onValueChange={setSelectedUser}>
-              <SelectTrigger id="user-select">
-                <SelectValue placeholder="Select user" />
-              </SelectTrigger>
-              <SelectContent>
-                {users.map((u) => (
-                  <SelectItem key={u.user_id} value={u.user_id}>
-                    {u.des ?? u.user_id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Label>User</Label>
+            <Popover open={userOpen} onOpenChange={setUserOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={userOpen}
+                  className="w-full justify-between font-normal"
+                >
+                  {selectedUser
+                    ? users.find((u) => u.user_id === selectedUser)?.des ?? selectedUser
+                    : 'Select user...'}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[200px] p-0" align="start">
+                <Command>
+                  <CommandList>
+                    <CommandEmpty>No user found.</CommandEmpty>
+                    <CommandGroup>
+                      {users.map((u) => (
+                        <CommandItem
+                          key={u.user_id}
+                          value={u.user_id}
+                          onSelect={(currentValue) => {
+                            setSelectedUser(currentValue);
+                            setUserOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn(
+                              'mr-2 size-4',
+                              selectedUser === u.user_id ? 'opacity-100' : 'opacity-0',
+                            )}
+                          />
+                          {u.des ?? u.user_id}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
           </div>
 
           <div className="space-y-1">
