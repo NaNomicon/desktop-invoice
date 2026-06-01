@@ -58,7 +58,7 @@ interface CustomerRow {
   is_deleted: number;
 }
 
-type CustomerFormData = Omit<CustomerRow, 'id' | 'is_deleted' | 'due_amount' | 'reg_date'>;
+type CustomerFormData = Omit<CustomerRow, 'id' | 'is_deleted' | 'due_amount'>;
 
 const TITLE_OPTIONS = ['Mr', 'Mrs', 'Ms', 'Dr'] as const;
 const CUSTOMER_TYPE_OPTIONS = ['Individual', 'Corporate'] as const;
@@ -74,6 +74,7 @@ const emptyForm: CustomerFormData = {
   ad_due: 'Advance',
   brn: '',
   vat: '',
+  reg_date: '',
   company_id: 1,
 };
 
@@ -265,6 +266,7 @@ function Customer() {
       ad_due: c.ad_due,
       brn: c.brn ?? '',
       vat: c.vat ?? '',
+      reg_date: c.reg_date ?? '',
       company_id: c.company_id,
     });
     setDialogOpen(true);
@@ -312,7 +314,7 @@ function Customer() {
         await execute(
           `UPDATE tbl_customer SET
             customer_name = ?, title_name = ?, customer_type = ?, contact = ?, telephone = ?, address = ?, email = ?,
-            ad_due = ?, brn = ?, vat = ?, company_id = ?
+            reg_date = ?, ad_due = ?, brn = ?, vat = ?, company_id = ?
            WHERE id = ?`,
           [
             form.customer_name.trim(),
@@ -322,6 +324,7 @@ function Customer() {
             form.telephone || null,
             form.address || null,
             form.email || null,
+            form.reg_date || null,
             form.ad_due,
             form.brn || null,
             form.vat || null,
@@ -333,7 +336,7 @@ function Customer() {
       } else {
         await execute(
           `INSERT INTO tbl_customer (customer_name, title_name, customer_type, contact, telephone, address, email, due_amount, reg_date, ad_due, brn, vat, company_id)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 0, date('now'), ?, ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)`,
           [
             form.customer_name.trim(),
             form.title_name || null,
@@ -342,6 +345,7 @@ function Customer() {
             form.telephone || null,
             form.address || null,
             form.email || null,
+            form.reg_date || null,
             form.ad_due,
             form.brn || null,
             form.vat || null,
@@ -850,6 +854,15 @@ function Customer() {
                   </Command>
                 </PopoverContent>
               </Popover>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="cust-regdate">Register Date</Label>
+              <Input
+                id="cust-regdate"
+                type="date"
+                value={form.reg_date ?? ''}
+                onChange={(e) => setForm({ ...form, reg_date: e.target.value })}
+              />
             </div>
             <div className="space-y-1">
               <Label htmlFor="cust-brn">BRN</Label>
