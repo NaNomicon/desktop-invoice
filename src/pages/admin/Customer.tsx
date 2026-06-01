@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { query, execute } from '@/lib/db';
 import type { Customer, Company } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
@@ -79,6 +81,7 @@ const emptyForm: CustomerFormData = {
 };
 
 function Customer() {
+  const currency = useCurrencySymbol();
   const authCompanyId = useAuthStore((s) => s.company_id);
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
@@ -184,7 +187,7 @@ function Customer() {
         header: 'Due',
         cell: (info) => {
           const cents = info.getValue<number>();
-          return `Rs ${(cents / 100).toFixed(2)}`;
+          return formatMoney(cents, currency);
         },
       },
       {

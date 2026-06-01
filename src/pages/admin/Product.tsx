@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { useSearchParams } from 'react-router-dom';
 import { query, execute } from '@/lib/db';
 import type { Company } from '@/lib/types';
@@ -59,6 +61,7 @@ interface TypeOption {
 }
 
 function ProductPage() {
+  const currency = useCurrencySymbol();
   const authCompanyId = useAuthStore((s) => s.company_id);
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
@@ -164,7 +167,7 @@ function ProductPage() {
           (p.product_id ?? '').toLowerCase().includes(s) ||
           (p.type_name ?? '').toLowerCase().includes(s) ||
           (p.price && String(p.price).includes(s)) ||
-          ((p.price ?? 0) > 0 && `Rs ${(p.price / 100).toFixed(2)}`.includes(s)),
+          ((p.price ?? 0) > 0 && formatMoney(p.price, currency).includes(s)),
       );
     }
     if (companyFilter !== 'all') {
@@ -195,7 +198,7 @@ function ProductPage() {
         header: 'Price',
         cell: (info) => {
           const cents = info.getValue<number>();
-          return `Rs ${(cents / 100).toFixed(2)}`;
+          return formatMoney(cents, currency);
         },
       },
       {
@@ -646,7 +649,7 @@ function ProductPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="prod-price">Price (Rs)</Label>
+              <Label htmlFor="prod-price">Price ({currency})</Label>
               <Input
                 id="prod-price"
                 type="number"
