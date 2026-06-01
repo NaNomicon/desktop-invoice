@@ -7,8 +7,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog'
 import { toast } from 'sonner'
-import { Building2, Plus, Upload, X, Save } from 'lucide-react'
+import { Building2, Plus, Upload, X } from 'lucide-react'
 
 interface TableColumnInfo {
   name: string
@@ -70,6 +77,7 @@ function CompanySettings() {
   const [availableColumns, setAvailableColumns] = useState<Set<string>>(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [dialogOpen, setDialogOpen] = useState(false)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [watermarkPreview, setWatermarkPreview] = useState<string | null>(null)
   const logoRef = useRef<HTMLInputElement>(null)
@@ -118,6 +126,16 @@ function CompanySettings() {
     if (logoRef.current) logoRef.current.value = ''
     if (watermarkRef.current) watermarkRef.current.value = ''
   }, [])
+
+  const openNewDialog = useCallback(() => {
+    resetForm()
+    setDialogOpen(true)
+  }, [resetForm])
+
+  const openEditDialog = useCallback((item: Company) => {
+    hydrateCompany(item)
+    setDialogOpen(true)
+  }, [hydrateCompany])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -268,6 +286,7 @@ function CompanySettings() {
       }
 
       await loadData()
+      setDialogOpen(false)
     } catch (err) {
       toast.error(`Save failed: ${String(err)}`)
     } finally {
@@ -291,13 +310,9 @@ function CompanySettings() {
           <h1 className="text-2xl font-semibold">Company Settings</h1>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={resetForm}>
+          <Button variant="outline" onClick={openNewDialog}>
             <Plus className="size-4" />
             New Company
-          </Button>
-          <Button onClick={() => void handleSave()} disabled={saving}>
-            <Save className="size-4" />
-            {saving ? 'Saving...' : company.id ? 'Update' : 'Save'}
           </Button>
         </div>
       </div>
@@ -322,11 +337,11 @@ function CompanySettings() {
                 </thead>
                 <tbody>
                   {companies.map((item) => (
-                    <tr
-                      key={item.id}
-                      className={`cursor-pointer border-t hover:bg-muted/30 ${selectedId === item.id ? 'bg-muted/40' : ''}`}
-                      onClick={() => hydrateCompany(item)}
-                    >
+                      <tr
+                          key={item.id}
+                          className={`cursor-pointer border-t hover:bg-muted/30 ${selectedId === item.id ? 'bg-muted/40' : ''}`}
+                          onClick={() => openEditDialog(item)}
+                        >
                       <td className="px-4 py-2">{item.company_code ?? '-'}</td>
                       <td className="px-4 py-2 font-medium">{item.company_name ?? `Company ${item.id}`}</td>
                       <td className="px-4 py-2">{item.company_short_name ?? '-'}</td>
@@ -340,195 +355,207 @@ function CompanySettings() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Company Information</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {visibleInfoFields.map((field) => (
-            <div
-              key={field.key}
-              className={field.key === 'company_name' ? 'space-y-1 md:col-span-2' : 'space-y-1'}
-            >
-              <Label htmlFor={field.key}>{field.label}{field.required ? ' *' : ''}</Label>
-              <Input
-                id={field.key}
-                type={field.type ?? 'text'}
-                value={String(company[field.key] ?? '')}
-                onChange={(e) => updateField(field.key, e.target.value)}
-              />
-            </div>
-          ))}
+      {/* Company Edit Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedId ? 'Edit Company' : 'New Company'}</DialogTitle>
+          </DialogHeader>
 
-          {hasColumn('address') && (
-            <div className="space-y-1 md:col-span-2">
-              <Label htmlFor="address">Address</Label>
-              <Textarea
-                id="address"
-                value={String(company.address ?? '')}
-                onChange={(e) => updateField('address', e.target.value)}
-                rows={3}
-              />
-            </div>
-          )}
-
-          {hasColumn('is_active') && (
-            <div className="flex items-center gap-3 rounded-md border p-3 md:col-span-2">
-              <Checkbox
-                id="is_active"
-                checked={company.is_active !== 0}
-                onCheckedChange={(checked) => updateField('is_active', checked ? 1 : 0)}
-              />
-              <div>
-                <Label htmlFor="is_active">Active company</Label>
-                <p className="text-sm text-muted-foreground">Inactive companies stay in the database but are hidden from active selectors.</p>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {(hasColumn('note1') || hasColumn('note2') || hasColumn('note3') || hasColumn('thanks1') || hasColumn('thanks2')) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Footer & Thanks Text</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {hasColumn('note1') && (
-              <div className="space-y-1">
-                <Label htmlFor="note1">Note 1</Label>
-                <Textarea id="note1" value={String(company.note1 ?? '')} onChange={(e) => updateField('note1', e.target.value)} rows={2} />
-              </div>
-            )}
-            {hasColumn('note2') && (
-              <div className="space-y-1">
-                <Label htmlFor="note2">Note 2</Label>
-                <Textarea id="note2" value={String(company.note2 ?? '')} onChange={(e) => updateField('note2', e.target.value)} rows={2} />
-              </div>
-            )}
-            {hasColumn('note3') && (
-              <div className="space-y-1">
-                <Label htmlFor="note3">Note 3</Label>
-                <Textarea id="note3" value={String(company.note3 ?? '')} onChange={(e) => updateField('note3', e.target.value)} rows={2} />
-              </div>
-            )}
-            {hasColumn('thanks1') && (
-              <div className="space-y-1">
-                <Label htmlFor="thanks1">Thanks 1</Label>
-                <Textarea id="thanks1" value={String(company.thanks1 ?? '')} onChange={(e) => updateField('thanks1', e.target.value)} rows={2} />
-              </div>
-            )}
-            {hasColumn('thanks2') && (
-              <div className="space-y-1">
-                <Label htmlFor="thanks2">Thanks 2</Label>
-                <Textarea id="thanks2" value={String(company.thanks2 ?? '')} onChange={(e) => updateField('thanks2', e.target.value)} rows={2} />
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {hasColumn('logo') && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Logo</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-start gap-4">
-              {logoPreview ? (
-                <div className="relative">
-                  <img
-                    src={logoPreview}
-                    alt="Company logo"
-                    className="max-h-32 max-w-64 rounded border object-contain"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="absolute -top-2 -right-2 size-6 rounded-full bg-destructive text-white hover:bg-destructive/80"
-                    onClick={() => {
-                      setLogoPreview(null)
-                      setCompany((prev) => ({ ...prev, logo: null }))
-                      if (logoRef.current) logoRef.current.value = ''
-                    }}
+          <div className="space-y-6">
+            {/* Company Information */}
+            <div>
+              <h3 className="mb-3 text-lg font-medium">Company Information</h3>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {visibleInfoFields.map((field) => (
+                  <div
+                    key={field.key}
+                    className={field.key === 'company_name' ? 'space-y-1 md:col-span-2' : 'space-y-1'}
                   >
-                    <X className="size-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex h-32 w-64 items-center justify-center rounded border border-dashed text-sm text-muted-foreground">
-                  No logo
-                </div>
-              )}
-              <div>
-                <input
-                  ref={logoRef}
-                  id="logo-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => void handleLogoUpload(e)}
-                />
-                <Button variant="outline" onClick={() => logoRef.current?.click()}>
-                  <Upload className="size-4" />
-                  {logoPreview ? 'Change Logo' : 'Upload Logo'}
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                    <Label htmlFor={field.key}>{field.label}{field.required ? ' *' : ''}</Label>
+                    <Input
+                      id={field.key}
+                      type={field.type ?? 'text'}
+                      value={String(company[field.key] ?? '')}
+                      onChange={(e) => updateField(field.key, e.target.value)}
+                    />
+                  </div>
+                ))}
 
-      {hasColumn('watermark') && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Watermark</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-start gap-4">
-              {watermarkPreview ? (
-                <div className="relative">
-                  <img
-                    src={watermarkPreview}
-                    alt="Watermark"
-                    className="max-h-32 max-w-64 rounded border object-contain opacity-40"
-                  />
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="absolute -top-2 -right-2 size-6 rounded-full bg-destructive text-white hover:bg-destructive/80"
-                    onClick={() => {
-                      setWatermarkPreview(null)
-                      setCompany((prev) => ({ ...prev, watermark: null }))
-                      if (watermarkRef.current) watermarkRef.current.value = ''
-                    }}
-                  >
-                    <X className="size-3" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="flex h-32 w-64 items-center justify-center rounded border border-dashed text-sm text-muted-foreground">
-                  No watermark
-                </div>
-              )}
-              <div>
-                <input
-                  ref={watermarkRef}
-                  id="watermark-upload"
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => void handleWatermarkUpload(e)}
-                />
-                <Button variant="outline" onClick={() => watermarkRef.current?.click()}>
-                  <Upload className="size-4" />
-                  {watermarkPreview ? 'Change Watermark' : 'Upload Watermark'}
-                </Button>
+                {hasColumn('address') && (
+                  <div className="space-y-1 md:col-span-2">
+                    <Label htmlFor="address">Address</Label>
+                    <Textarea
+                      id="address"
+                      value={String(company.address ?? '')}
+                      onChange={(e) => updateField('address', e.target.value)}
+                      rows={3}
+                    />
+                  </div>
+                )}
+
+                {hasColumn('is_active') && (
+                  <div className="flex items-center gap-3 rounded-md border p-3 md:col-span-2">
+                    <Checkbox
+                      id="is_active"
+                      checked={company.is_active !== 0}
+                      onCheckedChange={(checked) => updateField('is_active', checked ? 1 : 0)}
+                    />
+                    <div>
+                      <Label htmlFor="is_active">Active company</Label>
+                      <p className="text-sm text-muted-foreground">Inactive companies stay in the database but are hidden from active selectors.</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-          </CardContent>
-        </Card>
-      )}
+
+            {/* Footer & Thanks Text */}
+            {(hasColumn('note1') || hasColumn('note2') || hasColumn('note3') || hasColumn('thanks1') || hasColumn('thanks2')) && (
+              <div>
+                <h3 className="mb-3 text-lg font-medium">Footer & Thanks Text</h3>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {hasColumn('note1') && (
+                    <div className="space-y-1">
+                      <Label htmlFor="note1">Note 1</Label>
+                      <Textarea id="note1" value={String(company.note1 ?? '')} onChange={(e) => updateField('note1', e.target.value)} rows={2} />
+                    </div>
+                  )}
+                  {hasColumn('note2') && (
+                    <div className="space-y-1">
+                      <Label htmlFor="note2">Note 2</Label>
+                      <Textarea id="note2" value={String(company.note2 ?? '')} onChange={(e) => updateField('note2', e.target.value)} rows={2} />
+                    </div>
+                  )}
+                  {hasColumn('note3') && (
+                    <div className="space-y-1">
+                      <Label htmlFor="note3">Note 3</Label>
+                      <Textarea id="note3" value={String(company.note3 ?? '')} onChange={(e) => updateField('note3', e.target.value)} rows={2} />
+                    </div>
+                  )}
+                  {hasColumn('thanks1') && (
+                    <div className="space-y-1">
+                      <Label htmlFor="thanks1">Thanks 1</Label>
+                      <Textarea id="thanks1" value={String(company.thanks1 ?? '')} onChange={(e) => updateField('thanks1', e.target.value)} rows={2} />
+                    </div>
+                  )}
+                  {hasColumn('thanks2') && (
+                    <div className="space-y-1">
+                      <Label htmlFor="thanks2">Thanks 2</Label>
+                      <Textarea id="thanks2" value={String(company.thanks2 ?? '')} onChange={(e) => updateField('thanks2', e.target.value)} rows={2} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Logo */}
+            {hasColumn('logo') && (
+              <div>
+                <h3 className="mb-3 text-lg font-medium">Logo</h3>
+                <div className="flex items-start gap-4">
+                  {logoPreview ? (
+                    <div className="relative">
+                      <img
+                        src={logoPreview}
+                        alt="Company logo"
+                        className="max-h-32 max-w-64 rounded border object-contain"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="absolute -top-2 -right-2 size-6 rounded-full bg-destructive text-white hover:bg-destructive/80"
+                        onClick={() => {
+                          setLogoPreview(null)
+                          setCompany((prev) => ({ ...prev, logo: null }))
+                          if (logoRef.current) logoRef.current.value = ''
+                        }}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex h-32 w-64 items-center justify-center rounded border border-dashed text-sm text-muted-foreground">
+                      No logo
+                    </div>
+                  )}
+                  <div>
+                    <input
+                      ref={logoRef}
+                      id="logo-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => void handleLogoUpload(e)}
+                    />
+                    <Button variant="outline" onClick={() => logoRef.current?.click()}>
+                      <Upload className="size-4" />
+                      {logoPreview ? 'Change Logo' : 'Upload Logo'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Watermark */}
+            {hasColumn('watermark') && (
+              <div>
+                <h3 className="mb-3 text-lg font-medium">Watermark</h3>
+                <div className="flex items-start gap-4">
+                  {watermarkPreview ? (
+                    <div className="relative">
+                      <img
+                        src={watermarkPreview}
+                        alt="Watermark"
+                        className="max-h-32 max-w-64 rounded border object-contain opacity-40"
+                      />
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="absolute -top-2 -right-2 size-6 rounded-full bg-destructive text-white hover:bg-destructive/80"
+                        onClick={() => {
+                          setWatermarkPreview(null)
+                          setCompany((prev) => ({ ...prev, watermark: null }))
+                          if (watermarkRef.current) watermarkRef.current.value = ''
+                        }}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex h-32 w-64 items-center justify-center rounded border border-dashed text-sm text-muted-foreground">
+                      No watermark
+                    </div>
+                  )}
+                  <div>
+                    <input
+                      ref={watermarkRef}
+                      id="watermark-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => void handleWatermarkUpload(e)}
+                    />
+                    <Button variant="outline" onClick={() => watermarkRef.current?.click()}>
+                      <Upload className="size-4" />
+                      {watermarkPreview ? 'Change Watermark' : 'Upload Watermark'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleSave()} disabled={saving}>
+              {saving ? 'Saving...' : selectedId ? 'Update' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

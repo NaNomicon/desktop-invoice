@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { query } from '@/lib/db';
+import { query, execute } from '@/lib/db';
 import { sendEmail } from '@/lib/email/send';
 import { getQuotationPdfPath } from '@/lib/pdf/path';
 import { quoCal } from '@/lib/quotation/cal';
@@ -22,6 +22,13 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -145,6 +152,22 @@ function QuotationForm() {
   const [productSearch, setProductSearch] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([createBlankLineItem()]);
   const [deletedLineItemIds, setDeletedLineItemIds] = useState<number[]>([]);
+
+  // Add Customer dialog
+  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState('');
+  const [newCustomerPhone, setNewCustomerPhone] = useState('');
+  const [newCustomerEmail, setNewCustomerEmail] = useState('');
+  const [newCustomerBrn, setNewCustomerBrn] = useState('');
+  const [newCustomerVat, setNewCustomerVat] = useState('');
+  const [customerSaving, setCustomerSaving] = useState(false);
+
+  // Add Product dialog
+  const [productDialogOpen, setProductDialogOpen] = useState(false);
+  const [newProductName, setNewProductName] = useState('');
+  const [newProductPrice, setNewProductPrice] = useState('');
+  const [newProductTypeId, setNewProductTypeId] = useState<string>('');
+  const [productSaving, setProductSaving] = useState(false);
 
   const selectedCustomer = useMemo(
     () => customers.find((customer) => customer.id === customerId) ?? null,
@@ -739,13 +762,98 @@ function QuotationForm() {
     resetForm(result.nextQuotationNumber);
   }, [persistQuotation, resetForm, selectedCustomer]);
 
-  const openCustomers = useCallback(() => {
-    navigate('/customers');
-  }, [navigate]);
+  const openCustomerDialog = useCallback(() => {
+    setNewCustomerName('');
+    setNewCustomerPhone('');
+    setNewCustomerEmail('');
+    setNewCustomerBrn('');
+    setNewCustomerVat('');
+    setCustomerDialogOpen(true);
+  }, []);
 
-  const openProducts = useCallback(() => {
-    navigate('/products');
-  }, [navigate]);
+  const openProductDialog = useCallback(() => {
+    setNewProductName('');
+    setNewProductPrice('');
+    setNewProductTypeId('');
+    setProductDialogOpen(true);
+  }, []);
+
+  const handleCreateCustomer = useCallback(async () => {
+    const name = newCustomerName.trim();
+    if (!name) {
+      toast.error('Customer name is required');
+      return;
+    }
+    setCustomerSaving(true);
+    try {
+      await execute(
+        `INSERT INTO tbl_customer (customer_name, telephone, email, brn, vat, due_amount, reg_date, ad_due, company_id, is_deleted)
+         VALUES (?, ?, ?, ?, ?, 0, date('now'), 'Advance', ?, 0)`,
+        [name, newCustomerPhone.trim() || null, newCustomerEmail.trim() || null, newCustomerBrn.trim() || null, newCustomerVat.trim() || null, 1],
+      );
+      const idRows = await query<{ id: number }>('SELECT last_insert_rowid() as id');
+      const newId = idRows[0]?.id ?? 0;
+      const newCustomer: Customer = {
+        id: newId,
+        customer_name: name,
+        contact: null,
+        telephone: newCustomerPhone.trim() || null,
+        email: newCustomerEmail.trim() || null,
+        brn: newCustomerBrn.trim() || null,
+        vat: newCustomerVat.trim() || null,
+        address: null,
+        due_amount: 0,
+        title_name: null,
+        reg_date: new Date().toISOString().slice(0, 10),
+        ad_due: 'Advance',
+        company_id: 1,
+        is_deleted: 0,
+      };
+      setCustomers((prev) => [...prev, newCustomer]);
+      setCustomerId(newId);
+      setCustomerDialogOpen(false);
+      toast.success('Customer created');
+    } catch (err) {
+      toast.error(`Failed to create customer: ${String(err)}`);
+    } finally {
+      setCustomerSaving(false);
+    }
+  }, [newCustomerName, newCustomerPhone, newCustomerEmail, newCustomerBrn, newCustomerVat]);
+
+  const handleCreateProduct = useCallback(async () => {
+    const name = newProductName.trim();
+    if (!name) {
+      toast.error('Product name is required');
+      return;
+    }
+    const price = Math.round(parseFloat(newProductPrice || '0') * 100);
+    setProductSaving(true);
+    try {
+      await execute(
+        `INSERT INTO tbl_product (product_name, type_id, price, company_id, is_deleted)
+         VALUES (?, ?, ?, ?, 0)`,
+        [name, newProductTypeId ? parseInt(newProductTypeId, 10) : null, price, 1],
+      );
+      const idRows = await query<{ id: number }>('SELECT last_insert_rowid() as id');
+      const newId = idRows[0]?.id ?? 0;
+      const newProduct: Product = {
+        id: newId,
+        product_id: null,
+        product_name: name,
+        type_id: newProductTypeId ? parseInt(newProductTypeId, 10) : null,
+        company_id: 1,
+        price,
+        is_deleted: 0,
+      };
+      setProducts((prev) => [...prev, newProduct]);
+      setProductDialogOpen(false);
+      toast.success('Product created');
+    } catch (err) {
+      toast.error(`Failed to create product: ${String(err)}`);
+    } finally {
+      setProductSaving(false);
+    }
+  }, [newProductName, newProductPrice, newProductTypeId]);
 
   if (loading) {
     return (
@@ -765,11 +873,11 @@ function QuotationForm() {
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={openCustomers}>
+          <Button variant="outline" onClick={openCustomerDialog}>
             <UserPlus className="size-4" />
             Add Customer
           </Button>
-          <Button variant="outline" onClick={openProducts}>
+          <Button variant="outline" onClick={openProductDialog}>
             <FilePlus2 className="size-4" />
             Add Product
           </Button>
@@ -1236,6 +1344,122 @@ function QuotationForm() {
           View Quotations
         </Button>
       </div>
+
+      {/* Add Customer Dialog */}
+      <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Customer</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="new-cust-name">Customer Name *</Label>
+              <Input
+                id="new-cust-name"
+                value={newCustomerName}
+                onChange={(e) => setNewCustomerName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-cust-phone">Telephone</Label>
+              <Input
+                id="new-cust-phone"
+                value={newCustomerPhone}
+                onChange={(e) => setNewCustomerPhone(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-cust-email">Email</Label>
+              <Input
+                id="new-cust-email"
+                type="email"
+                value={newCustomerEmail}
+                onChange={(e) => setNewCustomerEmail(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-cust-brn">BRN</Label>
+              <Input
+                id="new-cust-brn"
+                value={newCustomerBrn}
+                onChange={(e) => setNewCustomerBrn(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-cust-vat">VAT Number</Label>
+              <Input
+                id="new-cust-vat"
+                value={newCustomerVat}
+                onChange={(e) => setNewCustomerVat(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCustomerDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleCreateCustomer()} disabled={customerSaving}>
+              {customerSaving ? 'Creating...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Add Product Dialog */}
+      <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add Product</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-1 gap-4">
+            <div className="space-y-1">
+              <Label htmlFor="new-prod-name">Product Name *</Label>
+              <Input
+                id="new-prod-name"
+                value={newProductName}
+                onChange={(e) => setNewProductName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-prod-type">Product Type</Label>
+              <Select
+                value={newProductTypeId}
+                onValueChange={setNewProductTypeId}
+              >
+                <SelectTrigger id="new-prod-type">
+                  <SelectValue placeholder="Select type..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {productTypes.map((pt) => (
+                    <SelectItem key={pt.id} value={String(pt.id)}>
+                      {pt.type_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="new-prod-price">Price (Rs)</Label>
+              <Input
+                id="new-prod-price"
+                type="number"
+                min="0"
+                step="0.01"
+                value={newProductPrice}
+                onChange={(e) => setNewProductPrice(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setProductDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void handleCreateProduct()} disabled={productSaving}>
+              {productSaving ? 'Creating...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
