@@ -963,35 +963,11 @@ function InvoiceForm() {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <FileText className="size-5" />
-          <h1 className="text-2xl font-semibold">
-            {editingId ? `Edit Invoice ${invoiceNumber}` : 'New Invoice'}
-          </h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
-            <RotateCcw className="size-4" />
-            {editingId ? 'Create New Invoice' : 'Clear'}
-          </Button>
-          <Button variant="outline" onClick={handleCreateReceipt} disabled={saving}>
-            <Receipt className="size-4" />
-            Create Receipt
-          </Button>
-          <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
-            <Mail className="size-4" />
-            Send
-          </Button>
-          <Button variant="outline" onClick={() => void handlePrint()} disabled={saving}>
-            <Printer className="size-4" />
-            Print
-          </Button>
-          <Button onClick={() => void handleSave()} disabled={saving}>
-            <Save className="size-4" />
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
-        </div>
+      <div className="flex items-center gap-2">
+        <FileText className="size-5" />
+        <h1 className="text-2xl font-semibold">
+          {editingId ? `Edit Invoice ${invoiceNumber}` : 'New Invoice'}
+        </h1>
       </div>
 
       <Card>
@@ -1471,6 +1447,29 @@ function InvoiceForm() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
+          <RotateCcw className="size-4" />
+          {editingId ? 'Create New Invoice' : 'Clear'}
+        </Button>
+        <Button variant="outline" onClick={handleCreateReceipt} disabled={saving}>
+          <Receipt className="size-4" />
+          Create Receipt
+        </Button>
+        <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
+          <Mail className="size-4" />
+          Send
+        </Button>
+        <Button variant="outline" onClick={() => void handlePrint()} disabled={saving}>
+          <Printer className="size-4" />
+          Print
+        </Button>
+        <Button onClick={() => void handleSave()} disabled={saving}>
+          <Save className="size-4" />
+          {saving ? 'Saving...' : 'Save'}
+        </Button>
+      </div>
     </div>
   );
 }

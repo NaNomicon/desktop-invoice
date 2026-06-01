@@ -161,15 +161,9 @@ function SettingsPage() {
 
   return (
     <div className="flex h-full flex-col gap-6 overflow-auto p-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Settings2 className="size-5" />
-          <h1 className="text-2xl font-semibold">Settings</h1>
-        </div>
-        <Button onClick={() => void handleSave()} disabled={saving}>
-          <Save className="size-4" />
-          {saving ? 'Saving...' : 'Save'}
-        </Button>
+      <div className="flex items-center gap-2">
+        <Settings2 className="size-5" />
+        <h1 className="text-2xl font-semibold">Settings</h1>
       </div>
 
       <Card>
@@ -466,6 +460,13 @@ function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <Button onClick={() => void handleSave()} disabled={saving}>
+          <Save className="size-4" />
+          {saving ? 'Saving...' : 'Save'}
+        </Button>
+      </div>
     </div>
   );
 }

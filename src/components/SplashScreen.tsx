@@ -44,6 +44,17 @@ export function SplashScreen() {
           setBranding(rows[0])
         }
       } catch (error) {
+        // If logo data is too large, try again without it to avoid IPC 431 error
+        try {
+          const rows = await query<Pick<CompanyBranding, 'company_name' | 'company_short_name'>>(
+            'SELECT company_name, company_short_name FROM tbl_company WHERE is_active = 1 ORDER BY id LIMIT 1'
+          )
+          if (!cancelled && rows[0]) {
+            setBranding({ ...rows[0], logo: null })
+          }
+        } catch {
+          // Non-fatal: splash screen works without branding
+        }
         logger.debug('Splash branding unavailable during startup', {
           error: String(error),
         })
