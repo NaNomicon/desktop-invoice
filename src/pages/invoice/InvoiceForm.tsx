@@ -977,11 +977,23 @@ function InvoiceForm() {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div className="flex items-center gap-2">
-        <FileText className="size-5" />
-        <h1 className="text-2xl font-semibold">
-          {editingId ? `Edit Invoice ${invoiceNumber}` : 'New Invoice'}
-        </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <FileText className="size-5" />
+          <h1 className="text-2xl font-semibold">
+            {editingId ? `Edit Invoice ${invoiceNumber}` : 'New Invoice'}
+          </h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
+            <RotateCcw className="size-4" />
+            {editingId ? 'Create New Invoice' : 'Clear'}
+          </Button>
+          <Button variant="outline" onClick={handleCreateReceipt} disabled={saving}>
+            <Receipt className="size-4" />
+            Create Receipt
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -1321,14 +1333,6 @@ function InvoiceForm() {
       </Card>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
-          <RotateCcw className="size-4" />
-          {editingId ? 'Create New Invoice' : 'Clear'}
-        </Button>
-        <Button variant="outline" onClick={handleCreateReceipt} disabled={saving}>
-          <Receipt className="size-4" />
-          Create Receipt
-        </Button>
         <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
           <Mail className="size-4" />
           Send

@@ -151,11 +151,8 @@ function ProductPage() {
       if (priceParam) {
         setForm((f) => ({ ...f, price: priceParam, product_name: nameParam || '' }));
       }
-      if (!productAutoFill) {
-        setProductAutoFill({ targetForm: target, productId: null, productName: '', unitPrice: 0 });
-      }
     }
-  }, [openNew, productAutoFill, searchParams, setProductAutoFill]);
+  }, [openNew, searchParams]);
 
   const filtered = useMemo(() => {
     let rows = products;

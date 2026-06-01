@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { formatMoney } from '@/lib/currency';
 import { useCurrencySymbol } from '@/services/company';
 import { query, execute } from '@/lib/db';
@@ -85,6 +86,7 @@ function Customer() {
   const authCompanyId = useAuthStore((s) => s.company_id);
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
+  const [searchParams] = useSearchParams();
 
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
@@ -127,6 +129,14 @@ function Customer() {
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (searchParams.get('newFor') === 'quotation') {
+      openNew();
+    }
+    // Only on mount — ignore searchParams changes to avoid re-triggers
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = useMemo(() => {
     let rows = customers;

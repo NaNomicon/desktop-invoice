@@ -45,7 +45,6 @@ import { cn } from '@/lib/utils';
 
 import { toast } from 'sonner';
 import {
-  ArrowLeftRight,
   Eraser,
   FilePlus2,
   FileText,
@@ -736,11 +735,11 @@ function QuotationForm() {
   }, [persistQuotation, resetForm, selectedCustomer]);
 
   const openCustomers = useCallback(() => {
-    navigate('/customers');
+    navigate('/customers?newFor=quotation');
   }, [navigate]);
 
   const openProducts = useCallback(() => {
-    navigate('/products');
+    navigate('/products?newFor=quotation');
   }, [navigate]);
 
   if (loading) {
@@ -753,11 +752,31 @@ function QuotationForm() {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div className="flex items-center gap-2">
-        <FileText className="size-5" />
-        <h1 className="text-2xl font-semibold">
-          {editingId ? `Edit Quotation ${quotationNumber}` : 'Add Quotation'}
-        </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <FileText className="size-5" />
+          <h1 className="text-2xl font-semibold">
+            {editingId ? `Edit Quotation ${quotationNumber}` : 'Add Quotation'}
+          </h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={openCustomers}>
+            <UserPlus className="size-4" />
+            New Customer
+          </Button>
+          <Button variant="outline" onClick={openProducts}>
+            <FilePlus2 className="size-4" />
+            New Product
+          </Button>
+          <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
+            <Eraser className="size-4" />
+            Clear
+          </Button>
+          <Button variant="outline" onClick={() => void handlePreview()} disabled={saving}>
+            <Printer className="size-4" />
+            Preview
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -1195,22 +1214,6 @@ function QuotationForm() {
       </Card>
 
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" onClick={openCustomers}>
-          <UserPlus className="size-4" />
-          Add Customer
-        </Button>
-        <Button variant="outline" onClick={openProducts}>
-          <FilePlus2 className="size-4" />
-          Add Product
-        </Button>
-        <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
-          <Eraser className="size-4" />
-          Clear
-        </Button>
-        <Button variant="outline" onClick={() => void handlePreview()} disabled={saving}>
-          <Printer className="size-4" />
-          Preview
-        </Button>
         <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
           <Mail className="size-4" />
           Send
@@ -1222,10 +1225,6 @@ function QuotationForm() {
         <Button onClick={() => void handleSave()} disabled={saving}>
           <Save className="size-4" />
           {saving ? 'Saving...' : 'Save'}
-        </Button>
-        <Button variant="outline" onClick={() => navigate('/quotations')}>
-          <ArrowLeftRight className="size-4" />
-          View Quotations
         </Button>
       </div>
     </div>
