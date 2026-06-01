@@ -5,6 +5,8 @@ import { deleteQuotation } from '@/lib/quotation/delete';
 import type { Company, QuotationMain, Setting } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { isAdmin } from '@/lib/rbac';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -71,12 +73,10 @@ interface QuotationPreviewRouteState {
   autoExportPdf?: boolean;
 }
 
-function dollars(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
 
 function QuotationList() {
   const navigate = useNavigate();
+  const currency = useCurrencySymbol();
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
 
@@ -246,7 +246,7 @@ function QuotationList() {
       {
         accessorKey: 'total',
         header: 'Total',
-        cell: (info) => `Rs ${dollars(info.getValue<number>())}`,
+        cell: (info) => formatMoney(info.getValue<number>(), currency),
       },
       {
         accessorKey: 'identify',
@@ -351,7 +351,7 @@ function QuotationList() {
           ) : null,
       },
     ],
-    [admin, handleConvertToInvoice, handleEdit, openQuotationPreview, openingPdfId, openingPreviewId],
+    [admin, handleConvertToInvoice, handleEdit, openQuotationPreview, openingPdfId, openingPreviewId, currency],
   );
 
   const table = useReactTable({

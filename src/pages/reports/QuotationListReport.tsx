@@ -52,6 +52,8 @@ import {
   Printer,
   Search,
 } from 'lucide-react';
+import { formatMoney, toDecimal } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 
 interface QuotationListRow {
   quo_id: number;
@@ -64,10 +66,6 @@ interface QuotationListRow {
   total: number;
   checklist_no: string | null;
   telephone: string | null;
-}
-
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
 }
 
 function formatDisplayDate(date: string): string {
@@ -88,8 +86,9 @@ function createQuotationListReportHtml(options: {
   rangeLabel: string;
   companyLabel: string;
   searchTerm: string;
+  currency: string;
 }): string {
-  const { rows, rangeLabel, companyLabel, searchTerm } = options;
+  const { rows, rangeLabel, companyLabel, searchTerm, currency } = options;
   const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
   const totalSubTotal = rows.reduce((sum, row) => sum + row.total, 0);
   const totalDiscount = rows.reduce((sum, row) => sum + row.discount, 0);
@@ -103,9 +102,9 @@ function createQuotationListReportHtml(options: {
           <td>${escapeHtml(row.customer_type ?? '')}</td>
           <td>${escapeHtml(row.quo_no)}</td>
           <td>${escapeHtml(formatDisplayDate(row.quo_date))}</td>
-          <td class="num">Rs ${row.vat.toFixed(2)}</td>
-          <td class="num">Rs ${dollars(row.discount)}</td>
-          <td class="num">Rs ${dollars(row.total)}</td>
+          <td class="num">${row.vat.toFixed(2)}</td>
+          <td class="num">${formatMoney(row.discount, currency)}</td>
+          <td class="num">${formatMoney(row.total, currency)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -150,8 +149,8 @@ function createQuotationListReportHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Quotations</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Sub Total</div><div class="value">Rs ${dollars(totalSubTotal)}</div></div>
-      <div class="card"><div class="label">Discount</div><div class="value">Rs ${dollars(totalDiscount)}</div></div>
+      <div class="card"><div class="label">Sub Total</div><div class="value">${formatMoney(totalSubTotal, currency)}</div></div>
+      <div class="card"><div class="label">Discount</div><div class="value">${formatMoney(totalDiscount, currency)}</div></div>
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
     </div>
     <table>
@@ -172,8 +171,8 @@ function createQuotationListReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">Rs ${dollars(totalDiscount)}</td>
-          <td class="num">Rs ${dollars(totalSubTotal)}</td>
+          <td class="num">${formatMoney(totalDiscount, currency)}</td>
+          <td class="num">${formatMoney(totalSubTotal, currency)}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -184,6 +183,7 @@ function createQuotationListReportHtml(options: {
 }
 
 function QuotationListReport() {
+  const currency = useCurrencySymbol();
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
@@ -325,6 +325,7 @@ function QuotationListReport() {
         rangeLabel,
         companyLabel,
         searchTerm: searchTerm.trim(),
+        currency,
       });
 
       openPrintableReport({
@@ -374,8 +375,8 @@ function QuotationListReport() {
         row.quo_no,
         formatDisplayDate(row.quo_date),
         row.vat.toFixed(2),
-        dollars(row.discount),
-        dollars(row.total),
+        toDecimal(row.discount),
+        toDecimal(row.total),
         row.checklist_no ?? '',
       ]),
     });
@@ -417,14 +418,14 @@ function QuotationListReport() {
         accessorKey: 'discount',
         header: 'Discount',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
       {
         accessorKey: 'total',
         header: 'Sub Total',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
       {
@@ -433,7 +434,7 @@ function QuotationListReport() {
         cell: (info) => info.getValue<string | null>() ?? '—',
       },
     ],
-    [],
+    [currency],
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table intentionally returns non-memoizable helpers

@@ -2,6 +2,7 @@ import { useMemo, useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
+import { formatMoney, toDecimal } from '@/lib/currency';
 import {
   downloadExcelXml,
   escapeHtml,
@@ -28,17 +29,15 @@ interface QuotationLineRow extends QuotationSub {
   product_code: string | null;
 }
 
-function dollars(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
 
 function createQuotationHtml(options: {
   quotation: QuotationMain;
   customerName: string;
   companyLabel: string;
   lines: QuotationLineRow[];
+  currency: string;
 }): string {
-  const { quotation, customerName, companyLabel, lines } = options;
+  const { quotation, customerName, companyLabel, lines, currency } = options;
   const generatedAt = new Date().toLocaleString('en-GB', {
     year: 'numeric',
     month: '2-digit',
@@ -57,8 +56,8 @@ function createQuotationHtml(options: {
           <td>${escapeHtml(line.product_code ?? '-')}</td>
           <td>${escapeHtml(line.product_name ?? 'Unknown Product')}</td>
           <td class="amount">${escapeHtml(String(line.qty))}</td>
-          <td class="amount">Rs ${escapeHtml(dollars(line.unit_price))}</td>
-          <td class="amount">Rs ${escapeHtml(dollars(line.row_total))}</td>
+          <td class="amount">${escapeHtml(formatMoney(line.unit_price, currency))}</td>
+          <td class="amount">${escapeHtml(formatMoney(line.row_total, currency))}</td>
         </tr>`,
     )
     .join('');
@@ -101,9 +100,9 @@ function createQuotationHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Checklist</div><div class="value">${escapeHtml(quotation.checklist_no ?? '-')}</div></div>
-      <div class="card"><div class="label">Sub Total</div><div class="value">Rs ${escapeHtml(dollars(quotation.sub_total))}</div></div>
-      <div class="card"><div class="label">VAT</div><div class="value">Rs ${escapeHtml(dollars(quotation.vat))}</div></div>
-      <div class="card"><div class="label">Total</div><div class="value">Rs ${escapeHtml(dollars(quotation.total))}</div></div>
+      <div class="card"><div class="label">Sub Total</div><div class="value">${escapeHtml(formatMoney(quotation.sub_total, currency))}</div></div>
+      <div class="card"><div class="label">VAT</div><div class="value">${escapeHtml(formatMoney(quotation.vat, currency))}</div></div>
+      <div class="card"><div class="label">Total</div><div class="value">${escapeHtml(formatMoney(quotation.total, currency))}</div></div>
     </div>
     <table>
       <thead>
@@ -165,6 +164,8 @@ function QuotationPreview() {
     staleTime: 30_000,
   });
 
+  const currency = data?.company?.currency ?? 'Rs';
+
   const reportHtml = useMemo(() => {
     if (!data?.quotation || !data.customer) {
       return '';
@@ -174,8 +175,9 @@ function QuotationPreview() {
       customerName: data.customer.customer_name,
       companyLabel: data.company?.company_name ?? `Company ${data.quotation.company_id}`,
       lines: data.lines,
+      currency,
     });
-  }, [data]);
+  }, [data, currency]);
 
   const printableReportConfig = useMemo(() => {
     if (!reportHtml) {
@@ -237,8 +239,8 @@ function QuotationPreview() {
         line.product_code ?? '',
         line.product_name ?? '',
         String(line.qty),
-        dollars(line.unit_price),
-        dollars(line.row_total),
+        toDecimal(line.unit_price),
+        toDecimal(line.row_total),
       ]),
     });
   };
@@ -292,7 +294,7 @@ function QuotationPreview() {
   const waVariables: Record<number, string> = {
     1: data?.quotation?.quo_no ?? '',
     2: data?.customer?.customer_name ?? '',
-    3: (Number(data?.quotation?.total ?? 0) / 100).toFixed(2),
+    3: toDecimal(Number(data?.quotation?.total ?? 0)),
   };
 
   if (isLoading) {
@@ -379,8 +381,8 @@ function QuotationPreview() {
                     <td className="px-4 py-2">{line.product_code ?? '-'}</td>
                     <td className="px-4 py-2">{line.product_name ?? 'Unknown Product'}</td>
                     <td className="px-4 py-2 text-right">{line.qty}</td>
-                    <td className="px-4 py-2 text-right">Rs {dollars(line.unit_price)}</td>
-                    <td className="px-4 py-2 text-right">Rs {dollars(line.row_total)}</td>
+                    <td className="px-4 py-2 text-right">{formatMoney(line.unit_price, currency)}</td>
+                    <td className="px-4 py-2 text-right">{formatMoney(line.row_total, currency)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -389,19 +391,19 @@ function QuotationPreview() {
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Sub Total</div>
-              <div className="font-medium">Rs {dollars(data.quotation.sub_total)}</div>
+              <div className="font-medium">{formatMoney(data.quotation.sub_total, currency)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">VAT</div>
-              <div className="font-medium">Rs {dollars(data.quotation.vat)}</div>
+              <div className="font-medium">{formatMoney(data.quotation.vat, currency)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Discount</div>
-              <div className="font-medium">Rs {dollars(data.quotation.discount)}</div>
+              <div className="font-medium">{formatMoney(data.quotation.discount, currency)}</div>
             </div>
             <div>
               <div className="text-xs uppercase tracking-wide text-muted-foreground">Total</div>
-              <div className="font-semibold">Rs {dollars(data.quotation.total)}</div>
+              <div className="font-semibold">{formatMoney(data.quotation.total, currency)}</div>
             </div>
           </div>
         </CardContent>

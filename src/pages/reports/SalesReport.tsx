@@ -51,6 +51,8 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
+import { formatMoney, toDecimal } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 
 interface SalesRow {
   sales_id: number;
@@ -65,9 +67,6 @@ interface SalesRow {
   checklist_no: string | null;
 }
 
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
 
 function formatDisplayDate(date: string): string {
   if (!date) {
@@ -87,8 +86,9 @@ function createSalesReportHtml(options: {
   rangeLabel: string;
   companyLabel: string;
   searchTerm: string;
+  currency: string;
 }): string {
-  const { rows, rangeLabel, companyLabel, searchTerm } = options;
+  const { rows, rangeLabel, companyLabel, searchTerm, currency } = options;
   const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
   const totalAmount = rows.reduce((sum, row) => sum + row.bill_amount, 0);
 
@@ -101,8 +101,8 @@ function createSalesReportHtml(options: {
           <td>${escapeHtml(row.customer_name)}</td>
           <td>${escapeHtml(row.customer_type ?? '')}</td>
           <td>${escapeHtml(row.invoice_no)}</td>
-          <td class="num">Rs ${dollars(row.discount)}</td>
-          <td class="num">Rs ${dollars(row.bill_amount)}</td>
+          <td class="num">${formatMoney(row.discount, currency)}</td>
+          <td class="num">${formatMoney(row.bill_amount, currency)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -148,7 +148,7 @@ function createSalesReportHtml(options: {
     <div class="summary">
       <div class="card"><div class="label">Invoices</div><div class="value">${rows.length}</div></div>
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
-      <div class="card"><div class="label">Net Sales</div><div class="value">Rs ${dollars(totalAmount)}</div></div>
+      <div class="card"><div class="label">Net Sales</div><div class="value">${formatMoney(totalAmount, currency)}</div></div>
     </div>
     <table>
       <thead>
@@ -167,7 +167,7 @@ function createSalesReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">Rs ${dollars(totalAmount)}</td>
+          <td class="num">${formatMoney(totalAmount, currency)}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -180,6 +180,7 @@ function createSalesReportHtml(options: {
 type GroupBy = 'none' | 'date' | 'customer' | 'company';
 
 function SalesReport() {
+  const currency = useCurrencySymbol();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
     to: new Date(),
@@ -341,6 +342,7 @@ function SalesReport() {
         rangeLabel,
         companyLabel,
         searchTerm: searchTerm.trim(),
+        currency,
       });
 
       openPrintableReport({
@@ -384,8 +386,8 @@ function SalesReport() {
         row.customer_type ?? '',
         row.invoice_no,
         formatDisplayDate(row.invoice_date),
-        dollars(row.discount),
-        dollars(row.bill_amount),
+        toDecimal(row.discount),
+        toDecimal(row.bill_amount),
         row.checklist_no ?? '',
       ]),
     });
@@ -422,14 +424,14 @@ function SalesReport() {
         accessorKey: 'discount',
         header: 'Discount',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
       {
         accessorKey: 'bill_amount',
         header: 'Bill Amount',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
       {
@@ -623,7 +625,7 @@ function SalesReport() {
                   <div key={label}>
                     <div className="flex items-center justify-between bg-muted/50 px-4 py-2 text-sm font-medium text-muted-foreground">
                       <span>{label}</span>
-                      <span className="tabular-nums">Rs {dollars(sectionTotal)}</span>
+                      <span className="tabular-nums">{formatMoney(sectionTotal, currency)}</span>
                     </div>
                     <table className="w-full text-sm">
                       <thead>
@@ -670,10 +672,10 @@ function SalesReport() {
                             <td className="px-4 py-2">{row.customer_type ?? '—'}</td>
                             <td className="px-4 py-2">{row.invoice_no}</td>
                             <td className="px-4 py-2 text-right tabular-nums">
-                              Rs ${dollars(row.discount)}
+                              {formatMoney(row.discount, currency)}
                             </td>
                             <td className="px-4 py-2 text-right tabular-nums">
-                              Rs ${dollars(row.bill_amount)}
+                              {formatMoney(row.bill_amount, currency)}
                             </td>
                             <td className="px-4 py-2">{row.checklist_no ?? '—'}</td>
                           </tr>

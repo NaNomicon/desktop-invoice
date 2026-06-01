@@ -18,7 +18,6 @@ import { useOutstandingStore } from '@/store/outstanding-store';
 import {
   createOutstandingReportHtml,
   customerDisplayName,
-  dollars,
   filterOutstandingRows,
   getOutstandingCompanyLabel,
   getOutstandingTotals,
@@ -26,8 +25,11 @@ import {
 import { useOutstandingData } from '@/services/outstanding';
 import { Download, FileText, Search, X, ChevronsUpDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 
 function OutstandingReport() {
+  const currency = useCurrencySymbol();
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
   const search = useOutstandingStore((state) => state.search);
   const companyFilter = useOutstandingStore((state) => state.companyFilter);
@@ -79,7 +81,7 @@ function OutstandingReport() {
       }
 
       openPrintableReport({
-        html: createOutstandingReportHtml(filtered, companyLabel),
+        html: createOutstandingReportHtml(filtered, companyLabel, currency),
         mode,
         requirePath: mode === 'pdf',
         configuredPath: settings?.report_path ?? null,
@@ -110,7 +112,7 @@ function OutstandingReport() {
         const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
         return [
           customerDisplayName(row),
-          `${amountPrefix}Rs ${dollars(Math.abs(row.due_amount))}`,
+          `${amountPrefix}${formatMoney(Math.abs(row.due_amount), currency)}`,
           row.ad_due,
         ];
       }),
@@ -162,13 +164,13 @@ function OutstandingReport() {
         <Card>
           <CardContent className="pt-6">
             <div className="text-xs uppercase tracking-wide text-muted-foreground text-red-600">Total Due</div>
-            <div className="mt-1 font-medium text-red-600">Rs {dollars(totalDue)}</div>
+            <div className="mt-1 font-medium text-red-600">{formatMoney(totalDue, currency)}</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <div className="text-xs uppercase tracking-wide text-muted-foreground text-green-600">Total Advance</div>
-            <div className="mt-1 font-medium text-green-600">Rs {dollars(totalAdvance)}</div>
+            <div className="mt-1 font-medium text-green-600">{formatMoney(totalAdvance, currency)}</div>
           </CardContent>
         </Card>
       </div>
@@ -267,7 +269,7 @@ function OutstandingReport() {
                       <tr key={row.id} className="border-t">
                         <td className="px-4 py-2">{customerDisplayName(row)}</td>
                         <td className={`px-4 py-2 text-right ${statusClass}`}>
-                          {amountPrefix}Rs {dollars(Math.abs(row.due_amount))}
+                          {amountPrefix}{formatMoney(Math.abs(row.due_amount), currency)}
                         </td>
                         <td className={`px-4 py-2 ${statusClass}`}>{row.ad_due}</td>
                       </tr>

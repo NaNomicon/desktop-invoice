@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import { buildReportPdfPath, downloadExcelXml, openPrintableReport } from '@/lib/report-output';
@@ -10,7 +12,6 @@ import { useOutstandingStore } from '@/store/outstanding-store';
 import {
   createOutstandingReportHtml,
   customerDisplayName,
-  dollars,
   filterOutstandingRows,
   type OutstandingRow,
 } from './outstanding-report-helpers';
@@ -50,6 +51,7 @@ import {
 import { cn } from '@/lib/utils';
 
 function ListOutStanding() {
+  const currency = useCurrencySymbol();
   const navigate = useNavigate();
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
   const search = useOutstandingStore((state) => state.search);
@@ -118,7 +120,7 @@ function ListOutStanding() {
         return;
       }
 
-      const html = createOutstandingReportHtml(filtered);
+      const html = createOutstandingReportHtml(filtered, companyFilter === 'all' ? 'all-companies' : `company-${companyFilter}`, currency);
       openPrintableReport({
         html,
         mode,
@@ -151,7 +153,7 @@ function ListOutStanding() {
         const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
         return [
           customerDisplayName(row),
-          `${amountPrefix}Rs ${dollars(Math.abs(row.due_amount))}`,
+          `${amountPrefix}${formatMoney(Math.abs(row.due_amount), currency)}`,
           row.ad_due,
         ];
       }),
@@ -171,7 +173,7 @@ function ListOutStanding() {
         cell: (info) => {
           const row = info.row.original;
           const prefix = row.ad_due === 'Advance' ? '-' : '';
-          return `${prefix}Rs ${dollars(Math.abs(info.getValue<number>()))}`;
+          return `${prefix}${formatMoney(Math.abs(info.getValue<number>()), currency)}`;
         },
       },
       {
@@ -257,10 +259,10 @@ function ListOutStanding() {
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="font-medium text-red-600">
-          Total Due: Rs {dollars(totalDue)}
+          Total Due: {formatMoney(totalDue, currency)}
         </span>
         <span className="font-medium text-green-600">
-          Total Advance: Rs {dollars(totalAdvance)}
+          Total Advance: {formatMoney(totalAdvance, currency)}
         </span>
       </div>
 

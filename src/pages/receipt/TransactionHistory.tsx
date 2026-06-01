@@ -2,6 +2,8 @@ import { useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { buildReportPdfPath, escapeHtml, openPrintableReport } from '@/lib/report-output';
 import { deleteReceipt } from '@/lib/receipt/delete';
 import { sendEmail } from '@/lib/email/send';
@@ -64,12 +66,6 @@ interface ReceiptListRow extends ReceiptRecord {
   customer_ad_due: string | null;
 }
 
-function dollars(c: number): string {
-  return (c / 100).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 function formatDisplayDate(date: string): string {
   if (!date) {
@@ -137,7 +133,7 @@ function buildReceiptPdfPath(options: {
   return joinPath(folder, fileName);
 }
 
-function createReceiptPdfHtml(receipt: ReceiptListRow): string {
+function createReceiptPdfHtml(receipt: ReceiptListRow, currency: string): string {
   const customerLabel = `${receipt.title_name ?? ''} ${receipt.customer_name}`.trim() || receipt.customer_name;
   const generatedAt = new Date().toLocaleString('en-GB');
   const duePrefix = receipt.customer_ad_due === 'Advance' ? '-' : '';
@@ -181,8 +177,8 @@ function createReceiptPdfHtml(receipt: ReceiptListRow): string {
     </div>
 
     <div class="summary">
-      <div class="card"><div class="label">Received</div><div class="value">Rs ${dollars(receipt.amount_received)}</div></div>
-      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}Rs ${dollars(receipt.customer_due_amount)}</div></div>
+      <div class="card"><div class="label">Received</div><div class="value">${formatMoney(receipt.amount_received, currency)}</div></div>
+      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}${formatMoney(receipt.customer_due_amount, currency)}</div></div>
       <div class="card"><div class="label">Cheque No</div><div class="value">${escapeHtml(chequeNo)}</div></div>
       <div class="card"><div class="label">Payment Mode</div><div class="value">${escapeHtml(receipt.payment_mode ?? '—')}</div></div>
     </div>
@@ -191,8 +187,8 @@ function createReceiptPdfHtml(receipt: ReceiptListRow): string {
       <tbody>
         <tr><th>Customer Email</th><td>${escapeHtml(receipt.customer_email ?? '—')}</td></tr>
         <tr><th>Contact Person</th><td>${escapeHtml(receipt.customer_contact ?? '—')}</td></tr>
-        <tr><th>Balance Before Receipt</th><td class="amount">Rs ${dollars(receipt.balance ?? 0)}</td></tr>
-        <tr><th>Stored Receipt Due</th><td class="amount">Rs ${dollars(receipt.due_amount ?? 0)}</td></tr>
+        <tr><th>Balance Before Receipt</th><td class="amount">${formatMoney(receipt.balance ?? 0, currency)}</td></tr>
+        <tr><th>Stored Receipt Due</th><td class="amount">${formatMoney(receipt.due_amount ?? 0, currency)}</td></tr>
       </tbody>
     </table>
 
@@ -209,6 +205,7 @@ function ReceiptList() {
   const navigate = useNavigate();
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
+  const currency = useCurrencySymbol();
 
   const [search, setSearch] = useState('');
   const [companyOpen, setCompanyOpen] = useState(false);
@@ -354,7 +351,7 @@ function ReceiptList() {
 
       try {
         await openPrintableReport({
-          html: createReceiptPdfHtml(receipt),
+          html: createReceiptPdfHtml(receipt, currency),
           mode: 'pdf',
           requirePath: true,
           configuredPath: settings.report_path,
@@ -407,7 +404,7 @@ function ReceiptList() {
       {
         accessorKey: 'amount_received',
         header: 'Amount Received',
-        cell: (info) => <span className="text-right tabular-nums">Rs {dollars(info.getValue<number>())}</span>,
+        cell: (info) => <span className="text-right tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>,
       },
       {
         id: 'due_amount_after',
@@ -415,7 +412,7 @@ function ReceiptList() {
         cell: (info) => {
           const row = info.row.original;
           const prefix = row.customer_ad_due === 'Advance' ? '-' : '';
-          return <span className="text-right tabular-nums">{prefix}Rs {dollars(row.customer_due_amount)}</span>;
+          return <span className="text-right tabular-nums">{prefix}{formatMoney(row.customer_due_amount, currency)}</span>;
         },
       },
       {
@@ -506,7 +503,7 @@ function ReceiptList() {
           ) : null,
       },
     ],
-    [admin, emailingId, handleEdit, handleEmail, handlePreview, handleSavePdf],
+    [admin, currency, emailingId, handleEdit, handleEmail, handlePreview, handleSavePdf],
   );
 
   const table = useReactTable({

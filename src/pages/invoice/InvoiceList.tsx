@@ -5,6 +5,8 @@ import { deleteInvoice } from '@/lib/invoice/delete';
 import type { InvoiceMain, Company } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { isAdmin } from '@/lib/rbac';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,12 +46,10 @@ interface InvoiceRow extends InvoiceMain {
   status: string;
 }
 
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
 
 function InvoiceList() {
   const navigate = useNavigate();
+  const currency = useCurrencySymbol();
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
 
@@ -159,7 +159,7 @@ function InvoiceList() {
         header: () => <span className="block w-full text-right">Total</span>,
         cell: (info) => (
           <span className="text-right block w-full">
-            Rs {dollars(info.getValue<number>())}
+            {formatMoney(info.getValue<number>(), currency)}
           </span>
         ),
       },
@@ -168,7 +168,7 @@ function InvoiceList() {
         header: () => <span className="block w-full text-right">Paid</span>,
         cell: (info) => (
           <span className="text-right block w-full">
-            Rs {dollars(info.getValue<number>())}
+            {formatMoney(info.getValue<number>(), currency)}
           </span>
         ),
       },
@@ -183,7 +183,7 @@ function InvoiceList() {
                 v > 0 ? 'font-medium text-orange-600' : ''
               }`}
             >
-              Rs {dollars(Math.abs(v))}
+              {formatMoney(Math.abs(v), currency)}
               {v < 0 ? ' (overpaid)' : ''}
             </span>
           );
@@ -264,7 +264,7 @@ function InvoiceList() {
           ) : null,
       },
     ],
-    [admin, handleEdit, navigate],
+    [admin, handleEdit, navigate, currency],
   );
 
   const table = useReactTable({

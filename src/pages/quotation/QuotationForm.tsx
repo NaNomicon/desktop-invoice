@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { query, execute } from '@/lib/db';
+import { query } from '@/lib/db';
+import { formatMoney, parseCents, toDecimal } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { sendEmail } from '@/lib/email/send';
 import { getQuotationPdfPath } from '@/lib/pdf/path';
 import { quoCal } from '@/lib/quotation/cal';
@@ -22,13 +24,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -94,13 +89,6 @@ function nextUid(): string {
   return `quotation-li-${uidCounter++}`;
 }
 
-function dollars(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
-
-function cents(value: string): number {
-  return Math.round(parseFloat(value || '0') * 100);
-}
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -123,6 +111,7 @@ function createBlankLineItem(): LineItem {
 
 function QuotationForm() {
   const navigate = useNavigate();
+  const currency = useCurrencySymbol();
   const location = useLocation();
   const authCompanyId = useAuthStore((s) => s.company_id);
   const routeState = (location.state as QuotationRouteState | null) ?? null;
@@ -152,22 +141,6 @@ function QuotationForm() {
   const [productSearch, setProductSearch] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([createBlankLineItem()]);
   const [deletedLineItemIds, setDeletedLineItemIds] = useState<number[]>([]);
-
-  // Add Customer dialog
-  const [customerDialogOpen, setCustomerDialogOpen] = useState(false);
-  const [newCustomerName, setNewCustomerName] = useState('');
-  const [newCustomerPhone, setNewCustomerPhone] = useState('');
-  const [newCustomerEmail, setNewCustomerEmail] = useState('');
-  const [newCustomerBrn, setNewCustomerBrn] = useState('');
-  const [newCustomerVat, setNewCustomerVat] = useState('');
-  const [customerSaving, setCustomerSaving] = useState(false);
-
-  // Add Product dialog
-  const [productDialogOpen, setProductDialogOpen] = useState(false);
-  const [newProductName, setNewProductName] = useState('');
-  const [newProductPrice, setNewProductPrice] = useState('');
-  const [newProductTypeId, setNewProductTypeId] = useState<string>('');
-  const [productSaving, setProductSaving] = useState(false);
 
   const selectedCustomer = useMemo(
     () => customers.find((customer) => customer.id === customerId) ?? null,
@@ -217,7 +190,7 @@ function QuotationForm() {
     if (parseFloat(per || '0') > 0) {
       return calcResult.discount;
     }
-    return cents(manualDiscount);
+    return parseCents(manualDiscount);
   }, [calcResult.discount, manualDiscount, per]);
 
   const total = useMemo(
@@ -352,7 +325,7 @@ function QuotationForm() {
       setChecklistNo(quotation.checklist_no ?? '');
       setRefNo(quotation.no ?? '');
       setPer(String(quotation.per ?? 0));
-      setManualDiscount(dollars(quotation.discount ?? 0));
+      setManualDiscount(toDecimal(quotation.discount ?? 0));
       setDeletedLineItemIds([]);
       setLineItems(
         lineRows.length > 0
@@ -762,98 +735,13 @@ function QuotationForm() {
     resetForm(result.nextQuotationNumber);
   }, [persistQuotation, resetForm, selectedCustomer]);
 
-  const openCustomerDialog = useCallback(() => {
-    setNewCustomerName('');
-    setNewCustomerPhone('');
-    setNewCustomerEmail('');
-    setNewCustomerBrn('');
-    setNewCustomerVat('');
-    setCustomerDialogOpen(true);
-  }, []);
+  const openCustomers = useCallback(() => {
+    navigate('/customers');
+  }, [navigate]);
 
-  const openProductDialog = useCallback(() => {
-    setNewProductName('');
-    setNewProductPrice('');
-    setNewProductTypeId('');
-    setProductDialogOpen(true);
-  }, []);
-
-  const handleCreateCustomer = useCallback(async () => {
-    const name = newCustomerName.trim();
-    if (!name) {
-      toast.error('Customer name is required');
-      return;
-    }
-    setCustomerSaving(true);
-    try {
-      await execute(
-        `INSERT INTO tbl_customer (customer_name, telephone, email, brn, vat, due_amount, reg_date, ad_due, company_id, is_deleted)
-         VALUES (?, ?, ?, ?, ?, 0, date('now'), 'Advance', ?, 0)`,
-        [name, newCustomerPhone.trim() || null, newCustomerEmail.trim() || null, newCustomerBrn.trim() || null, newCustomerVat.trim() || null, 1],
-      );
-      const idRows = await query<{ id: number }>('SELECT last_insert_rowid() as id');
-      const newId = idRows[0]?.id ?? 0;
-      const newCustomer: Customer = {
-        id: newId,
-        customer_name: name,
-        contact: null,
-        telephone: newCustomerPhone.trim() || null,
-        email: newCustomerEmail.trim() || null,
-        brn: newCustomerBrn.trim() || null,
-        vat: newCustomerVat.trim() || null,
-        address: null,
-        due_amount: 0,
-        title_name: null,
-        reg_date: new Date().toISOString().slice(0, 10),
-        ad_due: 'Advance',
-        company_id: 1,
-        is_deleted: 0,
-      };
-      setCustomers((prev) => [...prev, newCustomer]);
-      setCustomerId(newId);
-      setCustomerDialogOpen(false);
-      toast.success('Customer created');
-    } catch (err) {
-      toast.error(`Failed to create customer: ${String(err)}`);
-    } finally {
-      setCustomerSaving(false);
-    }
-  }, [newCustomerName, newCustomerPhone, newCustomerEmail, newCustomerBrn, newCustomerVat]);
-
-  const handleCreateProduct = useCallback(async () => {
-    const name = newProductName.trim();
-    if (!name) {
-      toast.error('Product name is required');
-      return;
-    }
-    const price = Math.round(parseFloat(newProductPrice || '0') * 100);
-    setProductSaving(true);
-    try {
-      await execute(
-        `INSERT INTO tbl_product (product_name, type_id, price, company_id, is_deleted)
-         VALUES (?, ?, ?, ?, 0)`,
-        [name, newProductTypeId ? parseInt(newProductTypeId, 10) : null, price, 1],
-      );
-      const idRows = await query<{ id: number }>('SELECT last_insert_rowid() as id');
-      const newId = idRows[0]?.id ?? 0;
-      const newProduct: Product = {
-        id: newId,
-        product_id: null,
-        product_name: name,
-        type_id: newProductTypeId ? parseInt(newProductTypeId, 10) : null,
-        company_id: 1,
-        price,
-        is_deleted: 0,
-      };
-      setProducts((prev) => [...prev, newProduct]);
-      setProductDialogOpen(false);
-      toast.success('Product created');
-    } catch (err) {
-      toast.error(`Failed to create product: ${String(err)}`);
-    } finally {
-      setProductSaving(false);
-    }
-  }, [newProductName, newProductPrice, newProductTypeId]);
+  const openProducts = useCallback(() => {
+    navigate('/products');
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -873,11 +761,11 @@ function QuotationForm() {
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={openCustomerDialog}>
+          <Button variant="outline" onClick={openCustomers}>
             <UserPlus className="size-4" />
             Add Customer
           </Button>
-          <Button variant="outline" onClick={openProductDialog}>
+          <Button variant="outline" onClick={openProducts}>
             <FilePlus2 className="size-4" />
             Add Product
           </Button>
@@ -983,7 +871,7 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Customer Due</Label>
-            <Input value={`Rs ${dollars(selectedCustomer?.due_amount ?? 0)}`} disabled className="bg-muted" />
+            <Input value={formatMoney(selectedCustomer?.due_amount ?? 0, currency)} disabled className="bg-muted" />
           </div>
           <div className="space-y-1">
             <Label>Product Type</Label>
@@ -1079,7 +967,7 @@ function QuotationForm() {
                     <td className="px-3 py-2">
                       {product.product_name}
                     </td>
-                    <td className="px-3 py-2 text-right">Rs {dollars(product.price)}</td>
+                    <td className="px-3 py-2 text-right">{formatMoney(product.price, currency)}</td>
                     <td className="px-3 py-2 text-right">
                       {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
                     </td>
@@ -1165,7 +1053,7 @@ function QuotationForm() {
                     <SelectContent>
                       {companyProducts.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
-                          {p.product_name} - Rs {dollars(p.price)}
+                          {p.product_name} - {formatMoney(p.price, currency)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1220,22 +1108,22 @@ function QuotationForm() {
                           </td>
                           <td className="px-3 py-1.5">
                             {li.deleted ? (
-                              <span className="text-muted-foreground">Rs {dollars(li.unit_price)}</span>
+                              <span className="text-muted-foreground">{formatMoney(li.unit_price, currency)}</span>
                             ) : (
                               <Input
                                 type="number"
                                 min="0"
                                 step="0.01"
                                 className="h-8 w-28"
-                                value={(li.unit_price / 100).toFixed(2)}
+                                value={toDecimal(li.unit_price)}
                                 onChange={(e) =>
-                                  updateLineItem(li.uid, { unit_price: cents(e.target.value) })
+                                  updateLineItem(li.uid, { unit_price: parseCents(e.target.value) })
                                 }
                               />
                             )}
                           </td>
                           <td className="px-3 py-1.5 font-medium">
-                            Rs {dollars(li.row_total)}
+                            {formatMoney(li.row_total, currency)}
                           </td>
                           <td className="px-3 py-1.5">
                             <Button
@@ -1255,7 +1143,7 @@ function QuotationForm() {
                         <td colSpan={4} className="px-3 py-2 text-right font-medium">
                           Subtotal
                         </td>
-                        <td className="px-3 py-2 font-semibold">Rs {dollars(companySubtotal)}</td>
+                        <td className="px-3 py-2 font-semibold">{formatMoney(companySubtotal, currency)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
@@ -1282,14 +1170,14 @@ function QuotationForm() {
                 <Label className="text-xs text-muted-foreground">
                   {company.company_name ?? company.company_code ?? `Company ${company.id}`}
                 </Label>
-                <p className="text-lg font-medium">Rs {dollars(companySubtotal)}</p>
+                <p className="text-lg font-medium">{formatMoney(companySubtotal, currency)}</p>
               </div>
             );
           })}
           {settings?.isvat === 1 && calcResult.vat > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">VAT</Label>
-              <p className="text-lg font-medium">Rs {dollars(calcResult.vat)}</p>
+              <p className="text-lg font-medium">{formatMoney(calcResult.vat, currency)}</p>
             </div>
           )}
           {resolvedDiscount > 0 && (
@@ -1298,13 +1186,13 @@ function QuotationForm() {
                 {parseFloat(per || '0') > 0 ? 'Discount' : 'Manual Discount'}
               </Label>
               <p className="text-lg font-medium text-destructive">
-                -Rs {dollars(resolvedDiscount)}
+                -{formatMoney(resolvedDiscount, currency)}
               </p>
             </div>
           )}
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">New Total</Label>
-            <p className="text-lg font-medium">Rs {dollars(total)}</p>
+            <p className="text-lg font-medium">{formatMoney(total, currency)}</p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Discount %</Label>
@@ -1333,7 +1221,7 @@ function QuotationForm() {
           </div>
           <div className="space-y-1 md:col-span-2">
             <Label className="text-xs text-muted-foreground">Grand Total</Label>
-            <p className="text-2xl font-bold">Rs {dollars(total)}</p>
+            <p className="text-2xl font-bold">{formatMoney(total, currency)}</p>
           </div>
         </CardContent>
       </Card>
@@ -1344,122 +1232,6 @@ function QuotationForm() {
           View Quotations
         </Button>
       </div>
-
-      {/* Add Customer Dialog */}
-      <Dialog open={customerDialogOpen} onOpenChange={setCustomerDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Customer</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="new-cust-name">Customer Name *</Label>
-              <Input
-                id="new-cust-name"
-                value={newCustomerName}
-                onChange={(e) => setNewCustomerName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-cust-phone">Telephone</Label>
-              <Input
-                id="new-cust-phone"
-                value={newCustomerPhone}
-                onChange={(e) => setNewCustomerPhone(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-cust-email">Email</Label>
-              <Input
-                id="new-cust-email"
-                type="email"
-                value={newCustomerEmail}
-                onChange={(e) => setNewCustomerEmail(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-cust-brn">BRN</Label>
-              <Input
-                id="new-cust-brn"
-                value={newCustomerBrn}
-                onChange={(e) => setNewCustomerBrn(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-cust-vat">VAT Number</Label>
-              <Input
-                id="new-cust-vat"
-                value={newCustomerVat}
-                onChange={(e) => setNewCustomerVat(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCustomerDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleCreateCustomer()} disabled={customerSaving}>
-              {customerSaving ? 'Creating...' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Product Dialog */}
-      <Dialog open={productDialogOpen} onOpenChange={setProductDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Product</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-1 gap-4">
-            <div className="space-y-1">
-              <Label htmlFor="new-prod-name">Product Name *</Label>
-              <Input
-                id="new-prod-name"
-                value={newProductName}
-                onChange={(e) => setNewProductName(e.target.value)}
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-prod-type">Product Type</Label>
-              <Select
-                value={newProductTypeId}
-                onValueChange={setNewProductTypeId}
-              >
-                <SelectTrigger id="new-prod-type">
-                  <SelectValue placeholder="Select type..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {productTypes.map((pt) => (
-                    <SelectItem key={pt.id} value={String(pt.id)}>
-                      {pt.type_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="new-prod-price">Price (Rs)</Label>
-              <Input
-                id="new-prod-price"
-                type="number"
-                min="0"
-                step="0.01"
-                value={newProductPrice}
-                onChange={(e) => setNewProductPrice(e.target.value)}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProductDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={() => void handleCreateProduct()} disabled={productSaving}>
-              {productSaving ? 'Creating...' : 'Save'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

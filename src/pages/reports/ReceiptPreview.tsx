@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
+import { formatMoney, toDecimal } from '@/lib/currency';
 import { query } from '@/lib/db';
 import { commands, unwrapResult } from '@/lib/tauri-bindings';
 import {
@@ -11,6 +12,7 @@ import {
   openPrintableReport,
 } from '@/lib/report-output';
 import { useUIStore } from '@/store/ui-store';
+import { useCurrencySymbol } from '@/services/company';
 import type { Company, Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -94,12 +96,6 @@ interface ReceiptRow {
   company_id: number;
 }
 
-function dollars(c: number): string {
-  return (c / 100).toLocaleString('en-US', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
 
 function formatDisplayDate(date: string): string {
   if (!date) return '';
@@ -164,8 +160,9 @@ function createReceiptReportHtml(options: {
   companyLabel: string;
   searchTerm: string;
   paymentModeLabels: { cash: string; cheque: string; other: string } | null;
+  currency: string;
 }): string {
-  const { rows, rangeLabel, companyLabel, searchTerm, paymentModeLabels } =
+  const { rows, rangeLabel, companyLabel, searchTerm, paymentModeLabels, currency } =
     options;
   const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
   const totalReceived = rows.reduce((sum, row) => sum + row.amount_received, 0);
@@ -180,11 +177,11 @@ function createReceiptReportHtml(options: {
           <td>${escapeHtml(row.customer_name)}</td>
           <td>${escapeHtml(row.customer_type ?? '')}</td>
           <td>${escapeHtml(row.invoice_no ?? '')}</td>
-          <td class="num">Rs ${dollars(row.due_amount)}</td>
-          <td class="num">Rs ${dollars(row.amount_received)}</td>
+          <td class="num">${formatMoney(row.due_amount, currency)}</td>
+          <td class="num">${formatMoney(row.amount_received, currency)}</td>
           <td>${escapeHtml(formatChequeNo(row.cheque_no))}</td>
           <td>${escapeHtml(row.payment_mode ?? '')}</td>
-          <td class="num">Rs ${dollars(row.balance)}</td>
+          <td class="num">${formatMoney(row.balance, currency)}</td>
         </tr>`,
     )
     .join('');
@@ -233,8 +230,8 @@ function createReceiptReportHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Receipts</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Total Received</div><div class="value">Rs ${dollars(totalReceived)}</div></div>
-      <div class="card"><div class="label">Total Balance</div><div class="value">Rs ${dollars(totalBalance)}</div></div>
+      <div class="card"><div class="label">Total Received</div><div class="value">${formatMoney(totalReceived, currency)}</div></div>
+      <div class="card"><div class="label">Total Balance</div><div class="value">${formatMoney(totalBalance, currency)}</div></div>
     </div>
     <table>
       <thead>
@@ -255,9 +252,9 @@ function createReceiptReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">Rs ${dollars(totalReceived)}</td>
+          <td class="num">${formatMoney(totalReceived, currency)}</td>
           <td colspan="2"></td>
-          <td class="num">Rs ${dollars(totalBalance)}</td>
+          <td class="num">${formatMoney(totalBalance, currency)}</td>
         </tr>
       </tfoot>
     </table>
@@ -266,7 +263,7 @@ function createReceiptReportHtml(options: {
 </html>`;
 }
 
-function createSingleReceiptHtml(row: ReceiptRow): string {
+function createSingleReceiptHtml(row: ReceiptRow, currency: string): string {
   const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
   const customerLabel = `${row.title_name ?? ''} ${row.customer_name}`.trim() || row.customer_name;
   const duePrefix = row.ad_due === 'Advance' ? '-' : '';
@@ -310,8 +307,8 @@ function createSingleReceiptHtml(row: ReceiptRow): string {
     </div>
 
     <div class="summary">
-      <div class="card"><div class="label">Received</div><div class="value">Rs ${dollars(row.amount_received)}</div></div>
-      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}Rs ${dollars(row.customer_due_amount)}</div></div>
+      <div class="card"><div class="label">Received</div><div class="value">${formatMoney(row.amount_received, currency)}</div></div>
+      <div class="card"><div class="label">Due Amount</div><div class="value">${escapeHtml(duePrefix)}${formatMoney(row.customer_due_amount, currency)}</div></div>
       <div class="card"><div class="label">Cheque No</div><div class="value">${escapeHtml(chequeNo)}</div></div>
       <div class="card"><div class="label">Payment Mode</div><div class="value">${escapeHtml(row.payment_mode ?? '—')}</div></div>
     </div>
@@ -320,8 +317,8 @@ function createSingleReceiptHtml(row: ReceiptRow): string {
       <tbody>
         <tr><th>Customer Type</th><td>${escapeHtml(row.customer_type ?? '—')}</td></tr>
         <tr><th>Invoice No</th><td>${escapeHtml(row.invoice_no ?? '—')}</td></tr>
-        <tr><th>Balance Before Receipt</th><td class="amount">Rs ${dollars(row.balance)}</td></tr>
-        <tr><th>Stored Receipt Due</th><td class="amount">Rs ${dollars(row.due_amount)}</td></tr>
+        <tr><th>Balance Before Receipt</th><td class="amount">${formatMoney(row.balance, currency)}</td></tr>
+        <tr><th>Stored Receipt Due</th><td class="amount">${formatMoney(row.due_amount, currency)}</td></tr>
         <tr><th>Telephone</th><td>${escapeHtml(row.telephone ?? '—')}</td></tr>
         <tr><th>Address</th><td>${escapeHtml(row.address ?? '—')}</td></tr>
       </tbody>
@@ -363,6 +360,7 @@ function ReceiptPreview() {
   const navigate = useNavigate();
   const state = (location.state as ReceiptPreviewState | null) ?? null;
   const receiptId = state?.receiptId ?? 0;
+  const currency = useCurrencySymbol();
   const isSinglePreview = receiptId > 0;
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
@@ -566,13 +564,14 @@ function ReceiptPreview() {
       }
 
       const html = singleReceipt
-        ? createSingleReceiptHtml(singleReceipt)
+        ? createSingleReceiptHtml(singleReceipt, currency)
         : createReceiptReportHtml({
             rows: receiptData,
             rangeLabel,
             companyLabel,
             searchTerm: searchTerm.trim(),
             paymentModeLabels,
+            currency,
           });
 
       if (singleReceipt && settings[0]?.report_path) {
@@ -643,11 +642,11 @@ function ReceiptPreview() {
         row.customer_name,
         row.customer_type ?? '',
         row.invoice_no ?? '',
-        dollars(row.due_amount),
-        dollars(row.amount_received),
+        toDecimal(row.due_amount),
+        toDecimal(row.amount_received),
         formatChequeNo(row.cheque_no),
         row.payment_mode ?? '',
-        dollars(row.balance),
+        toDecimal(row.balance),
       ]),
     });
   }, [receiptData]);
@@ -685,14 +684,14 @@ function ReceiptPreview() {
         accessorKey: 'due_amount',
         header: 'Due Amount',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
       {
         accessorKey: 'amount_received',
         header: 'Received',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
       {
@@ -712,7 +711,7 @@ function ReceiptPreview() {
         accessorKey: 'balance',
         header: 'Balance',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
     ],

@@ -1,3 +1,4 @@
+import { formatMoney } from '@/lib/currency';
 import { escapeHtml } from '@/lib/report-output';
 import type { Setting } from '@/lib/types';
 
@@ -22,9 +23,6 @@ export interface OutstandingDataSet {
   settings: Setting | null;
 }
 
-export function dollars(cents: number): string {
-  return (cents / 100).toFixed(2);
-}
 
 export function customerDisplayName(row: OutstandingRow): string {
   return [row.title_name?.trim(), row.customer_name.trim()].filter(Boolean).join(' ');
@@ -86,6 +84,7 @@ export function getOutstandingTotals(rows: OutstandingRow[]): {
 export function createOutstandingReportHtml(
   rows: OutstandingRow[],
   companyLabel = 'All Companies',
+  currency: string = 'Rs',
 ): string {
   const generatedAt = new Date()
     .toLocaleString('en-GB', {
@@ -104,7 +103,7 @@ export function createOutstandingReportHtml(
   const tableRows = rows
     .map((row) => {
       const amountPrefix = row.ad_due === 'Advance' ? '-' : '';
-      const amount = `${amountPrefix}Rs ${dollars(Math.abs(row.due_amount))}`;
+      const amount = `${amountPrefix}${formatMoney(Math.abs(row.due_amount), currency)}`;
       const statusClass = row.ad_due === 'Advance' ? 'advance' : 'due';
       return `
         <tr>
@@ -149,15 +148,14 @@ export function createOutstandingReportHtml(
       <div class="meta">
         <div><strong>Company:</strong> ${escapeHtml(companyLabel)}</div>
         <div><strong>Customers:</strong> ${rows.length}</div>
-        <div><strong>Total Due:</strong> Rs ${dollars(totalDue)}</div>
-        <div><strong>Total Advance:</strong> Rs ${dollars(totalAdvance)}</div>
-      </div>
+        <div><strong>Total Due:</strong> ${formatMoney(totalDue, currency)}</div>
+        <div><strong>Total Advance:</strong> ${formatMoney(totalAdvance, currency)}</div>
     </div>
     <div class="summary">
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
       <div class="card"><div class="label">Customers</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Total Due</div><div class="value">Rs ${dollars(totalDue)}</div></div>
-      <div class="card"><div class="label">Total Advance</div><div class="value">Rs ${dollars(totalAdvance)}</div></div>
+      <div class="card"><div class="label">Total Due</div><div class="value">${formatMoney(totalDue, currency)}</div></div>
+      <div class="card"><div class="label">Total Advance</div><div class="value">${formatMoney(totalAdvance, currency)}</div></div>
     </div>
     <table>
       <thead>

@@ -2,8 +2,10 @@ import { useState, useMemo, useCallback } from 'react';
 import { sendEmail } from '@/lib/email/send';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
+import { formatMoney, toDecimal } from '@/lib/currency';
 import { query } from '@/lib/db';
 import { commands } from '@/lib/tauri-bindings';
+import { useCurrencySymbol } from '@/services/company';
 import {
   buildReportPdfPath,
   downloadExcelXml,
@@ -59,9 +61,6 @@ interface StatementRow {
   cr_dr: string | null;
 }
 
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
 
 function createStatementReportHtml(options: {
   customerName: string;
@@ -70,6 +69,7 @@ function createStatementReportHtml(options: {
   openingBalance: number;
   closingBalance: number;
   rows: StatementRow[];
+  currency: string;
 }): string {
   const {
     customerName,
@@ -78,6 +78,7 @@ function createStatementReportHtml(options: {
     openingBalance,
     closingBalance,
     rows,
+    currency,
   } = options;
 
   const generatedAt = new Date().toLocaleString('en-GB', {
@@ -98,10 +99,10 @@ function createStatementReportHtml(options: {
           <td>${escapeHtml(row.date)}</td>
           <td>${escapeHtml(row.type)}</td>
           <td>${escapeHtml(row.checklist_no ?? '-')}</td>
-          <td class="amount">${isPayment ? '' : 'Rs '}${dollars(row.bill_amount)}</td>
-          <td class="amount">${isPayment ? 'Rs ' : ''}${dollars(row.paid_amount)}</td>
+          <td class="amount">${isPayment ? '' : escapeHtml(formatMoney(row.bill_amount, currency))}${isPayment ? toDecimal(row.bill_amount) : ''}</td>
+          <td class="amount">${isPayment ? escapeHtml(formatMoney(row.paid_amount, currency)) : toDecimal(row.paid_amount)}</td>
           <td>${escapeHtml(row.cheque_no ?? '-')}</td>
-          <td class="amount">Rs ${dollars(row.balance)}</td>
+          <td class="amount">${escapeHtml(formatMoney(row.balance, currency))}</td>
         </tr>`;
   }).join('');
 
@@ -141,9 +142,9 @@ function createStatementReportHtml(options: {
       </div>
     </div>
     <div class="summary">
-      <div class="card"><div class="label">Opening Balance</div><div class="value">${escapeHtml(`${openingBalance > 0 ? '' : '-'}Rs ${dollars(Math.abs(openingBalance))}`)}</div></div>
+      <div class="card"><div class="label">Opening Balance</div><div class="value">${escapeHtml(`${openingBalance > 0 ? '' : '-'}${formatMoney(Math.abs(openingBalance), currency)}`)}</div></div>
       <div class="card"><div class="label">Transactions</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Closing Balance</div><div class="value">${escapeHtml(`${closingBalance > 0 ? '' : '-'}Rs ${dollars(Math.abs(closingBalance))}`)}</div></div>
+      <div class="card"><div class="label">Closing Balance</div><div class="value">${escapeHtml(`${closingBalance > 0 ? '' : '-'}${formatMoney(Math.abs(closingBalance), currency)}`)}</div></div>
     </div>
     <table>
       <thead>
@@ -166,6 +167,7 @@ function createStatementReportHtml(options: {
 }
 
 function StatementPreview() {
+  const currency = useCurrencySymbol();
   const [customerId, setCustomerId] = useState<string>('');
   const [companyOpen, setCompanyOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
@@ -367,7 +369,7 @@ function StatementPreview() {
         header: 'Bill Amount',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">Rs {dollars(d)}</span>;
+          return <span className="tabular-nums">{formatMoney(d, currency)}</span>;
         },
       },
       {
@@ -375,7 +377,7 @@ function StatementPreview() {
         header: 'Paid Amount',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">Rs {dollars(d)}</span>;
+          return <span className="tabular-nums">{formatMoney(d, currency)}</span>;
         },
       },
       {
@@ -388,7 +390,7 @@ function StatementPreview() {
         header: 'Balance',
         cell: (info) => {
           const d = info.getValue<number>();
-          return <span className="tabular-nums">Rs {dollars(d)}</span>;
+          return <span className="tabular-nums">{formatMoney(d, currency)}</span>;
         },
       },
     ],
@@ -427,6 +429,7 @@ function StatementPreview() {
         openingBalance,
         closingBalance: runningBalance,
         rows: transactions,
+        currency,
       });
 
       openPrintableReport({
@@ -462,10 +465,10 @@ function StatementPreview() {
         row.date,
         row.type,
         row.checklist_no ?? '-',
-        dollars(row.bill_amount),
-        dollars(row.paid_amount),
+        toDecimal(row.bill_amount),
+        toDecimal(row.paid_amount),
         row.cheque_no ?? '-',
-        dollars(row.balance),
+        toDecimal(row.balance),
       ]),
     });
   }, [selectedCustomer, transactions]);
@@ -498,8 +501,9 @@ function StatementPreview() {
       rangeLabel,
       openingBalance,
       closingBalance: runningBalance,
-      rows: transactions,
-    });
+        rows: transactions,
+        currency,
+      });
 
     try {
       await commands.saveReportPdf({ html, output_path: pdfPath });
@@ -598,7 +602,7 @@ function StatementPreview() {
                     >
                       <span>{c.customer_name}</span>
                       <span className="text-xs text-muted-foreground">
-                        {c.due_amount > 0 ? `Rs ${dollars(c.due_amount)}` : ''}
+                        {c.due_amount > 0 ? formatMoney(c.due_amount, currency) : ''}
                       </span>
                     </button>
                   ))}
@@ -690,8 +694,7 @@ function StatementPreview() {
                   <div
                     className={`text-lg font-semibold tabular-nums ${openingBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
                   >
-                    {openingBalance > 0 ? '' : '-'}Rs 
-                    {dollars(Math.abs(openingBalance))}
+                    {openingBalance > 0 ? '' : '-'}{formatMoney(Math.abs(openingBalance), currency)}
                   </div>
                 </div>
                 <div className="rounded-md border p-3">
@@ -712,7 +715,7 @@ function StatementPreview() {
                         invoices.reduce((s, i) => s + i.bill_amount, 0) -
                         receipts.reduce((s, r) => s + r.paid_amount, 0);
                       const sign = net > 0 ? '' : '-';
-                      return `${sign}Rs ${dollars(Math.abs(net))}`;
+                      return `${sign}${formatMoney(Math.abs(net), currency)}`;
                     })()}
                   </div>
                 </div>
@@ -723,8 +726,7 @@ function StatementPreview() {
                   <div
                     className={`text-lg font-semibold tabular-nums ${runningBalance > 0 ? 'text-destructive' : 'text-green-600'}`}
                   >
-                    {runningBalance > 0 ? '' : '-'}Rs 
-                    {dollars(Math.abs(runningBalance))}
+                    {runningBalance > 0 ? '' : '-'}{formatMoney(Math.abs(runningBalance), currency)}
                   </div>
                 </div>
               </div>

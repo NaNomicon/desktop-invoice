@@ -19,6 +19,8 @@ import { cal } from '@/lib/invoice/cal';
 import { saved } from '@/lib/invoice/saved';
 import { splitInvoice } from '@/lib/invoice/splitInvoice';
 import { canEditInvoice } from '@/lib/invoice/editLock';
+import { formatMoney, parseCents, toDecimal } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -101,13 +103,6 @@ function nextUid(): string {
   return `li-${_uid++}`;
 }
 
-function cents(s: string): number {
-  return Math.round(parseFloat(s || '0') * 100);
-}
-
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
 
 function today(): string {
   return new Date().toISOString().slice(0, 10);
@@ -131,6 +126,7 @@ function nextBlankLineItems(): LineItem[] {
 }
 
 function InvoiceForm() {
+  const currency = useCurrencySymbol();
   const navigate = useNavigate();
   const location = useLocation();
   const authCompanyId = useAuthStore((s) => s.company_id);
@@ -193,7 +189,7 @@ function InvoiceForm() {
   }, [subTotal, selectedCustomer, settings, per]);
 
   const balance = useMemo(() => {
-    const paid = cents(paidAmount);
+    const paid = parseCents(paidAmount);
     if (paid > 0 && paid < calResult.total) {
       return calResult.total - paid;
     }
@@ -202,12 +198,12 @@ function InvoiceForm() {
 
   const signedBalanceLabel = useMemo(() => {
     if (!selectedCustomer) {
-      return 'Rs 0.00';
+      return formatMoney(0, currency);
     }
 
     const prefix = selectedCustomer.ad_due === 'Advance' ? '-' : '';
-    return `${prefix}Rs ${dollars(selectedCustomer.due_amount)}`;
-  }, [selectedCustomer]);
+    return `${prefix}${formatMoney(selectedCustomer.due_amount, currency)}`;
+  }, [selectedCustomer, currency]);
 
   const filteredProducts = useMemo(() => {
     const search = productSearch.trim().toLowerCase();
@@ -504,7 +500,7 @@ function InvoiceForm() {
         setCompanyId(invoice.company_id);
         setInvoiceNumber(String(nextRows[0]?.invoice_no ?? invoice.invoice_no));
         setInvoiceDate(today());
-        setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : dollars(invoice.paid_amount ?? 0));
+        setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : toDecimal(invoice.paid_amount ?? 0));
         setCaseDebit(invoice.case_debit ?? 'CREDIT');
         setRefNo(invoice.no ?? '');
         setChecklistNo(invoice.checklist_no ?? '');
@@ -540,7 +536,7 @@ function InvoiceForm() {
       setCompanyId(invoice.company_id);
       setInvoiceNumber(invoice.invoice_no);
       setInvoiceDate(invoice.invoice_date || today());
-      setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : dollars(invoice.paid_amount ?? 0));
+        setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : toDecimal(invoice.paid_amount ?? 0));
       setCaseDebit(invoice.case_debit ?? 'CREDIT');
       setRefNo(invoice.no ?? '');
       setChecklistNo(invoice.checklist_no ?? '');
@@ -688,14 +684,14 @@ function InvoiceForm() {
           invoice_date: invoiceDate,
           checklist_no: checklistNo || null,
           case_debit: caseDebit || 'CREDIT',
-          paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+          paid_amount: caseDebit === 'CREDIT' ? 0 : parseCents(paidAmount),
           per: parseFloat(per || '0'),
           sub_total: subTotal,
           vat: calResult.vat,
           discount: calResult.discount,
           total: calResult.total,
           amount_due: selectedCustomer?.due_amount ?? 0,
-          cr_dr: calResult.total > cents(paidAmount) ? 'Cr.' : 'Dr.',
+          cr_dr: calResult.total > parseCents(paidAmount) ? 'Cr.' : 'Dr.',
           line_items: splitLineItems,
         });
         const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
@@ -716,7 +712,7 @@ function InvoiceForm() {
           discount: calResult.discount,
           total: calResult.total,
           per: parseFloat(per || '0'),
-          paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+          paid_amount: caseDebit === 'CREDIT' ? 0 : parseCents(paidAmount),
           balance: caseDebit === 'CREDIT' ? calResult.total : balance,
           case_debit: caseDebit || null,
           no: refNo || null,
@@ -899,7 +895,7 @@ function InvoiceForm() {
         per: parseFloat(per || '0'),
         invoice_date: invoice.invoice_date,
         case_debit: caseDebit || null,
-        paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+        paid_amount: caseDebit === 'CREDIT' ? 0 : parseCents(paidAmount),
         balance: caseDebit === 'CREDIT' ? calResult.total : balance,
         no: refNo || null,
         cr_dr: null,
@@ -1158,7 +1154,7 @@ function InvoiceForm() {
               <div className="space-y-1">
                 <Label>Customer Balance</Label>
                 <Input
-                  value={`Rs ${dollars(selectedCustomer.due_amount)}`}
+                  value={formatMoney(selectedCustomer.due_amount, currency)}
                   disabled
                   className="bg-muted"
                 />
@@ -1219,7 +1215,7 @@ function InvoiceForm() {
                   >
                     <td className="px-3 py-2">{product.product_id ?? '-'}</td>
                     <td className="px-3 py-2">{product.product_name}</td>
-                    <td className="px-3 py-2 text-right">Rs {dollars(product.price)}</td>
+                    <td className="px-3 py-2 text-right">{formatMoney(product.price, currency)}</td>
                     <td className="px-3 py-2 text-right">
                       {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
                     </td>
@@ -1306,7 +1302,7 @@ function InvoiceForm() {
                     <SelectContent>
                       {companyProducts.map((p) => (
                         <SelectItem key={p.id} value={String(p.id)}>
-                          {p.product_name} - Rs {dollars(p.price)}
+                          {p.product_name} - {formatMoney(p.price, currency)}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1360,7 +1356,7 @@ function InvoiceForm() {
                           </td>
                           <td className="px-3 py-1.5">
                             {li.deleted ? (
-                              <span className="text-muted-foreground">Rs {dollars(li.unit_price)}</span>
+                              <span className="text-muted-foreground">{formatMoney(li.unit_price, currency)}</span>
                             ) : (
                               <Input
                                 type="number"
@@ -1369,13 +1365,13 @@ function InvoiceForm() {
                                 className="h-8 w-28"
                                 value={(li.unit_price / 100).toFixed(2)}
                                 onChange={(e) =>
-                                  updateLineItem(li.uid, { unit_price: cents(e.target.value) })
+                                  updateLineItem(li.uid, { unit_price: parseCents(e.target.value) })
                                 }
                               />
                             )}
                           </td>
                           <td className="px-3 py-1.5 font-medium">
-                            Rs {dollars(li.row_total)}
+                            {formatMoney(li.row_total, currency)}
                           </td>
                           <td className="px-3 py-1.5">
                             <Button
@@ -1395,7 +1391,7 @@ function InvoiceForm() {
                         <td colSpan={4} className="px-3 py-2 text-right font-medium">
                           Subtotal
                         </td>
-                        <td className="px-3 py-2 font-semibold">Rs {dollars(companySubtotal)}</td>
+                        <td className="px-3 py-2 font-semibold">{formatMoney(companySubtotal, currency)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
@@ -1422,21 +1418,21 @@ function InvoiceForm() {
                 <Label className="text-xs text-muted-foreground">
                   {company.company_name ?? company.company_code ?? `Company ${company.id}`}
                 </Label>
-                <p className="text-lg font-medium">Rs {dollars(companySubtotal)}</p>
+                <p className="text-lg font-medium">{formatMoney(companySubtotal, currency)}</p>
               </div>
             );
           })}
           {settings?.isvat === 1 && calResult.vat > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">VAT</Label>
-              <p className="text-lg font-medium">Rs {dollars(calResult.vat)}</p>
+              <p className="text-lg font-medium">{formatMoney(calResult.vat, currency)}</p>
             </div>
           )}
           {calResult.discount > 0 && (
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Discount</Label>
               <p className="text-lg font-medium text-destructive">
-                -Rs {dollars(calResult.discount)}
+                -{formatMoney(calResult.discount, currency)}
               </p>
             </div>
           )}
@@ -1448,7 +1444,7 @@ function InvoiceForm() {
                   ? 'Add Due'
                   : 'New Total'}
             </Label>
-            <p className="text-lg font-medium">Rs {dollars(calResult.new_tot)}</p>
+            <p className="text-lg font-medium">{formatMoney(calResult.new_tot, currency)}</p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Discount %</Label>
@@ -1466,12 +1462,12 @@ function InvoiceForm() {
           <div className="space-y-1 md:col-span-2">
             <Label className="text-xs text-muted-foreground">Grand Total</Label>
             <p className="text-2xl font-bold">
-              Rs {dollars(calResult.total)}
+              {formatMoney(calResult.total, currency)}
             </p>
           </div>
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Balance</Label>
-            <p className="text-lg font-medium">Rs {dollars(caseDebit === 'CREDIT' ? calResult.total : balance)}</p>
+            <p className="text-lg font-medium">{formatMoney(caseDebit === 'CREDIT' ? calResult.total : balance, currency)}</p>
           </div>
         </CardContent>
       </Card>

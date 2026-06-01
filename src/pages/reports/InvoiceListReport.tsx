@@ -52,7 +52,8 @@ import {
   Printer,
   Search,
 } from 'lucide-react';
-
+import { formatMoney, toDecimal } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 interface InvoiceListRow {
   sales_id: number;
   customer_name: string;
@@ -66,9 +67,6 @@ interface InvoiceListRow {
   telephone: string | null;
 }
 
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
 
 function formatDisplayDate(date: string): string {
   if (!date) {
@@ -88,8 +86,9 @@ function createInvoiceListReportHtml(options: {
   rangeLabel: string;
   companyLabel: string;
   searchTerm: string;
+  currency: string;
 }): string {
-  const { rows, rangeLabel, companyLabel, searchTerm } = options;
+  const { rows, rangeLabel, companyLabel, searchTerm, currency } = options;
   const generatedAt = format(new Date(), 'dd-MM-yyyy HH:mm:ss');
   const totalSubTotal = rows.reduce((sum, row) => sum + row.sub_total, 0);
   const totalDiscount = rows.reduce((sum, row) => sum + row.discount, 0);
@@ -104,8 +103,8 @@ function createInvoiceListReportHtml(options: {
           <td>${escapeHtml(row.invoice_no)}</td>
           <td>${escapeHtml(formatDisplayDate(row.invoice_date))}</td>
           <td class="num">${row.vat_per}%</td>
-          <td class="num">Rs ${dollars(row.discount)}</td>
-          <td class="num">Rs ${dollars(row.sub_total)}</td>
+          <td class="num">${formatMoney(row.discount, currency)}</td>
+          <td class="num">${formatMoney(row.sub_total, currency)}</td>
           <td>${escapeHtml(row.checklist_no ?? '')}</td>
         </tr>`,
     )
@@ -150,8 +149,8 @@ function createInvoiceListReportHtml(options: {
     </div>
     <div class="summary">
       <div class="card"><div class="label">Invoices</div><div class="value">${rows.length}</div></div>
-      <div class="card"><div class="label">Sub Total</div><div class="value">Rs ${dollars(totalSubTotal)}</div></div>
-      <div class="card"><div class="label">Discount</div><div class="value">Rs ${dollars(totalDiscount)}</div></div>
+      <div class="card"><div class="label">Sub Total</div><div class="value">${formatMoney(totalSubTotal, currency)}</div></div>
+      <div class="card"><div class="label">Discount</div><div class="value">${formatMoney(totalDiscount, currency)}</div></div>
       <div class="card"><div class="label">Company</div><div class="value">${escapeHtml(companyLabel)}</div></div>
     </div>
     <table>
@@ -172,8 +171,8 @@ function createInvoiceListReportHtml(options: {
       <tfoot>
         <tr>
           <td colspan="6">Total</td>
-          <td class="num">Rs ${dollars(totalDiscount)}</td>
-          <td class="num">Rs ${dollars(totalSubTotal)}</td>
+          <td class="num">${formatMoney(totalDiscount, currency)}</td>
+          <td class="num">${formatMoney(totalSubTotal, currency)}</td>
           <td></td>
         </tr>
       </tfoot>
@@ -184,6 +183,7 @@ function createInvoiceListReportHtml(options: {
 }
 
 function InvoiceListReport() {
+  const currency = useCurrencySymbol();
   const navigate = useNavigate();
   const [dateRange, setDateRange] = useState<DateRange | undefined>({
     from: startOfMonth(new Date()),
@@ -325,6 +325,7 @@ function InvoiceListReport() {
         rangeLabel,
         companyLabel,
         searchTerm: searchTerm.trim(),
+        currency,
       });
 
       openPrintableReport({
@@ -372,8 +373,8 @@ function InvoiceListReport() {
         row.invoice_no,
         formatDisplayDate(row.invoice_date),
         `${row.vat_per}%`,
-        dollars(row.discount),
-        dollars(row.sub_total),
+        toDecimal(row.discount),
+        toDecimal(row.sub_total),
         row.checklist_no ?? '',
       ]),
     });
@@ -415,14 +416,14 @@ function InvoiceListReport() {
         accessorKey: 'discount',
         header: 'Discount',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
       {
         accessorKey: 'sub_total',
         header: 'Sub Total',
         cell: (info) => (
-          <span className="tabular-nums">Rs {dollars(info.getValue<number>())}</span>
+          <span className="tabular-nums">{formatMoney(info.getValue<number>(), currency)}</span>
         ),
       },
       {

@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { query } from '@/lib/db';
+import { formatMoney, toDecimal } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { getInvoicePdfPath } from '@/lib/pdf/path';
 import type { Customer, InvoiceMain } from '@/lib/types';
 import { Button } from '@/components/ui/button';
@@ -28,14 +30,11 @@ interface PrintPreviewProps {
   invoice_id: number;
 }
 
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
-
 function PrintPreview({ invoice_id }: PrintPreviewProps) {
   const params = useParams<{ invoiceId?: string }>();
   const resolvedInvoiceId = params.invoiceId ? parseInt(params.invoiceId, 10) : invoice_id;
-  const [zoom, setZoom] = useState(() => (resolvedInvoiceId ? 100 : 100));
+  const [zoom, setZoom] = useState(100);
+  const currency = useCurrencySymbol();
 
   const { data, isLoading } = useQuery({
     queryKey: ['printPreviewInvoice', resolvedInvoiceId],
@@ -103,7 +102,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
   const waVariables: Record<number, string> = {
     1: data.invoice.invoice_no ?? '',
     2: data.customer?.customer_name ?? '',
-    3: (Number(data.invoice.balance) / 100).toFixed(2),
+    3: toDecimal(Number(data.invoice.balance)),
   };
 
   return (
@@ -221,8 +220,8 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                           )}
                         </td>
                         <td className="px-4 py-2.5 text-right">{line.qty}</td>
-                        <td className="px-4 py-2.5 text-right">Rs {dollars(line.unit_price)}</td>
-                        <td className="px-4 py-2.5 text-right">Rs {dollars(line.row_total)}</td>
+                        <td className="px-4 py-2.5 text-right">{formatMoney(line.unit_price, currency)}</td>
+                        <td className="px-4 py-2.5 text-right">{formatMoney(line.row_total, currency)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -245,7 +244,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                     <tr className="border-b">
                       <td className="px-4 py-2.5">Sub Total</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">
-                        Rs {dollars(data.invoice.sub_total)}
+                        {formatMoney(data.invoice.sub_total, currency)}
                       </td>
                     </tr>
                     {data.invoice.discount > 0 && (
@@ -254,7 +253,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                           Discount
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums text-green-700">
-                          -Rs {dollars(data.invoice.discount)}
+                          -{formatMoney(data.invoice.discount, currency)}
                         </td>
                       </tr>
                     )}
@@ -264,20 +263,20 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                           VAT ({data.invoice.per}%)
                         </td>
                         <td className="px-4 py-2.5 text-right tabular-nums">
-                          Rs {dollars(data.invoice.vat)}
+                          {formatMoney(data.invoice.vat, currency)}
                         </td>
                       </tr>
                     )}
                     <tr className="border-b bg-muted/20 font-semibold">
                       <td className="px-4 py-2.5">Total</td>
                       <td className="px-4 py-2.5 text-right tabular-nums">
-                        Rs {dollars(data.invoice.total)}
+                        {formatMoney(data.invoice.total, currency)}
                       </td>
                     </tr>
                     <tr className="border-b">
                       <td className="px-4 py-2.5 text-green-700">Paid</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-green-700">
-                        Rs {dollars(data.invoice.paid_amount)}
+                        {formatMoney(data.invoice.paid_amount, currency)}
                       </td>
                     </tr>
                     <tr>
@@ -289,7 +288,7 @@ function PrintPreview({ invoice_id }: PrintPreviewProps) {
                           data.invoice.balance > 0 ? 'text-destructive' : ''
                         }`}
                       >
-                        Rs {dollars(data.invoice.balance)}
+                        {formatMoney(data.invoice.balance, currency)}
                       </td>
                     </tr>
                   </tbody>

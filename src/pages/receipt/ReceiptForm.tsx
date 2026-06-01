@@ -4,6 +4,8 @@ import { query } from '@/lib/db';
 import { cal } from '@/lib/receipt/cal';
 import { saved } from '@/lib/receipt/saved';
 import type { Customer, Company, Setting, Receipt as ReceiptRecord } from '@/lib/types';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { useAuthStore } from '@/store/authStore';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -34,9 +36,6 @@ import {
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
 
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
 
 interface TransactionRow {
   extra: string;
@@ -57,6 +56,7 @@ interface ReceiptRouteState {
 }
 
 function ReceiptForm() {
+  const currency = useCurrencySymbol();
   useAuthStore((s) => s.company_id);
   const location = useLocation();
   const receiptPrefill = (location.state as ReceiptRouteState | null) ?? null;
@@ -253,7 +253,7 @@ function ReceiptForm() {
         const amt = info.getValue<number>();
         const row = info.row.original;
         const prefix = row.cr_dr === 'Cr.' ? '-' : '';
-        return `${prefix}Rs ${dollars(amt)}`;
+        return `${prefix}${formatMoney(amt, currency)}`;
       },
     },
     {
@@ -268,9 +268,9 @@ function ReceiptForm() {
     {
       accessorKey: 'balance',
       header: 'Balance',
-      cell: (info) => `Rs ${dollars(Number(info.getValue()))}`,
+      cell: (info) => formatMoney(Number(info.getValue()), currency),
     },
-  ], []);
+  ], [currency]);
 
   const transTable = useReactTable({
     data: transactions,
@@ -452,7 +452,7 @@ function ReceiptForm() {
                                 />
                                 <span>{c.customer_name}</span>
                                 <span className="ml-auto text-xs text-muted-foreground">
-                                  {c.ad_due === 'Advance' ? '-' : ''}Rs {dollars(c.due_amount)}
+                                  {c.ad_due === 'Advance' ? '-' : ''}{formatMoney(c.due_amount, currency)}
                                 </span>
                               </CommandItem>
                             ))}
@@ -466,7 +466,7 @@ function ReceiptForm() {
                 <div className="space-y-1">
                   <Label>{adDueStatus === 'Advance' ? 'Advance Amount' : 'Due Amount'}</Label>
                   <Input
-                    value={`Rs ${dollars(dueAmount)}`}
+                    value={formatMoney(dueAmount, currency)}
                     readOnly
                     className="bg-muted"
                   />
@@ -549,7 +549,7 @@ function ReceiptForm() {
                 <div className="space-y-1">
                   <Label>New Balance</Label>
                   <Input
-                    value={`Rs ${dollars(calResult.new_due)}`}
+                    value={formatMoney(calResult.new_due, currency)}
                     readOnly
                     className={`bg-muted font-medium ${
                       calResult.new_due > 0

@@ -23,9 +23,6 @@ export interface Company {
   thanks1: string | null;
   thanks2: string | null;
   currency: string | null;
-  bank_name: string | null;
-  bank_account: string | null;
-  bank_branch: string | null;
   logo: string | null;
   watermark: string | null;
   is_active: number;
