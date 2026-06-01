@@ -226,53 +226,44 @@ function DirectEmailPage() {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2">
           <Mail className="size-5" />
           <h1 className="text-2xl font-semibold">Direct Email</h1>
         </div>
-        <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
-          <Popover open={templateOpen} onOpenChange={setTemplateOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={templateOpen}
-                className="w-full justify-between font-normal sm:w-[220px]"
-                disabled={loadingTemplate || sending}
-              >
-                {selectedTemplateType === 'none' ? 'Load template' : `Load ${selectedTemplateType}`}
-                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-[220px] p-0" align="end">
-              <Command>
-                <CommandList>
-                  <CommandEmpty>No template found.</CommandEmpty>
-                  <CommandGroup>
-                    <CommandItem value="none" onSelect={() => { void handleTemplateChange('none'); setTemplateOpen(false); }}>
-                      <Check className={cn('mr-2 size-4', selectedTemplateType === 'none' ? 'opacity-100' : 'opacity-0')} />
-                      No template
+        <Popover open={templateOpen} onOpenChange={setTemplateOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={templateOpen}
+              className="w-full justify-between font-normal sm:w-[220px]"
+              disabled={loadingTemplate || sending}
+            >
+              {selectedTemplateType === 'none' ? 'Load template' : `Load ${selectedTemplateType}`}
+              <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-[220px] p-0" align="end">
+            <Command>
+              <CommandList>
+                <CommandEmpty>No template found.</CommandEmpty>
+                <CommandGroup>
+                  <CommandItem value="none" onSelect={() => { void handleTemplateChange('none'); setTemplateOpen(false); }}>
+                    <Check className={cn('mr-2 size-4', selectedTemplateType === 'none' ? 'opacity-100' : 'opacity-0')} />
+                    No template
+                  </CommandItem>
+                  {TEMPLATE_TYPES.map((type) => (
+                    <CommandItem key={type} value={type} onSelect={() => { void handleTemplateChange(type); setTemplateOpen(false); }}>
+                      <Check className={cn('mr-2 size-4', selectedTemplateType === type ? 'opacity-100' : 'opacity-0')} />
+                      Load {type}
                     </CommandItem>
-                    {TEMPLATE_TYPES.map((type) => (
-                      <CommandItem key={type} value={type} onSelect={() => { void handleTemplateChange(type); setTemplateOpen(false); }}>
-                        <Check className={cn('mr-2 size-4', selectedTemplateType === type ? 'opacity-100' : 'opacity-0')} />
-                        Load {type}
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
-          <Button variant="outline" onClick={resetForm} disabled={sending}>
-            Clear
-          </Button>
-          <Button onClick={() => void handleSend()} disabled={!canSend}>
-            {sending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <SendHorizontal className="mr-2 size-4" />}
-            {sending ? 'Sending...' : 'Send Email'}
-          </Button>
-        </div>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <Card>
@@ -413,6 +404,16 @@ function DirectEmailPage() {
           </p>
         </CardContent>
       </Card>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+        <Button variant="outline" onClick={resetForm} disabled={sending}>
+          Clear
+        </Button>
+        <Button onClick={() => void handleSend()} disabled={!canSend}>
+          {sending ? <Loader2 className="mr-2 size-4 animate-spin" /> : <SendHorizontal className="mr-2 size-4" />}
+          {sending ? 'Sending...' : 'Send Email'}
+        </Button>
+      </div>
     </div>
   );
 }
