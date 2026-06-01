@@ -3,6 +3,7 @@ export interface QuoCalInput {
   isvat: number;
   vat_per: number;
   per: number;
+  discount_flat?: number;
 }
 
 export interface QuoCalResult {
@@ -30,6 +31,8 @@ export function quoCal(input: QuoCalInput): QuoCalResult {
   let discount = 0;
   if (input.per > 0) {
     discount = Math.round(Math.abs(new_tot + vat) * input.per / 100);
+  } else if (input.discount_flat && input.discount_flat > 0) {
+    discount = input.discount_flat;
   }
 
   const total = new_tot + vat - discount;

@@ -24,13 +24,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Command,
@@ -42,37 +35,23 @@ import {
 } from '@/components/ui/command';
 import { ChevronsUpDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
 import { toast } from 'sonner';
 import {
-  Eraser,
-  FilePlus2,
+  ArrowLeftRight,
   FileText,
   Mail,
   Plus,
   Printer,
   Save,
-  Search,
-  Trash2,
-  UserPlus,
 } from 'lucide-react';
+import { ProductRow } from '@/components/billing/ProductRow';
+import { createBlankLineItems, nextUid, type BillingLineItem } from '@/components/billing/lineItems';
 
 interface QuotationRouteState {
   quotationId?: number;
 }
 
-interface LineItem {
-  uid: string;
-  id: number;
-  qty: number;
-  product_id: number | null;
-  product_name: string;
-  unit_price: number;
-  row_total: number;
-  s_no: number;
-  deleted: boolean;
-  company_id: number | null;
-}
+type LineItem = BillingLineItem;
 
 interface ProductSearchRow {
   id: number;
@@ -83,29 +62,8 @@ interface ProductSearchRow {
   company_id: number;
 }
 
-let uidCounter = 1;
-function nextUid(): string {
-  return `quotation-li-${uidCounter++}`;
-}
-
-
 function today(): string {
   return new Date().toISOString().slice(0, 10);
-}
-
-function createBlankLineItem(): LineItem {
-  return {
-    uid: nextUid(),
-    id: 0,
-    qty: 1,
-    product_id: null,
-    product_name: '',
-    unit_price: 0,
-    row_total: 0,
-    s_no: 1,
-    deleted: false,
-    company_id: null,
-  };
 }
 
 function QuotationForm() {
@@ -135,10 +93,10 @@ function QuotationForm() {
   const [checklistNo, setChecklistNo] = useState('');
   const [refNo, setRefNo] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [per, setPer] = useState('0');
-  const [manualDiscount, setManualDiscount] = useState('0.00');
-  const [productSearch, setProductSearch] = useState('');
-  const [lineItems, setLineItems] = useState<LineItem[]>([createBlankLineItem()]);
+  const [per, setPer] = useState('');
+  const [discountFlat, setDiscountFlat] = useState('');
+  const [discountMode, setDiscountMode] = useState<'per' | 'flat'>('per');
+  const [lineItems, setLineItems] = useState<LineItem[]>(() => createBlankLineItems());
   const [deletedLineItemIds, setDeletedLineItemIds] = useState<number[]>([]);
 
   const selectedCustomer = useMemo(
@@ -180,38 +138,20 @@ function QuotationForm() {
         sub_total: subTotal,
         isvat: settings?.isvat ?? 0,
         vat_per: settings?.vat_per ?? 0,
-        per: parseFloat(per || '0'),
+        per: discountMode === 'per' ? parseFloat(per || '0') : 0,
+        discount_flat: discountMode === 'flat' ? parseCents(discountFlat) : 0,
       }),
-    [per, settings, subTotal],
+    [per, discountFlat, discountMode, settings, subTotal],
   );
 
-  const resolvedDiscount = useMemo(() => {
-    if (parseFloat(per || '0') > 0) {
-      return calcResult.discount;
-    }
-    return parseCents(manualDiscount);
-  }, [calcResult.discount, manualDiscount, per]);
+  // Derived display values for the non-active discount field
+  const derivedDiscountFlat = discountMode === 'per' ? toDecimal(calcResult.discount) : discountFlat;
+  const derivedPer = discountMode === 'flat'
+    ? (subTotal > 0 ? ((parseCents(discountFlat) / Math.abs(subTotal + calcResult.vat)) * 100).toFixed(2) : '')
+    : per;
 
-  const total = useMemo(
-    () => subTotal + calcResult.vat - resolvedDiscount,
-    [calcResult.vat, resolvedDiscount, subTotal],
-  );
+  const total = subTotal + calcResult.vat - calcResult.discount;
 
-  const filteredProducts = useMemo(() => {
-    const search = productSearch.trim().toLowerCase();
-    return products.filter((product) => {
-      if (typeFilter !== 'all' && product.type_id !== parseInt(typeFilter, 10)) {
-        return false;
-      }
-      if (!search) {
-        return true;
-      }
-      return (
-        (product.product_name ?? '').toLowerCase().includes(search) ||
-        (product.product_id ?? '').toLowerCase().includes(search)
-      );
-    });
-  }, [productSearch, products, typeFilter]);
 
 
 
@@ -237,10 +177,10 @@ function QuotationForm() {
       setChecklistNo('');
       setRefNo('');
       setTypeFilter('all');
-      setPer('0');
-      setManualDiscount('0.00');
-      setProductSearch('');
-      setLineItems([createBlankLineItem()]);
+      setPer('');
+      setDiscountFlat('');
+      setDiscountMode('per');
+      setLineItems(createBlankLineItems(companies.map((c) => c.id)));
       setDeletedLineItemIds([]);
       if (nextQuotationNumber) {
         setQuotationNumber(nextQuotationNumber);
@@ -283,6 +223,17 @@ function QuotationForm() {
 
       if (!editingId) {
         setQuotationNumber(String((numberRows[0]?.quo_no ?? 0) + 1));
+        // Seed one blank row per company
+        const companyIds = companyRows.map((c) => c.id);
+        if (companyIds.length > 0) {
+          setLineItems((prev) => {
+            const first = prev[0];
+            if (prev.length === 1 && first && !first.product_id && first.company_id === null) {
+              return createBlankLineItems(companyIds);
+            }
+            return prev;
+          });
+        }
       }
     } finally {
       setLoading(false);
@@ -324,7 +275,8 @@ function QuotationForm() {
       setChecklistNo(quotation.checklist_no ?? '');
       setRefNo(quotation.no ?? '');
       setPer(String(quotation.per ?? 0));
-      setManualDiscount(toDecimal(quotation.discount ?? 0));
+      setDiscountFlat(toDecimal(quotation.discount ?? 0));
+      setDiscountMode(quotation.per > 0 ? 'per' : 'flat');
       setDeletedLineItemIds([]);
       setLineItems(
         lineRows.length > 0
@@ -340,11 +292,10 @@ function QuotationForm() {
               deleted: false,
               company_id: item.company_id ?? null,
             }))
-          : [createBlankLineItem()],
+          : createBlankLineItems(companies.map((c) => c.id)),
       );
       setTypeFilter('all');
       setCustomerSearch('');
-      setProductSearch('');
       navigate(location.pathname, { replace: true, state: null });
     },
     [location.pathname, navigate],
@@ -385,17 +336,23 @@ function QuotationForm() {
     [products],
   );
 
-  const addLineItem = useCallback(() => {
-    setLineItems((current) =>
-      reindexLineItems([
-        ...current,
-        {
-          ...createBlankLineItem(),
-          s_no: current.filter((item) => !item.deleted).length + 1,
-        },
-      ]),
-    );
-  }, [reindexLineItems]);
+  const addLineItem = useCallback((nextCompanyId?: number | null) => {
+    setLineItems((current) => [
+      ...current,
+      {
+        uid: nextUid(),
+        id: 0,
+        qty: 1,
+        product_id: null,
+        product_name: '',
+        unit_price: 0,
+        row_total: 0,
+        s_no: current.filter((item) => !item.deleted).length + 1,
+        deleted: false,
+        company_id: nextCompanyId ?? null,
+      },
+    ]);
+  }, []);
 
   const toggleDeleteLineItem = useCallback(
     (uid: string) => {
@@ -417,7 +374,7 @@ function QuotationForm() {
         );
         const activeCount = next.filter((item) => !item.deleted).length;
         if (activeCount === 0) {
-          return [createBlankLineItem()];
+          return createBlankLineItems(companies.map((c) => c.id));
         }
         return reindexLineItems(next);
       });
@@ -425,25 +382,6 @@ function QuotationForm() {
     [reindexLineItems],
   );
 
-  const handleProductPick = useCallback(
-    (product: ProductSearchRow) => {
-      const target = lineItems.find((item) => !item.deleted && !item.product_id) ??
-        lineItems.find((item) => !item.deleted) ??
-        null;
-      if (!target) {
-        addLineItem();
-        return;
-      }
-      updateLineItem(target.uid, {
-        product_id: product.id,
-        product_name: product.product_name,
-        unit_price: product.price,
-        company_id: product.company_id,
-      });
-      setProductSearch('');
-    },
-    [addLineItem, lineItems, updateLineItem],
-  );
 
   useEffect(() => {
     if (productAutoFill?.targetForm !== 'quotation') return;
@@ -473,30 +411,6 @@ function QuotationForm() {
     setCustomerOpen(false);
   }, []);
 
-
-
-  const handleLineItemsKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLDivElement>) => {
-      if (!lineItems.some((item) => !item.deleted)) {
-        return;
-      }
-
-      if (event.ctrlKey && event.key.toLowerCase() === 'i') {
-        event.preventDefault();
-        addLineItem();
-        return;
-      }
-
-      if (event.ctrlKey && event.key.toLowerCase() === 'd') {
-        event.preventDefault();
-        const activeLine = [...lineItems].reverse().find((item) => !item.deleted);
-        if (activeLine) {
-          toggleDeleteLineItem(activeLine.uid);
-        }
-      }
-    },
-    [addLineItem, lineItems, toggleDeleteLineItem],
-  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -563,7 +477,7 @@ function QuotationForm() {
           identify: 'Quotation',
           sub_total: subTotal,
           vat: calcResult.vat,
-          discount: resolvedDiscount,
+          discount: calcResult.discount,
           total,
           per: parseFloat(per || '0'),
           isvat: settings?.isvat ?? 0,
@@ -592,7 +506,7 @@ function QuotationForm() {
         sub_total: subTotal,
         amount_due: selectedCustomer?.due_amount ?? 0,
         vat: calcResult.vat,
-        discount: resolvedDiscount,
+        discount: calcResult.discount,
         total,
         per: parseFloat(per || '0'),
         quo_date: quotationDate,
@@ -625,6 +539,7 @@ function QuotationForm() {
     }
   }, [
     calcResult.vat,
+    calcResult.discount,
     checklistNo,
     companyId,
     customerId,
@@ -633,11 +548,11 @@ function QuotationForm() {
     lineItems,
     loadInitialData,
     per,
+    discountFlat,
     quotationDate,
     quotationNumber,
     refNo,
     reindexLineItems,
-    resolvedDiscount,
     selectedCustomer?.due_amount,
     settings?.isvat,
     settings?.vat_per,
@@ -734,13 +649,6 @@ function QuotationForm() {
     resetForm(result.nextQuotationNumber);
   }, [persistQuotation, resetForm, selectedCustomer]);
 
-  const openCustomers = useCallback(() => {
-    navigate('/customers?newFor=quotation');
-  }, [navigate]);
-
-  const openProducts = useCallback(() => {
-    navigate('/products?newFor=quotation');
-  }, [navigate]);
 
   if (loading) {
     return (
@@ -760,21 +668,24 @@ function QuotationForm() {
           </h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={openCustomers}>
-            <UserPlus className="size-4" />
-            New Customer
-          </Button>
-          <Button variant="outline" onClick={openProducts}>
-            <FilePlus2 className="size-4" />
-            New Product
-          </Button>
           <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
-            <Eraser className="size-4" />
             Clear
           </Button>
           <Button variant="outline" onClick={() => void handlePreview()} disabled={saving}>
             <Printer className="size-4" />
             Preview
+          </Button>
+          <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
+            <Mail className="size-4" />
+            Send
+          </Button>
+          <Button variant="default" onClick={() => void handleSaveAndPrint()} disabled={saving}>
+            <Printer className="size-4" />
+            Save & Print
+          </Button>
+          <Button onClick={() => void handleSave()} disabled={saving}>
+            <Save className="size-4" />
+            {saving ? 'Saving...' : 'Save'}
           </Button>
         </div>
       </div>
@@ -793,53 +704,36 @@ function QuotationForm() {
             <Input type="date" value={quotationDate} onChange={(event) => setQuotationDate(event.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label>Customer *</Label>
+            <div className="flex items-center justify-between">
+              <Label>Customer *</Label>
+              <Button type="button" variant="ghost" size="sm"
+                className="h-5 px-1 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => navigate('/customers')}>
+                <Plus className="size-3" />
+                New Customer
+              </Button>
+            </div>
             <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
               <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={customerOpen}
-                  className="w-full justify-between font-normal"
-                >
-                  {customerId
-                    ? (() => {
-                        const c = customers.find((c) => c.id === customerId);
-                        return c
-                          ? [c.title_name?.trim(), c.customer_name, c.telephone?.trim()]
-                              .filter(Boolean)
-                              .join(' - ')
-                          : 'Select customer...';
-                      })()
-                    : 'Select customer...'}
+                <Button variant="outline" role="combobox" aria-expanded={customerOpen} className="w-full justify-between font-normal">
+                  <span className="truncate">
+                    {selectedCustomer
+                      ? [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name, selectedCustomer.telephone?.trim()].filter(Boolean).join(' - ')
+                      : 'Select customer...'}
+                  </span>
                   <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[400px] p-0" align="start">
                 <Command>
-                  <CommandInput
-                    placeholder="Search customer by name, phone, email, or address"
-                    value={customerSearch}
-                    onValueChange={setCustomerSearch}
-                  />
+                  <CommandInput placeholder="Search customer by name, phone, email..." value={customerSearch} onValueChange={setCustomerSearch} />
                   <CommandList>
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup>
                       {filteredCustomers.slice(0, 100).map((customer) => (
-                        <CommandItem
-                          key={customer.id}
-                          value={String(customer.id)}
-                          onSelect={() => selectCustomer(customer)}
-                        >
-                          <Check
-                            className={cn(
-                              'mr-2 size-4',
-                              customerId === customer.id ? 'opacity-100' : 'opacity-0',
-                            )}
-                          />
-                          {[customer.title_name?.trim(), customer.customer_name, customer.telephone?.trim()]
-                            .filter(Boolean)
-                            .join(' - ')}
+                        <CommandItem key={customer.id} value={[customer.title_name, customer.customer_name, customer.telephone, customer.email].filter(Boolean).join(' ')} onSelect={() => selectCustomer(customer)}>
+                          <Check className={cn('mr-2 size-4', customerId === customer.id ? 'opacity-100' : 'opacity-0')} />
+                          {[customer.title_name?.trim(), customer.customer_name, customer.telephone?.trim()].filter(Boolean).join(' - ')}
                         </CommandItem>
                       ))}
                     </CommandGroup>
@@ -919,224 +813,68 @@ function QuotationForm() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="size-4" />
-            Product Search
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Input
-            placeholder="Search by product code or name"
-            value={productSearch}
-            onChange={(event) => setProductSearch(event.target.value)}
-            className="max-w-md"
-          />
-          <div className="max-h-52 overflow-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted/60">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Code</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">Price</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">Company</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.slice(0, 12).map((product) => (
-                  <tr
-                    key={product.id}
-                    className="border-t hover:bg-muted/30"
-                  >
-                    <td className="px-3 py-2">{product.product_id ?? '-'}</td>
-                    <td className="px-3 py-2">
-                      {product.product_name}
-                    </td>
-                    <td className="px-3 py-2 text-right">{formatMoney(product.price, currency)}</td>
-                    <td className="px-3 py-2 text-right">
-                      {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleProductPick(product)}
-                      >
-                        Use
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredProducts.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                      No products match this search
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
 
       {companies.map((company) => {
         const companyProducts = products.filter((p) => p.company_id === company.id);
         const companyItems = lineItems.filter((li) => li.company_id === company.id);
         const companySubtotal = companyItems.filter((li) => !li.deleted).reduce((sum, li) => sum + li.row_total, 0);
         const companyName = company.company_name ?? company.company_code ?? `Company ${company.id}`;
-
-        const addItemToCompany = () => {
-          setLineItems((prev) => [
-            ...prev,
-            {
-              uid: nextUid(),
-              id: 0,
-              qty: 1,
-              product_id: null,
-              product_name: '',
-              unit_price: 0,
-              row_total: 0,
-              s_no: prev.length + 1,
-              deleted: false,
-              company_id: company.id,
-            },
-          ]);
-        };
-
         return (
           <Card key={company.id}>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">{companyName}</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Select
-                    onValueChange={(v: string) => {
-                      const product = companyProducts.find((p) => p.id === parseInt(v, 10));
-                      if (product) {
-                        setLineItems((prev) => [
-                          ...prev,
-                          {
-                            uid: nextUid(),
-                            id: 0,
-                            qty: 1,
+              <CardTitle className="text-base font-semibold">{companyName}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="w-12 px-3 py-2 text-left font-medium text-muted-foreground">#</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
+                      <th className="w-20 px-3 py-2 text-left font-medium text-muted-foreground">Qty</th>
+                      <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Price</th>
+                      <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Total</th>
+                      <th className="w-10 px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {companyItems.map((li, idx) => (
+                      <ProductRow
+                        key={li.uid}
+                        li={li}
+                        idx={idx}
+                        companyProducts={companyProducts}
+                        currency={currency}
+                        priceEditable
+                        onProductSelect={(product) => {
+                          updateLineItem(li.uid, {
                             product_id: product.id,
                             product_name: product.product_name,
                             unit_price: product.price,
-                            row_total: product.price,
-                            s_no: prev.length + 1,
-                            deleted: false,
-                            company_id: company.id,
-                          },
-                        ]);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Add product..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companyProducts.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.product_name} - {formatMoney(p.price, currency)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm" onClick={addItemToCompany}>
-                    <Plus className="size-3.5" />
-                    Add Row
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-              <CardContent onKeyDown={handleLineItemsKeyDown} tabIndex={-1}>
-
-              {companyItems.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">No items for {companyName}</p>
-              ) : (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="w-12 px-3 py-2 text-left font-medium text-muted-foreground">#</th>
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
-                        <th className="w-20 px-3 py-2 text-left font-medium text-muted-foreground">Qty</th>
-                        <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Price</th>
-                        <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Total</th>
-                        <th className="w-10 px-3 py-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {companyItems.map((li, idx) => (
-                        <tr
-                          key={li.uid}
-                          className={`border-t hover:bg-muted/30 ${li.deleted ? 'bg-muted/20 opacity-50' : ''}`}
-                        >
-                          <td className="px-3 py-1.5 text-muted-foreground">{idx + 1}</td>
-                          <td className="px-3 py-1.5">{li.product_name || '-'}</td>
-                          <td className="px-3 py-1.5">
-                            {li.deleted ? (
-                              <span className="text-muted-foreground">{li.qty}</span>
-                            ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                className="h-8 w-20"
-                                value={li.qty}
-                                onChange={(e) =>
-                                  updateLineItem(li.uid, { qty: parseInt(e.target.value) || 0 })
-                                }
-                              />
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5">
-                            {li.deleted ? (
-                              <span className="text-muted-foreground">{formatMoney(li.unit_price, currency)}</span>
-                            ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                className="h-8 w-28"
-                                value={toDecimal(li.unit_price)}
-                                onChange={(e) =>
-                                  updateLineItem(li.uid, { unit_price: parseCents(e.target.value) })
-                                }
-                              />
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5 font-medium">
-                            {formatMoney(li.row_total, currency)}
-                          </td>
-                          <td className="px-3 py-1.5">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className={li.deleted ? 'text-destructive' : 'text-muted-foreground hover:text-destructive'}
-                              onClick={() => toggleDeleteLineItem(li.uid)}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
+                            company_id: product.company_id,
+                          });
+                          const hasBlank = lineItems.some((item) => item.uid !== li.uid && !item.deleted && !item.product_id && item.company_id === company.id);
+                          if (!hasBlank) {
+                            setLineItems((prev) => [...prev, { uid: nextUid(), id: 0, qty: 1, product_id: null, product_name: '', unit_price: 0, row_total: 0, s_no: prev.length + 1, deleted: false, company_id: company.id }]);
+                          }
+                        }}
+                        onQtyChange={(qty) => updateLineItem(li.uid, { qty })}
+                        onPriceChange={(price) => updateLineItem(li.uid, { unit_price: price })}
+                        onDelete={() => toggleDeleteLineItem(li.uid)}
+                      />
+                    ))}
+                  </tbody>
+                  {companySubtotal > 0 && (
                     <tfoot>
                       <tr className="bg-muted/30">
-                        <td colSpan={4} className="px-3 py-2 text-right font-medium">
-                          Subtotal
-                        </td>
+                        <td colSpan={4} className="px-3 py-2 text-right font-medium">Subtotal</td>
                         <td className="px-3 py-2 font-semibold">{formatMoney(companySubtotal, currency)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
-                  </table>
-                </div>
-              )}
+                  )}
+                </table>
+              </div>
             </CardContent>
           </Card>
         );
@@ -1146,85 +884,47 @@ function QuotationForm() {
         <CardHeader>
           <CardTitle>Totals</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-5">
-          {companies.map((company) => {
-            const companySubtotal = lineItems
-              .filter((li) => li.company_id === company.id && !li.deleted)
-              .reduce((sum, li) => sum + li.row_total, 0);
-            if (companySubtotal === 0) return null;
-            return (
-              <div key={company.id} className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  {company.company_name ?? company.company_code ?? `Company ${company.id}`}
-                </Label>
-                <p className="text-lg font-medium">{formatMoney(companySubtotal, currency)}</p>
-              </div>
-            );
-          })}
-          {settings?.isvat === 1 && calcResult.vat > 0 && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">VAT</Label>
-              <p className="text-lg font-medium">{formatMoney(calcResult.vat, currency)}</p>
+        <CardContent className="space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Sub Total</span>
+            <span className="font-medium">{formatMoney(subTotal, currency)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className={`text-sm ${settings?.isvat === 1 ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}>
+              VAT ({settings?.isvat === 1 ? toDecimal(settings.vat_per) : '0'}%)
+            </span>
+            <span className={`font-medium ${settings?.isvat !== 1 ? 'text-muted-foreground/50' : ''}`}>
+              {formatMoney(calcResult.vat, currency)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-sm text-muted-foreground">Discount</span>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number" min="0" max="100" className="h-8 w-20"
+                value={derivedPer}
+                onChange={(e) => { const v = Math.min(parseFloat(e.target.value) || 0, 100); setPer(v > 0 ? String(v) : e.target.value); setDiscountMode('per'); }}
+                placeholder="0%"
+              />
+              <Input
+                type="number" min="0" step="0.01" className="h-8 w-24"
+                value={derivedDiscountFlat}
+                onChange={(e) => { const maxFlat = toDecimal(Math.abs(subTotal + calcResult.vat)); const v = Math.min(parseFloat(e.target.value) || 0, parseFloat(maxFlat)); setDiscountFlat(v > 0 ? String(v) : e.target.value); setDiscountMode('flat'); }}
+                placeholder="0.00"
+              />
             </div>
-          )}
-          {resolvedDiscount > 0 && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">
-                {parseFloat(per || '0') > 0 ? 'Discount' : 'Manual Discount'}
-              </Label>
-              <p className="text-lg font-medium text-destructive">
-                -{formatMoney(resolvedDiscount, currency)}
-              </p>
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">New Total</Label>
-            <p className="text-lg font-medium">{formatMoney(total, currency)}</p>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Discount %</Label>
-            <Input
-              type="number"
-              min="0"
-              max="100"
-              className="h-8 w-24"
-              value={per}
-              onChange={(e) => setPer(e.target.value)}
-              placeholder="0"
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Manual Discount</Label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              className="h-8 w-28"
-              value={manualDiscount}
-              onChange={(e) => setManualDiscount(e.target.value)}
-              disabled={parseFloat(per || '0') > 0}
-              placeholder="0.00"
-            />
-          </div>
-          <div className="space-y-1 md:col-span-2">
-            <Label className="text-xs text-muted-foreground">Grand Total</Label>
-            <p className="text-2xl font-bold">{formatMoney(total, currency)}</p>
+          <div className="border-t pt-3 flex items-center justify-between">
+            <span className="text-sm font-semibold">Total Amount</span>
+            <span className="text-2xl font-bold">{formatMoney(total, currency)}</span>
           </div>
         </CardContent>
       </Card>
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
-          <Mail className="size-4" />
-          Send
-        </Button>
-        <Button variant="default" onClick={() => void handleSaveAndPrint()} disabled={saving}>
-          <Printer className="size-4" />
-          Save & Print
-        </Button>
-        <Button onClick={() => void handleSave()} disabled={saving}>
-          <Save className="size-4" />
-          {saving ? 'Saving...' : 'Save'}
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={() => navigate('/quotations')}>
+          <ArrowLeftRight className="size-4" />
+          View Quotations
         </Button>
       </div>
     </div>
