@@ -73,6 +73,7 @@ function CompanySettings() {
   const [watermarkPreview, setWatermarkPreview] = useState<string | null>(null)
   const logoRef = useRef<HTMLInputElement>(null)
   const watermarkRef = useRef<HTMLInputElement>(null)
+  const initialLoadDone = useRef(false)
 
   const hasColumn = useCallback(
     (column: string) => availableColumns.has(column),
@@ -114,29 +115,44 @@ function CompanySettings() {
     if (watermarkRef.current) watermarkRef.current.value = ''
   }, [])
 
+  const loadCompanyDetail = useCallback(async (id: number) => {
+    try {
+      const [detail] = await query<Company>('SELECT * FROM tbl_company WHERE id = ?', [id])
+      if (detail) hydrateCompany(detail)
+    } catch (err) {
+      toast.error(`Failed to load company details: ${String(err)}`)
+    }
+  }, [hydrateCompany])
+
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [columnRows, companyRows] = await Promise.all([
+      const [columnRows] = await Promise.all([
         query<TableColumnInfo>("PRAGMA table_info('tbl_company')"),
-        query<Company>('SELECT * FROM tbl_company ORDER BY COALESCE(company_code, company_name, id)'),
       ])
 
       const columns = new Set(columnRows.map((row) => row.name))
       setAvailableColumns(columns)
+
+      // Exclude large binary data (logo, watermark) from list query
+      // to avoid IPC message size errors (431 Request Header Fields Too Large)
+      const listColumns = columnRows
+        .filter((row) => row.name !== 'logo' && row.name !== 'watermark')
+        .map((row) => row.name)
+        .join(', ')
+
+      const companyRows = await query<Company>(
+        `SELECT ${listColumns} FROM tbl_company ORDER BY COALESCE(company_code, company_name, id)`
+      )
       setCompanies(companyRows)
 
-      if (selectedId) {
-        const current = companyRows.find((row) => row.id === selectedId)
-        if (current) {
-          hydrateCompany(current)
-        } else if (companyRows[0]) {
-          hydrateCompany(companyRows[0])
-        } else {
-          resetForm()
-        }
-      } else if (companyRows[0]) {
-        hydrateCompany(companyRows[0])
+      const initialId =
+        (selectedId && companyRows.find((r) => r.id === selectedId))
+          ? selectedId
+          : companyRows[0]?.id
+
+      if (initialId) {
+        await loadCompanyDetail(initialId)
       } else {
         resetForm()
       }
@@ -145,10 +161,13 @@ function CompanySettings() {
     } finally {
       setLoading(false)
     }
-  }, [hydrateCompany, resetForm, selectedId])
+  }, [loadCompanyDetail, resetForm, selectedId])
 
   useEffect(() => {
-    void loadData()
+    if (!initialLoadDone.current) {
+      initialLoadDone.current = true
+      void loadData()
+    }
   }, [loadData])
 
   const readFileAsBase64 = (file: File): Promise<string> =>
@@ -321,7 +340,7 @@ function CompanySettings() {
                     <tr
                       key={item.id}
                       className={`cursor-pointer border-t hover:bg-muted/30 ${selectedId === item.id ? 'bg-muted/40' : ''}`}
-                      onClick={() => hydrateCompany(item)}
+                      onClick={() => void loadCompanyDetail(item.id)}
                     >
                       <td className="px-4 py-2">{item.company_code ?? '-'}</td>
                       <td className="px-4 py-2 font-medium">{item.company_name ?? `Company ${item.id}`}</td>
