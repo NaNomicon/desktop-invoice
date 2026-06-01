@@ -5,6 +5,7 @@ export interface CalInput {
   isvat: number;
   vat_per: number;
   per: number;
+  discount_flat?: number;
 }
 
 export interface CalResult {
@@ -30,6 +31,8 @@ export function cal(input: CalInput): CalResult {
   let discount = 0;
   if (input.per > 0) {
     discount = Math.round(Math.abs(input.sub_total + vat) * input.per / 100);
+  } else if (input.discount_flat && input.discount_flat > 0) {
+    discount = input.discount_flat;
   }
 
   const total = new_tot + vat - discount;
