@@ -753,43 +753,11 @@ function QuotationForm() {
 
   return (
     <div className="flex h-full flex-col gap-4 overflow-auto p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <FileText className="size-5" />
-          <h1 className="text-2xl font-semibold">
-            {editingId ? `Edit Quotation ${quotationNumber}` : 'Add Quotation'}
-          </h1>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={openCustomers}>
-            <UserPlus className="size-4" />
-            Add Customer
-          </Button>
-          <Button variant="outline" onClick={openProducts}>
-            <FilePlus2 className="size-4" />
-            Add Product
-          </Button>
-          <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
-            <Eraser className="size-4" />
-            Clear
-          </Button>
-          <Button variant="outline" onClick={() => void handlePreview()} disabled={saving}>
-            <Printer className="size-4" />
-            Preview
-          </Button>
-          <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
-            <Mail className="size-4" />
-            Send
-          </Button>
-          <Button variant="default" onClick={() => void handleSaveAndPrint()} disabled={saving}>
-            <Printer className="size-4" />
-            Save & Print
-          </Button>
-          <Button onClick={() => void handleSave()} disabled={saving}>
-            <Save className="size-4" />
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
-        </div>
+      <div className="flex items-center gap-2">
+        <FileText className="size-5" />
+        <h1 className="text-2xl font-semibold">
+          {editingId ? `Edit Quotation ${quotationNumber}` : 'Add Quotation'}
+        </h1>
       </div>
 
       <Card>
@@ -1226,7 +1194,35 @@ function QuotationForm() {
         </CardContent>
       </Card>
 
-      <div className="flex justify-end gap-2">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" onClick={openCustomers}>
+          <UserPlus className="size-4" />
+          Add Customer
+        </Button>
+        <Button variant="outline" onClick={openProducts}>
+          <FilePlus2 className="size-4" />
+          Add Product
+        </Button>
+        <Button variant="outline" onClick={() => resetForm()} disabled={saving}>
+          <Eraser className="size-4" />
+          Clear
+        </Button>
+        <Button variant="outline" onClick={() => void handlePreview()} disabled={saving}>
+          <Printer className="size-4" />
+          Preview
+        </Button>
+        <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
+          <Mail className="size-4" />
+          Send
+        </Button>
+        <Button variant="default" onClick={() => void handleSaveAndPrint()} disabled={saving}>
+          <Printer className="size-4" />
+          Save & Print
+        </Button>
+        <Button onClick={() => void handleSave()} disabled={saving}>
+          <Save className="size-4" />
+          {saving ? 'Saving...' : 'Save'}
+        </Button>
         <Button variant="outline" onClick={() => navigate('/quotations')}>
           <ArrowLeftRight className="size-4" />
           View Quotations
