@@ -1,18 +1,6 @@
 # Utilities (`src/utils/`)
 
-Pure utility/helper functions for XPress Billing.
+**THIS DIRECTORY IS EMPTY.** Actual utilities live in `src/lib/utils.ts`.
 
-## Guidelines
-
-- Pure functions only — no side effects, no React hooks
-- Well-typed with TypeScript
-- Unit tested (critical for business logic utilities)
-- No Tauri/React dependencies — keep framework-agnostic
-
-## Examples
-
-- Date formatting
-- Number/currency formatting
-- Data transformation
-- Validation helpers
-- String manipulation
+`cn()` (clsx + tailwind-merge) and all other pure helpers are in `src/lib/utils.ts`.
+Import via `import { cn } from '@/lib/utils'`.
