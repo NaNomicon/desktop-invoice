@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { query, execute } from '@/lib/db';
-import type { Setting, NumberSequence } from '@/lib/types';
+import type { Setting } from '@/lib/types';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,7 +12,6 @@ import { Settings2, Save, FolderOpen, Upload, X, Check, XCircle } from 'lucide-r
 
 function SettingsPage() {
   const [settings, setSettings] = useState<Partial<Setting>>({ id: 1 });
-  const [numbers, setNumbers] = useState<Partial<NumberSequence>>({ id: 1 });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [bgPreview, setBgPreview] = useState<string | null>(null);
@@ -20,20 +19,13 @@ function SettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const [settingRows, numberRows] = await Promise.all([
-        query<Setting>('SELECT * FROM tbl_setting WHERE id = 1'),
-        query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1'),
-      ]);
+      const settingRows = await query<Setting>('SELECT * FROM tbl_setting WHERE id = 1');
       const setting = settingRows[0];
       if (setting) {
         setSettings(setting);
         if (setting.back_path) {
           setBgPreview(setting.back_path);
         }
-      }
-      const numberSeq = numberRows[0];
-      if (numberSeq) {
-        setNumbers(numberSeq);
       }
       setLoading(false);
     })();
@@ -88,29 +80,13 @@ function SettingsPage() {
         }
 
       // Save number sequences
-      const numExists = await query<{ cnt: number }>(
-        'SELECT COUNT(*) as cnt FROM tbl_numbers WHERE id = 1',
-      );
-      const numExistsResult = numExists[0];
-      if (numExistsResult && numExistsResult.cnt > 0) {
-        await execute(
-          `UPDATE tbl_numbers SET invoice_no = ?, quo_no = ?, receipt_no = ? WHERE id = 1`,
-          [numbers.invoice_no ?? 1, numbers.quo_no ?? 1, numbers.receipt_no ?? 1],
-        );
-      } else {
-        await execute(
-          `INSERT INTO tbl_numbers (id, invoice_no, quo_no, receipt_no) VALUES (1, ?, ?, ?)`,
-          [numbers.invoice_no ?? 1, numbers.quo_no ?? 1, numbers.receipt_no ?? 1],
-        );
-      }
-
       toast.success('Settings saved');
     } catch (err) {
       toast.error(`Save failed: ${String(err)}`);
     } finally {
       setSaving(false);
     }
-  }, [settings, numbers]);
+  }, [settings]);
 
   const handleBrowsePath = useCallback(async (field: keyof Setting) => {
     const result = await open({ directory: true, title: 'Select folder' });
@@ -232,59 +208,6 @@ function SettingsPage() {
             />
             <p className="text-muted-foreground text-xs">
               Number of days after which invoices cannot be edited
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Number Sequences</CardTitle>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="space-y-1">
-            <Label htmlFor="invoice-no">Next Invoice No</Label>
-            <Input
-              id="invoice-no"
-              type="number"
-              min="1"
-              value={numbers.invoice_no ?? 1}
-              onChange={(e) =>
-                setNumbers((prev) => ({ ...prev, invoice_no: parseInt(e.target.value) || 1 }))
-              }
-            />
-            <p className="text-muted-foreground text-xs">
-              Next invoice number to assign
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="quo-no">Next Quotation No</Label>
-            <Input
-              id="quo-no"
-              type="number"
-              min="1"
-              value={numbers.quo_no ?? 1}
-              onChange={(e) =>
-                setNumbers((prev) => ({ ...prev, quo_no: parseInt(e.target.value) || 1 }))
-              }
-            />
-            <p className="text-muted-foreground text-xs">
-              Next quotation number to assign
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label htmlFor="receipt-no">Next Receipt No</Label>
-            <Input
-              id="receipt-no"
-              type="number"
-              min="1"
-              value={numbers.receipt_no ?? 1}
-              onChange={(e) =>
-                setNumbers((prev) => ({ ...prev, receipt_no: parseInt(e.target.value) || 1 }))
-              }
-            />
-            <p className="text-muted-foreground text-xs">
-              Next receipt number to assign
             </p>
           </div>
         </CardContent>

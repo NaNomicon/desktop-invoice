@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/db';
+import { getNextQuoNo } from '@/lib/db/nextNumber';
 
 interface LineItemWithCompany {
   id?: number;
@@ -83,28 +84,13 @@ export async function splitQuotation(
   const total1 = sub1 + vat1 - disc1;
   const total2 = sub2 + vat2 - disc2;
 
+  const baseNo = parseInt(await getNextQuoNo(), 10);
+  const quoNo1 = String(baseNo);
+  const quoNo2 = String(baseNo + 1);
+
   await db.execute('BEGIN TRANSACTION');
 
   try {
-    await db.execute(
-      'UPDATE tbl_numbers SET quo_no = quo_no + 1',
-      [],
-    );
-    const num1 = await db.select<{ quo_no: number }[]>(
-      'SELECT quo_no FROM tbl_numbers',
-      [],
-    );
-    const quoNo1 = String(num1[0]?.quo_no ?? 0);
-
-    await db.execute(
-      'UPDATE tbl_numbers SET quo_no = quo_no + 1',
-      [],
-    );
-    const num2 = await db.select<{ quo_no: number }[]>(
-      'SELECT quo_no FROM tbl_numbers',
-      [],
-    );
-    const quoNo2 = String(num2[0]?.quo_no ?? 0);
 
     await db.execute(
       `INSERT INTO tbl_quotation_main (

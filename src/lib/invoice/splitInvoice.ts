@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/db';
+import { getNextInvoiceNo } from '@/lib/db/nextNumber';
 
 interface LineItemWithCompany {
   qty: number;
@@ -105,6 +106,10 @@ export async function splitInvoice(
   const drcr1 = due1 > 0 ? 'Cr.' : due1 < 0 ? 'Dr.' : null;
   const drcr2 = due2 > 0 ? 'Cr.' : due2 < 0 ? 'Dr.' : null;
 
+  const baseNo = parseInt(await getNextInvoiceNo(), 10);
+  const invNo1 = String(baseNo);
+  const invNo2 = String(baseNo + 1);
+
   await db.execute('BEGIN TRANSACTION');
 
   try {
@@ -116,26 +121,6 @@ export async function splitInvoice(
     const startingSignedBalance = customer ? toSignedBalance(customer.ad_due, customer.due_amount) : 0;
     const endingSignedBalance = startingSignedBalance + due1 + due2;
     const nextCustomerBalance = fromSignedBalance(endingSignedBalance);
-
-    await db.execute(
-      'UPDATE tbl_numbers SET invoice_no = invoice_no + 1',
-      [],
-    );
-    const num1 = await db.select<{ invoice_no: number }[]>(
-      'SELECT invoice_no FROM tbl_numbers',
-      [],
-    );
-    const invNo1 = String(num1[0]?.invoice_no ?? 0);
-
-    await db.execute(
-      'UPDATE tbl_numbers SET invoice_no = invoice_no + 1',
-      [],
-    );
-    const num2 = await db.select<{ invoice_no: number }[]>(
-      'SELECT invoice_no FROM tbl_numbers',
-      [],
-    );
-    const invNo2 = String(num2[0]?.invoice_no ?? 0);
 
     await db.execute(
       `INSERT INTO tbl_invoice_main (

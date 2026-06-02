@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/db';
+import { getNextQuoNo } from '@/lib/db/nextNumber';
 
 export interface QuotationLineItemInput {
   id?: number;
@@ -44,11 +45,7 @@ export async function saveQuotation(
     let quoNo = params.quo_no?.trim() || '';
 
     if (!quoNo) {
-      const numberRows = await db.select<{ quo_no: number }[]>(
-        'SELECT quo_no FROM tbl_numbers WHERE id = 1',
-        [],
-      );
-      quoNo = String((numberRows[0]?.quo_no ?? 0) + 1);
+      quoNo = await getNextQuoNo();
     }
 
     let quotationId = params.quotation_id ?? 0;
@@ -116,11 +113,6 @@ export async function saveQuotation(
         [],
       );
       quotationId = idRows[0]?.id ?? 0;
-
-      await db.execute(
-        'UPDATE tbl_numbers SET quo_no = ? WHERE id = 1',
-        [parseInt(quoNo, 10)],
-      );
     }
 
     for (const item of params.line_items) {
