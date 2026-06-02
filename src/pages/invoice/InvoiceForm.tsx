@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { DateSinglePicker } from '@/components/ui/date-range-picker'
 import {
   Select,
   SelectContent,
@@ -1057,10 +1058,9 @@ function InvoiceForm() {
 
           <div className="space-y-1">
             <Label>Invoice Date</Label>
-            <Input
-              type="date"
+            <DateSinglePicker
               value={invoiceDate}
-              onChange={(e) => setInvoiceDate(e.target.value)}
+              onChange={setInvoiceDate}
             />
           </div>
 

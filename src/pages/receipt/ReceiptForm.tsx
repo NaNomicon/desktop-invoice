@@ -33,6 +33,7 @@ import {
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
+import { DateSinglePicker } from '@/components/ui/date-range-picker'
 
 function dollars(c: number): string {
   return (c / 100).toFixed(2);
@@ -400,12 +401,7 @@ function ReceiptForm() {
                 </div>
                 <div className="space-y-1">
                   <Label htmlFor="receipt-date">Date</Label>
-                  <Input
-                    id="receipt-date"
-                    type="date"
-                    value={receiptDate}
-                    onChange={(e) => setReceiptDate(e.target.value)}
-                  />
+                  <DateSinglePicker value={receiptDate} onChange={setReceiptDate} />
                 </div>
 
                 <div className="space-y-1 md:col-span-2">
