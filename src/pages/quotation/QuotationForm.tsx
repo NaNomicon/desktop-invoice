@@ -697,7 +697,7 @@ function QuotationForm() {
         <CardContent className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <div className="space-y-1">
             <Label>Quotation #</Label>
-            <Input value={quotationNumber} onChange={(event) => setQuotationNumber(event.target.value)} />
+            <Input value={quotationNumber} disabled className="bg-muted" />
           </div>
           <div className="space-y-1">
             <Label>Quotation Date</Label>
@@ -741,10 +741,6 @@ function QuotationForm() {
                 </Command>
               </PopoverContent>
             </Popover>
-          </div>
-          <div className="space-y-1">
-            <Label>Checklist No</Label>
-            <Input value={checklistNo} onChange={(event) => setChecklistNo(event.target.value)} />
           </div>
           <div className="space-y-1">
             <Label>Product Type</Label>
