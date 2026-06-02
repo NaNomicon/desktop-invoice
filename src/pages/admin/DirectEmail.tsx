@@ -246,7 +246,7 @@ function DirectEmailPage() {
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-[220px] p-0" align="end">
-              <Command>
+              <Command shouldFilter={false}>
                 <CommandList>
                   <CommandEmpty>No template found.</CommandEmpty>
                   <CommandGroup>
@@ -254,7 +254,7 @@ function DirectEmailPage() {
                       <Check className={cn('mr-2 size-4', selectedTemplateType === 'none' ? 'opacity-100' : 'opacity-0')} />
                       No template
                     </CommandItem>
-                    {TEMPLATE_TYPES.map((type) => (
+                    {templateOpen && TEMPLATE_TYPES.map((type) => (
                       <CommandItem key={type} value={type} onSelect={() => { void handleTemplateChange(type); setTemplateOpen(false); }}>
                         <Check className={cn('mr-2 size-4', selectedTemplateType === type ? 'opacity-100' : 'opacity-0')} />
                         Load {type}

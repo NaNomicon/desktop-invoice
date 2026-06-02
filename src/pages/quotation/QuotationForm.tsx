@@ -94,6 +94,7 @@ function QuotationForm() {
   const [checklistNo, setChecklistNo] = useState('');
   const [refNo, setRefNo] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
   const [per, setPer] = useState('');
   const [discountFlat, setDiscountFlat] = useState('');
   const [discountMode, setDiscountMode] = useState<'per' | 'flat'>('per');
@@ -108,7 +109,7 @@ function QuotationForm() {
   const filteredCustomers = useMemo(() => {
     const search = customerSearch.trim().toLowerCase();
     if (!search) {
-      return customers;
+      return customers.slice(0, 50);
     }
 
     return customers.filter((customer) => {
@@ -122,7 +123,7 @@ function QuotationForm() {
       ];
 
       return values.some((value) => (value ?? '').toLowerCase().includes(search));
-    });
+    }).slice(0, 50);
   }, [customerSearch, customers]);
 
   const subTotal = useMemo(
@@ -726,12 +727,12 @@ function QuotationForm() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[400px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput placeholder="Search customer by name, phone, email..." value={customerSearch} onValueChange={setCustomerSearch} />
                   <CommandList>
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup>
-                      {filteredCustomers.slice(0, 100).map((customer) => (
+                      {customerOpen && filteredCustomers.map((customer) => (
                         <CommandItem key={customer.id} value={[customer.title_name, customer.customer_name, customer.telephone, customer.email].filter(Boolean).join(' ')} onSelect={() => selectCustomer(customer)}>
                           <Check className={cn('mr-2 size-4', customerId === customer.id ? 'opacity-100' : 'opacity-0')} />
                           {[customer.title_name?.trim(), customer.customer_name, customer.telephone?.trim()].filter(Boolean).join(' - ')}
@@ -745,11 +746,12 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Product Type</Label>
-            <Popover>
+            <Popover open={typeFilterOpen} onOpenChange={setTypeFilterOpen}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   role="combobox"
+                  aria-expanded={typeFilterOpen}
                   className="w-full justify-between font-normal"
                 >
                   {typeFilter === "all"
@@ -759,7 +761,7 @@ function QuotationForm() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput placeholder="Search types..." />
                   <CommandList>
                     <CommandEmpty>No type found.</CommandEmpty>
@@ -776,7 +778,7 @@ function QuotationForm() {
                         />
                         All Types
                       </CommandItem>
-                      {productTypes.map((type) => (
+                      {typeFilterOpen && productTypes.map((type) => (
                         <CommandItem
                           key={type.id}
                           value={type.type_name}

@@ -552,7 +552,7 @@ function ProductPage() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
                   <CommandList>
                     <CommandEmpty>No company found.</CommandEmpty>
@@ -561,7 +561,7 @@ function ProductPage() {
                         <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
                         All Companies
                       </CommandItem>
-                      {companies.map((c) => (
+                      {companyOpen && companies.slice(0, 50).map((c) => (
                         <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
                           <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
                           {c.company_name ?? `Company ${c.id}`}
@@ -676,7 +676,7 @@ function ProductPage() {
                     </Button>
                   </PopoverTrigger>
                   <PopoverContent className="w-[200px] p-0" align="start">
-                    <Command>
+                    <Command shouldFilter={false}>
                       <CommandList>
                         <CommandEmpty>No type found.</CommandEmpty>
                         <CommandGroup>
@@ -684,7 +684,7 @@ function ProductPage() {
                             <Check className={cn('mr-2 size-4', (!form.type_id || form.type_id === 'none') ? 'opacity-100' : 'opacity-0')} />
                             None
                           </CommandItem>
-                          {typeOptions.map((t) => (
+                          {typeOpen && typeOptions.slice(0, 50).map((t) => (
                             <CommandItem key={t.id} value={String(t.id)} onSelect={(v) => { setForm({ ...form, type_id: v }); setTypeOpen(false); }}>
                               <Check className={cn('mr-2 size-4', form.type_id === String(t.id) ? 'opacity-100' : 'opacity-0')} />
                               {t.type_name}
@@ -721,11 +721,11 @@ function ProductPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandList>
                       <CommandEmpty>No company found.</CommandEmpty>
                       <CommandGroup>
-                        {companies.map((c) => (
+                        {prodCompanyOpen && companies.slice(0, 50).map((c) => (
                           <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setForm({ ...form, company_id: parseInt(v) }); setProdCompanyOpen(false); }}>
                             <Check className={cn('mr-2 size-4', form.company_id === c.id ? 'opacity-100' : 'opacity-0')} />
                             {c.company_name ?? `Company ${c.id}`}

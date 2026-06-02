@@ -506,7 +506,7 @@ function QuotationListReport() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[300px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput
                     placeholder="Search company..."
                     value={companySearch}
@@ -515,6 +515,7 @@ function QuotationListReport() {
                   <CommandList>
                     <CommandEmpty>No company found.</CommandEmpty>
                     <CommandGroup>
+                      {companyOpen && <>
                       <CommandItem
                         value="ALL"
                         onSelect={() => {
@@ -530,7 +531,7 @@ function QuotationListReport() {
                         />
                         All Companies
                       </CommandItem>
-                      {filteredCompanies.map((c) => (
+                      {filteredCompanies.slice(0, 50).map((c) => (
                         <CommandItem
                           key={c.id}
                           value={String(c.id)}
@@ -550,6 +551,7 @@ function QuotationListReport() {
                           {c.company_name ?? `Company ${c.id}`}
                         </CommandItem>
                       ))}
+                      </>}
                     </CommandGroup>
                   </CommandList>
                 </Command>

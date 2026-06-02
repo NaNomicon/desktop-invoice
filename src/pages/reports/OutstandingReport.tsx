@@ -202,11 +202,12 @@ function OutstandingReport() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
                   <CommandList>
                     <CommandEmpty>No company found.</CommandEmpty>
                     <CommandGroup>
+                      {companyOpen && <>
                       <CommandItem
                         value="all"
                         onSelect={() => {
@@ -220,7 +221,7 @@ function OutstandingReport() {
                       {(companySearch
                         ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
                         : companies
-                      ).map((company) => (
+                      ).slice(0, 50).map((company) => (
                         <CommandItem
                           key={company.id}
                           value={String(company.id)}
@@ -233,6 +234,7 @@ function OutstandingReport() {
                           {company.company_name ?? `Company ${company.id}`}
                         </CommandItem>
                       ))}
+                      </>}
                     </CommandGroup>
                   </CommandList>
                 </Command>

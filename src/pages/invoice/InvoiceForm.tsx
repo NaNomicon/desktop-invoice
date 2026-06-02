@@ -175,7 +175,7 @@ function InvoiceForm() {
   const filteredCustomers = useMemo(() => {
     const search = customerSearch.trim().toLowerCase();
     if (!search) {
-      return customers;
+      return customers.slice(0, 50);
     }
 
     return customers.filter((customer) => {
@@ -898,7 +898,7 @@ function InvoiceForm() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[400px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput
                     placeholder="Search by name, phone, email..."
                     value={customerSearch}
@@ -907,7 +907,7 @@ function InvoiceForm() {
                   <CommandList>
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup>
-                      {filteredCustomers.slice(0, 100).map((c) => (
+                      {customerOpen && filteredCustomers.slice(0, 100).map((c) => (
                         <CommandItem
                           key={c.id}
                           value={[c.title_name, c.customer_name, c.telephone, c.email, c.address].filter(Boolean).join(' ')}
@@ -944,11 +944,11 @@ function InvoiceForm() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[160px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandList>
                     <CommandEmpty>No option found.</CommandEmpty>
                     <CommandGroup>
-                      {(['CASH', 'CREDIT'] as const).map((val) => (
+                      {caseDebitOpen && (['CASH', 'CREDIT'] as const).map((val) => (
                         <CommandItem key={val} value={val} onSelect={(v) => { setCaseDebit(v); setCaseDebitOpen(false); }}>
                           <Check className={cn('mr-2 size-4', caseDebit === val ? 'opacity-100' : 'opacity-0')} />
                           {val}
@@ -987,7 +987,7 @@ function InvoiceForm() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandList>
                     <CommandEmpty>No type found.</CommandEmpty>
                     <CommandGroup>
@@ -995,7 +995,7 @@ function InvoiceForm() {
                         <Check className={cn('mr-2 size-4', typeFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
                         All Types
                       </CommandItem>
-                      {productTypes.map((type) => (
+                      {typeFilterOpen && productTypes.map((type) => (
                         <CommandItem key={type.id} value={String(type.id)} onSelect={(v) => { setTypeFilter(v); setTypeFilterOpen(false); }}>
                           <Check className={cn('mr-2 size-4', typeFilter === String(type.id) ? 'opacity-100' : 'opacity-0')} />
                           {type.type_name}

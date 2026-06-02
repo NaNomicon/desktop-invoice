@@ -596,7 +596,7 @@ function Customer() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
                   <CommandList>
                     <CommandEmpty>No company found.</CommandEmpty>
@@ -611,10 +611,10 @@ function Customer() {
                         <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
                         All Companies
                       </CommandItem>
-                      {(companySearch
+                      {companyFilterOpen && ((companySearch
                         ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
                         : companies
-                      ).map((c) => (
+                      ).slice(0, 50).map((c) => (
                         <CommandItem
                           key={c.id}
                           value={String(c.id)}
@@ -626,7 +626,7 @@ function Customer() {
                           <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
                           {c.company_name ?? `Company ${c.id}`}
                         </CommandItem>
-                      ))}
+                      )))}
                     </CommandGroup>
                   </CommandList>
                 </Command>
@@ -710,11 +710,11 @@ function Customer() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandList>
                       <CommandEmpty>No option found.</CommandEmpty>
                       <CommandGroup>
-                        {TITLE_OPTIONS.map((option) => (
+                        {titleOpen && TITLE_OPTIONS.map((option) => (
                           <CommandItem
                             key={option}
                             value={option}
@@ -749,11 +749,11 @@ function Customer() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandList>
                       <CommandEmpty>No option found.</CommandEmpty>
                       <CommandGroup>
-                        {CUSTOMER_TYPE_OPTIONS.map((option) => (
+                        {customerTypeOpen && CUSTOMER_TYPE_OPTIONS.map((option) => (
                           <CommandItem
                             key={option}
                             value={option}
@@ -829,10 +829,11 @@ function Customer() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandList>
                       <CommandEmpty>No option found.</CommandEmpty>
                       <CommandGroup>
+                        {adDueOpen && (<>
                         <CommandItem
                           value="Advance"
                           onSelect={() => {
@@ -863,6 +864,7 @@ function Customer() {
                           <Check className={cn('mr-2 size-4', form.ad_due === '' ? 'opacity-100' : 'opacity-0')} />
                           None
                         </CommandItem>
+                        </>)}
                       </CommandGroup>
                     </CommandList>
                   </Command>
@@ -910,15 +912,15 @@ function Customer() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandInput placeholder="Search company..." value={companyDlgSearch} onValueChange={setCompanyDlgSearch} />
                     <CommandList>
                       <CommandEmpty>No company found.</CommandEmpty>
                       <CommandGroup>
-                        {(companyDlgSearch
+                        {companyOpen && ((companyDlgSearch
                           ? companies.filter((c) => c.company_name?.toLowerCase().includes(companyDlgSearch.toLowerCase()))
                           : companies
-                        ).map((c) => (
+                        ).slice(0, 50).map((c) => (
                           <CommandItem
                             key={c.id}
                             value={String(c.id)}
@@ -930,7 +932,7 @@ function Customer() {
                             <Check className={cn('mr-2 size-4', form.company_id === c.id ? 'opacity-100' : 'opacity-0')} />
                             {c.company_name ?? `Company ${c.id}`}
                           </CommandItem>
-                        ))}
+                        )))}
                       </CommandGroup>
                     </CommandList>
                   </Command>
