@@ -280,8 +280,8 @@ function ReceiptList() {
   );
 
   const handlePreview = useCallback(
-    (receiptId: number) => {
-      navigate('/reports/receipts', { state: { receiptId } });
+    (receiptId: number, receiptNo: string) => {
+      navigate('/reports/receipts', { state: { receiptId, receiptNo } });
     },
     [navigate],
   );
@@ -443,7 +443,7 @@ function ReceiptList() {
             type="button"
             variant="ghost"
             size="icon-sm"
-            onClick={() => handlePreview(info.row.original.id)}
+            onClick={() => handlePreview(info.row.original.id, info.row.original.receipt_no)}
             aria-label={`Preview receipt ${info.row.original.receipt_no}`}
           >
             <Eye className="size-3.5" />

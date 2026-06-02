@@ -228,7 +228,7 @@ function InvoiceList() {
             type="button"
             variant="ghost"
             size="icon-sm"
-              onClick={() => navigate(`/reports/invoices/${info.row.original.id}`)}
+              onClick={() => navigate(`/reports/invoices/${info.row.original.id}`, { state: { invoiceNo: info.row.original.invoice_no } })}
               aria-label={`Preview invoice ${info.row.original.invoice_no}`}
           >
             <Eye className="size-3.5" />

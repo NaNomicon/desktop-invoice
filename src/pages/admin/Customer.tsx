@@ -41,6 +41,7 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Plus, Pencil, Trash2, Users, Upload, Download, Loader2, ChevronsUpDown, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { DateSinglePicker } from '@/components/ui/date-range-picker'
 import { open, save } from '@tauri-apps/plugin-dialog';
 
 interface CustomerRow {
@@ -872,11 +873,9 @@ function Customer() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="cust-regdate">Register Date</Label>
-              <Input
-                id="cust-regdate"
-                type="date"
+              <DateSinglePicker
                 value={form.reg_date ?? ''}
-                onChange={(e) => setForm({ ...form, reg_date: e.target.value })}
+                onChange={(date) => setForm({ ...form, reg_date: date })}
               />
             </div>
             <div className="space-y-1">
