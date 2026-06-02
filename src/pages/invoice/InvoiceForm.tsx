@@ -1123,7 +1123,7 @@ function InvoiceForm() {
           {/* VAT - always visible */}
           <div className="flex items-center justify-between">
             <span className={`text-sm ${settings?.isvat === 1 ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}>
-              VAT ({settings?.isvat === 1 ? toDecimal(settings.vat_per) : '0'}%)
+              VAT ({settings?.isvat === 1 ? settings.vat_per : '0'}%)
             </span>
             <span className={`font-medium ${settings?.isvat !== 1 ? 'text-muted-foreground/50' : ''}`}>
               {formatMoney(calResult.vat, currency)}

@@ -25,7 +25,7 @@ export function quoCal(input: QuoCalInput): QuoCalResult {
 
   let vat = 0;
   if (input.isvat === 1) {
-    vat = Math.round(Math.abs(new_tot) * input.vat_per / 10000);
+    vat = Math.round(Math.abs(new_tot) * input.vat_per / 100);
   }
 
   let discount = 0;
