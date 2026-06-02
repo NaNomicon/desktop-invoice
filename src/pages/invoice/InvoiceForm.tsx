@@ -115,9 +115,9 @@ function InvoiceForm() {
   const [caseDebitOpen, setCaseDebitOpen] = useState(false);
   const [refNo, setRefNo] = useState('');
   const [checklistNo, setChecklistNo] = useState('');
-  const [typeFilter, setTypeFilter] = useState<string>('all');
-  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
-  const [typeSearch, setTypeSearch] = useState('');
+  const [typeFilterByCompany, setTypeFilterByCompany] = useState<Record<number, string>>({});
+  const [typeFilterOpenByCompany, setTypeFilterOpenByCompany] = useState<Record<number, boolean>>({});
+  const [typeSearchByCompany, setTypeSearchByCompany] = useState<Record<number, string>>({});
   const [per, setPer] = useState('');
   const [discountFlat, setDiscountFlat] = useState('');
   const [discountMode, setDiscountMode] = useState<'per' | 'flat'>('per');
@@ -327,7 +327,9 @@ function InvoiceForm() {
       setCaseDebit('CREDIT');
       setRefNo('');
       setChecklistNo('');
-      setTypeFilter('all');
+      setTypeFilterByCompany({});
+      setTypeFilterOpenByCompany({});
+      setTypeSearchByCompany({});
       setPer('');
       setDiscountFlat('');
       setDiscountMode('per');
@@ -384,7 +386,9 @@ function InvoiceForm() {
         setChecklistNo(invoice.checklist_no ?? '');
         setPer(String(invoice.per ?? 0));
         setDiscountFlat('');
-        setTypeFilter('all');
+        setTypeFilterByCompany({});
+        setTypeFilterOpenByCompany({});
+        setTypeSearchByCompany({});
         setPrintDue(invoice.print_due === 'YES');
         const copiedItems = lineRows.length > 0
           ? lineRows.map((item, index) => ({
@@ -423,7 +427,9 @@ function InvoiceForm() {
       setChecklistNo(invoice.checklist_no ?? '');
       setPer(String(invoice.per ?? 0));
       setDiscountFlat('');
-      setTypeFilter('all');
+      setTypeFilterByCompany({});
+      setTypeFilterOpenByCompany({});
+      setTypeSearchByCompany({});
       setPrintDue(invoice.print_due === 'YES');
       const editedItems = lineRows.map((item, index) => ({
         uid: nextUid(),
@@ -460,7 +466,9 @@ function InvoiceForm() {
     setEditingId(null);
     setDeletedLineItemIds([]);
     setCustomerSearch('');
-    setTypeFilter('all');
+    setTypeFilterByCompany({});
+    setTypeFilterOpenByCompany({});
+    setTypeSearchByCompany({});
 
     if (invoicePrefill.customerId) {
       setCustomerId(invoicePrefill.customerId);
@@ -979,45 +987,6 @@ function InvoiceForm() {
             />
           </div>
 
-          <div className="space-y-1">
-            <Label>Product Type</Label>
-            <Popover open={typeFilterOpen} onOpenChange={setTypeFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button variant="outline" role="combobox" aria-expanded={typeFilterOpen} className="w-full justify-between font-normal">
-                  {typeFilter === 'all' ? 'All Types' : productTypes.find((t) => String(t.id) === typeFilter)?.type_name ?? 'All Types'}
-                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0" align="start">
-                <Command shouldFilter={false}>
-                  <CommandInput
-                    placeholder="Search types..."
-                    value={typeSearch}
-                    onValueChange={setTypeSearch}
-                  />
-                  {typeFilterOpen && (
-                    <CommandList>
-                      <CommandEmpty>No type found.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem value="all" onSelect={() => { setTypeFilter('all'); setTypeFilterOpen(false); setTypeSearch(''); }}>
-                          <Check className={cn('mr-2 size-4', typeFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
-                          All Types
-                        </CommandItem>
-                        {productTypes
-                          .filter((t) => t.type_name.toLowerCase().includes(typeSearch.toLowerCase()))
-                          .map((type) => (
-                            <CommandItem key={type.id} value={String(type.id)} onSelect={(v) => { setTypeFilter(v); setTypeFilterOpen(false); setTypeSearch(''); }}>
-                              <Check className={cn('mr-2 size-4', typeFilter === String(type.id) ? 'opacity-100' : 'opacity-0')} />
-                              {type.type_name}
-                            </CommandItem>
-                          ))}
-                      </CommandGroup>
-                    </CommandList>
-                  )}
-                </Command>
-              </PopoverContent>
-            </Popover>
-          </div>
 
         </CardContent>
       </Card>
@@ -1025,7 +994,13 @@ function InvoiceForm() {
 
       {/* Vertical Company Sections - one per active company */}
       {companies.map((company) => {
-        const companyProducts = products.filter((p) => p.company_id === company.id);
+        const companyTypeFilter = typeFilterByCompany[company.id] ?? 'all';
+        const companyProductTypes = productTypes.filter((t) =>
+          products.some((p) => p.company_id === company.id && p.type_id === t.id)
+        );
+        const companyProducts = products
+          .filter((p) => p.company_id === company.id)
+          .filter((p) => companyTypeFilter === 'all' || String(p.type_id) === companyTypeFilter);
         const companyItems = lineItems.filter((li) => li.company_id === company.id);
         const companySubtotal = companyItems.filter((li) => !li.deleted).reduce((sum, li) => sum + li.row_total, 0);
         const companyName = company.company_name ?? company.company_code ?? `Company ${company.id}`;
@@ -1033,7 +1008,73 @@ function InvoiceForm() {
         return (
           <Card key={company.id}>
             <CardHeader className="pb-3">
-              <CardTitle className="text-base font-semibold">{companyName}</CardTitle>
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="text-base font-semibold">{companyName}</CardTitle>
+                {companyProductTypes.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">Type:</span>
+                    <Popover
+                      open={typeFilterOpenByCompany[company.id] ?? false}
+                      onOpenChange={(o) => {
+                        setTypeFilterOpenByCompany((prev) => ({ ...prev, [company.id]: o }));
+                        if (!o) setTypeSearchByCompany((prev) => ({ ...prev, [company.id]: '' }));
+                      }}
+                    >
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" role="combobox" className="h-7 gap-1 px-2 text-xs font-normal">
+                          {companyTypeFilter === 'all'
+                            ? 'All Types'
+                            : (companyProductTypes.find((t) => String(t.id) === companyTypeFilter)?.type_name ?? 'All Types')}
+                          <ChevronsUpDown className="size-3 opacity-50" />
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-[200px] p-0" align="end">
+                        <Command shouldFilter={false}>
+                          <CommandInput
+                            placeholder="Search types..."
+                            value={typeSearchByCompany[company.id] ?? ''}
+                            onValueChange={(v) => setTypeSearchByCompany((prev) => ({ ...prev, [company.id]: v }))}
+                          />
+                          {(typeFilterOpenByCompany[company.id] ?? false) && (
+                            <CommandList>
+                              <CommandEmpty>No type found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  value="all"
+                                  onSelect={() => {
+                                    setTypeFilterByCompany((prev) => ({ ...prev, [company.id]: 'all' }));
+                                    setTypeFilterOpenByCompany((prev) => ({ ...prev, [company.id]: false }));
+                                    setTypeSearchByCompany((prev) => ({ ...prev, [company.id]: '' }));
+                                  }}
+                                >
+                                  <Check className={cn('mr-2 size-4', companyTypeFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                                  All Types
+                                </CommandItem>
+                                {companyProductTypes
+                                  .filter((t) => t.type_name.toLowerCase().includes((typeSearchByCompany[company.id] ?? '').toLowerCase()))
+                                  .map((t) => (
+                                    <CommandItem
+                                      key={t.id}
+                                      value={String(t.id)}
+                                      onSelect={(v) => {
+                                        setTypeFilterByCompany((prev) => ({ ...prev, [company.id]: v }));
+                                        setTypeFilterOpenByCompany((prev) => ({ ...prev, [company.id]: false }));
+                                        setTypeSearchByCompany((prev) => ({ ...prev, [company.id]: '' }));
+                                      }}
+                                    >
+                                      <Check className={cn('mr-2 size-4', companyTypeFilter === String(t.id) ? 'opacity-100' : 'opacity-0')} />
+                                      {t.type_name}
+                                    </CommandItem>
+                                  ))}
+                              </CommandGroup>
+                            </CommandList>
+                          )}
+                        </Command>
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto rounded-md border">
