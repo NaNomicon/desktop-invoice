@@ -747,14 +747,6 @@ function QuotationForm() {
             <Input value={checklistNo} onChange={(event) => setChecklistNo(event.target.value)} />
           </div>
           <div className="space-y-1">
-            <Label>Ref No</Label>
-            <Input value={refNo} onChange={(event) => setRefNo(event.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Customer Due</Label>
-            <Input value={formatMoney(selectedCustomer?.due_amount ?? 0, currency)} disabled className="bg-muted" />
-          </div>
-          <div className="space-y-1">
             <Label>Product Type</Label>
             <Popover>
               <PopoverTrigger asChild>
@@ -917,6 +909,10 @@ function QuotationForm() {
           <div className="border-t pt-3 flex items-center justify-between">
             <span className="text-sm font-semibold">Total Amount</span>
             <span className="text-2xl font-bold">{formatMoney(total, currency)}</span>
+          </div>
+          <div className="border-t pt-3 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Customer Due</span>
+            <span className="font-medium">{formatMoney(selectedCustomer?.due_amount ?? 0, currency)}</span>
           </div>
         </CardContent>
       </Card>
