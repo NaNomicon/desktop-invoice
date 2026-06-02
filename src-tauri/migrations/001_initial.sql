@@ -51,13 +51,6 @@ CREATE TABLE IF NOT EXISTS tbl_setting (
     wa_phone_number_id TEXT
 );
 
-CREATE TABLE IF NOT EXISTS tbl_numbers (
-    id INTEGER PRIMARY KEY,
-    invoice_no INTEGER DEFAULT 1,
-    quo_no INTEGER DEFAULT 1,
-    receipt_no INTEGER DEFAULT 1
-);
-
 CREATE TABLE IF NOT EXISTS tbl_product_type (
     id INTEGER PRIMARY KEY,
     type_name TEXT NOT NULL,

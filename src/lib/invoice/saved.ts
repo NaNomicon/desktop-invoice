@@ -1,4 +1,5 @@
 import { getDb } from '@/lib/db';
+import { getNextInvoiceNo } from '@/lib/db/nextNumber';
 
 export interface InvoiceLineItem {
   id?: number;
@@ -88,15 +89,7 @@ export async function saved(
       invoice_no = invoice_no || existing.invoice_no;
       oldSubTotal = existing.sub_total;
     } else if (!invoice_no) {
-      await db.execute(
-        'UPDATE tbl_numbers SET invoice_no = invoice_no + 1',
-        [],
-      );
-      const numRows = await db.select<{ invoice_no: number }[]>(
-        'SELECT invoice_no FROM tbl_numbers',
-        [],
-      );
-      invoice_no = String(numRows[0]?.invoice_no ?? 0);
+      invoice_no = await getNextInvoiceNo();
     }
 
     const startingSignedBalance = customer

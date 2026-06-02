@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
+import { getNextQuoNo } from '@/lib/db/nextNumber';
 import { formatMoney, parseCents, toDecimal } from '@/lib/currency';
 import { useCurrencySymbol } from '@/services/company';
 import { sendEmail } from '@/lib/email/send';
@@ -11,7 +12,6 @@ import { splitQuotation } from '@/lib/quotation/splitQuotation';
 import type {
   Company,
   Customer,
-  NumberSequence,
   Product,
   ProductType,
   QuotationMain,
@@ -204,7 +204,7 @@ function QuotationForm() {
         typeRows,
         companyRows,
         settingRows,
-        numberRows,
+        nextQuoNo,
       ] = await Promise.all([
         query<Customer>(
           'SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
@@ -217,7 +217,7 @@ function QuotationForm() {
         ),
         query<Company>('SELECT * FROM tbl_company WHERE is_active = 1 ORDER BY id'),
         query<Setting>('SELECT * FROM tbl_setting WHERE id = 1 LIMIT 1'),
-        query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1'),
+        getNextQuoNo(),
       ]);
 
       setCustomers(customerRows);
@@ -227,7 +227,7 @@ function QuotationForm() {
       setSettings(settingRows[0] ?? null);
 
       if (!editingId) {
-        setQuotationNumber(String((numberRows[0]?.quo_no ?? 0) + 1));
+        setQuotationNumber(nextQuoNo);
         // Seed one blank row per company
         const companyIds = companyRows.map((c) => c.id);
         if (companyIds.length > 0) {
@@ -491,13 +491,11 @@ function QuotationForm() {
           vat_per: settings?.vat_per ?? 0,
           line_items: splitLineItems,
         });
+        const nextQuotationNumber = await getNextQuoNo();
         await loadInitialData();
         return {
           ...result,
-          nextQuotationNumber: String(
-            (await query<NumberSequence>('SELECT quo_no FROM tbl_numbers WHERE id = 1 LIMIT 1'))[0]
-              ?.quo_no ?? 0,
-          ),
+          nextQuotationNumber,
         };
       }
 
@@ -532,10 +530,7 @@ function QuotationForm() {
         deleted_line_item_ids: deletedLineItemIds,
       });
 
-      const numberRows = await query<NumberSequence>(
-        'SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1',
-      );
-      const nextQuotationNumber = String((numberRows[0]?.quo_no ?? 0) + 1);
+      const nextQuotationNumber = await getNextQuoNo();
       await loadInitialData();
       return { ...result, nextQuotationNumber };
     } catch (error) {

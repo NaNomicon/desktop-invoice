@@ -93,10 +93,6 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
         'UPDATE tbl_customer SET due_amount = ?, ad_due = ? WHERE id = ?',
         [new_due_abs, ad_due, customer_id],
       );
-
-      await db.execute(
-        'UPDATE tbl_numbers SET receipt_no = receipt_no + 1 WHERE id = (SELECT MAX(id) FROM tbl_numbers)',
-      );
     } else {
       const existingRows = await db.select<
         { amount_received: number }[]

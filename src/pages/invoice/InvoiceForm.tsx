@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
+import { getNextInvoiceNo } from '@/lib/db/nextNumber';
 import { sendEmail } from '@/lib/email/send';
 import { getInvoicePdfPath } from '@/lib/pdf/path';
 import type {
@@ -11,7 +12,6 @@ import type {
   Setting,
   InvoiceMain,
   InvoiceSub,
-  NumberSequence,
 } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
 import { useUIStore } from '@/store/ui-store';
@@ -194,7 +194,7 @@ function InvoiceForm() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [custRows, prodRows, typeRows, compRows, setRows, seqRows] = await Promise.all([
+    const [custRows, prodRows, typeRows, compRows, setRows, nextInvoiceNo] = await Promise.all([
       query<Customer>(
         'SELECT id, customer_name, due_amount, ad_due, email, title_name FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
       ),
@@ -208,14 +208,14 @@ function InvoiceForm() {
         'SELECT id, company_name FROM tbl_company WHERE is_active = 1',
       ),
       query<Setting>('SELECT * FROM tbl_setting WHERE id = 1'),
-      query<{ invoice_no: number }>('SELECT invoice_no FROM tbl_numbers WHERE id = 1'),
+      getNextInvoiceNo(),
     ]);
     setCustomers(custRows);
     setProducts(prodRows);
     setProductTypes(typeRows);
     setCompanies(compRows);
     setSettings(setRows[0] ?? null);
-    setInvoiceNumber(String(seqRows[0]?.invoice_no ?? 0));
+    setInvoiceNumber(nextInvoiceNo);
     // Seed one blank row per company
     const companyIds = compRows.map((c) => c.id);
     if (companyIds.length > 0) {
@@ -372,13 +372,13 @@ function InvoiceForm() {
       }
 
       if (lockState.forceDuplicate) {
-        const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
+        const nextNo = await getNextInvoiceNo();
         setEditingId(null);
         setDeletedLineItemIds([]);
         setCustomerSearch('');
         setCustomerId(invoice.customer_id);
         setCompanyId(invoice.company_id);
-        setInvoiceNumber(String(nextRows[0]?.invoice_no ?? invoice.invoice_no));
+        setInvoiceNumber(nextNo);
         setInvoiceDate(today());
         setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : toDecimal(invoice.paid_amount ?? 0));
         setCaseDebit(invoice.case_debit ?? 'CREDIT');
@@ -578,8 +578,7 @@ function InvoiceForm() {
           cr_dr: calResult.total > parseCents(paidAmount) ? 'Cr.' : 'Dr.',
           line_items: splitLineItems,
         });
-        const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
-        const nextInvoiceNumber = String(nextRows[0]?.invoice_no ?? 0);
+        const nextInvoiceNumber = await getNextInvoiceNo();
         await loadData();
         return { ...result, nextInvoiceNumber };
       }
@@ -617,10 +616,7 @@ function InvoiceForm() {
         },
         resolveCompanyId(activeItems[0]?.company_id ?? null),
       );
-      const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
-      const nextInvoiceNumber = String(
-        editingId ? nextRows[0]?.invoice_no ?? Number(invoiceNumber) : nextRows[0]?.invoice_no ?? result.invoice_no,
-      );
+      const nextInvoiceNumber = await getNextInvoiceNo();
       await loadData();
       return { ...result, nextInvoiceNumber };
     } catch (err) {
