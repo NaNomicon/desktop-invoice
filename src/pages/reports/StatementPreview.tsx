@@ -3,6 +3,7 @@ import { sendEmail } from '@/lib/email/send';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 import { formatMoney, toDecimal } from '@/lib/currency';
+import { filterCustomers } from '@/lib/customer-search';
 import { query } from '@/lib/db';
 import { commands } from '@/lib/tauri-bindings';
 import { useCurrencySymbol } from '@/services/company';
@@ -221,10 +222,7 @@ function StatementPreview() {
 
   const filteredCustomers = useMemo(() => {
     if (!customerSearch.trim()) return [];
-    const search = customerSearch.toLowerCase();
-    return customers
-      .filter((c) => c.customer_name.toLowerCase().includes(search))
-      .slice(0, 10);
+    return filterCustomers(customers, customerSearch).slice(0, 10);
   }, [customers, customerSearch]);
 
   const handleSelectCustomer = useCallback((c: Customer & { email?: string | null }) => {

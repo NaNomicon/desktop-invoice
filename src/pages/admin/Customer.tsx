@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { formatMoney } from '@/lib/currency';
-import { useCurrencySymbol } from '@/services/company';
+
 import { query, execute } from '@/lib/db';
 import type { Customer, Company } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
@@ -41,7 +40,6 @@ import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { Plus, Pencil, Trash2, Users, Upload, Download, Loader2, ChevronsUpDown, Check } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { DateSinglePicker } from '@/components/ui/date-range-picker'
 import { open, save } from '@tauri-apps/plugin-dialog';
 
 interface CustomerRow {
@@ -83,7 +81,6 @@ const emptyForm: CustomerFormData = {
 };
 
 function Customer() {
-  const currency = useCurrencySymbol();
   const authCompanyId = useAuthStore((s) => s.company_id);
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
@@ -93,9 +90,6 @@ function Customer() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
-  const [companyFilterOpen, setCompanyFilterOpen] = useState(false);
-  const [companySearch, setCompanySearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -152,11 +146,8 @@ function Customer() {
           (c.email?.toLowerCase().includes(s)),
       );
     }
-    if (companyFilter !== 'all') {
-      rows = rows.filter((c) => c.company_id === parseInt(companyFilter));
-    }
     return rows;
-  }, [customers, search, companyFilter]);
+  }, [customers, search]);
 
   const columns = useMemo<ColumnDef<CustomerRow>[]>(
     () => [
@@ -192,19 +183,6 @@ function Customer() {
         accessorKey: 'email',
         header: 'E-Mail',
         cell: (info) => (info.getValue() as string) ?? '-',
-      },
-      {
-        accessorKey: 'due_amount',
-        header: 'Due',
-        cell: (info) => {
-          const cents = info.getValue<number>();
-          return formatMoney(cents, currency);
-        },
-      },
-      {
-        accessorKey: 'ad_due',
-        header: 'Adv/Due',
-        cell: (info) => info.getValue<string>(),
       },
       {
         accessorKey: 'reg_date',
@@ -581,57 +559,7 @@ function Customer() {
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-xs"
             />
-            <Popover open={companyFilterOpen} onOpenChange={setCompanyFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={companyFilterOpen}
-                  className="w-44 justify-between font-normal"
-                >
-                  {companyFilter === 'all'
-                    ? 'All Companies'
-                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
-                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0" align="start">
-                <Command shouldFilter={false}>
-                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
-                  <CommandList>
-                    <CommandEmpty>No company found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="all"
-                        onSelect={() => {
-                          setCompanyFilter('all');
-                          setCompanyFilterOpen(false);
-                        }}
-                      >
-                        <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
-                        All Companies
-                      </CommandItem>
-                      {companyFilterOpen && ((companySearch
-                        ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
-                        : companies
-                      ).slice(0, 50).map((c) => (
-                        <CommandItem
-                          key={c.id}
-                          value={String(c.id)}
-                          onSelect={(currentValue) => {
-                            setCompanyFilter(currentValue);
-                            setCompanyFilterOpen(false);
-                          }}
-                        >
-                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
-                          {c.company_name ?? `Company ${c.id}`}
-                        </CommandItem>
-                      )))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+
           </div>
         </CardHeader>
         <CardContent>
@@ -710,11 +638,11 @@ function Customer() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command shouldFilter={false}>
+                  <Command>
                     <CommandList>
                       <CommandEmpty>No option found.</CommandEmpty>
                       <CommandGroup>
-                        {titleOpen && TITLE_OPTIONS.map((option) => (
+                        {TITLE_OPTIONS.map((option) => (
                           <CommandItem
                             key={option}
                             value={option}
@@ -749,11 +677,11 @@ function Customer() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command shouldFilter={false}>
+                  <Command>
                     <CommandList>
                       <CommandEmpty>No option found.</CommandEmpty>
                       <CommandGroup>
-                        {customerTypeOpen && CUSTOMER_TYPE_OPTIONS.map((option) => (
+                        {CUSTOMER_TYPE_OPTIONS.map((option) => (
                           <CommandItem
                             key={option}
                             value={option}
@@ -829,11 +757,10 @@ function Customer() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command shouldFilter={false}>
+                  <Command>
                     <CommandList>
                       <CommandEmpty>No option found.</CommandEmpty>
                       <CommandGroup>
-                        {adDueOpen && (<>
                         <CommandItem
                           value="Advance"
                           onSelect={() => {
@@ -864,7 +791,6 @@ function Customer() {
                           <Check className={cn('mr-2 size-4', form.ad_due === '' ? 'opacity-100' : 'opacity-0')} />
                           None
                         </CommandItem>
-                        </>)}
                       </CommandGroup>
                     </CommandList>
                   </Command>
@@ -873,9 +799,11 @@ function Customer() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="cust-regdate">Register Date</Label>
-              <DateSinglePicker
+              <Input
+                id="cust-regdate"
+                type="date"
                 value={form.reg_date ?? ''}
-                onChange={(date) => setForm({ ...form, reg_date: date })}
+                onChange={(e) => setForm({ ...form, reg_date: e.target.value })}
               />
             </div>
             <div className="space-y-1">
@@ -912,15 +840,15 @@ function Customer() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command shouldFilter={false}>
+                  <Command>
                     <CommandInput placeholder="Search company..." value={companyDlgSearch} onValueChange={setCompanyDlgSearch} />
                     <CommandList>
                       <CommandEmpty>No company found.</CommandEmpty>
                       <CommandGroup>
-                        {companyOpen && ((companyDlgSearch
+                        {(companyDlgSearch
                           ? companies.filter((c) => c.company_name?.toLowerCase().includes(companyDlgSearch.toLowerCase()))
                           : companies
-                        ).slice(0, 50).map((c) => (
+                        ).map((c) => (
                           <CommandItem
                             key={c.id}
                             value={String(c.id)}
@@ -932,7 +860,7 @@ function Customer() {
                             <Check className={cn('mr-2 size-4', form.company_id === c.id ? 'opacity-100' : 'opacity-0')} />
                             {c.company_name ?? `Company ${c.id}`}
                           </CommandItem>
-                        )))}
+                        ))}
                       </CommandGroup>
                     </CommandList>
                   </Command>

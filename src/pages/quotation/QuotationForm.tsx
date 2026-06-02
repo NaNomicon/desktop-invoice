@@ -95,6 +95,7 @@ function QuotationForm() {
   const [refNo, setRefNo] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
+  const [typeSearch, setTypeSearch] = useState('');
   const [per, setPer] = useState('');
   const [discountFlat, setDiscountFlat] = useState('');
   const [discountMode, setDiscountMode] = useState<'per' | 'flat'>('per');
@@ -741,7 +742,7 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Product Type</Label>
-            <Popover open={typeFilterOpen} onOpenChange={setTypeFilterOpen}>
+            <Popover open={typeFilterOpen} onOpenChange={(o) => { setTypeFilterOpen(o); if (!o) setTypeSearch(''); }}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
@@ -757,41 +758,47 @@ function QuotationForm() {
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
                 <Command shouldFilter={false}>
-                  <CommandInput placeholder="Search types..." />
-                  <CommandList>
-                    <CommandEmpty>No type found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="all"
-                        onSelect={() => setTypeFilter("all")}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 size-4",
-                            typeFilter === "all" ? "opacity-100" : "opacity-0",
-                          )}
-                        />
-                        All Types
-                      </CommandItem>
-                      {typeFilterOpen && productTypes.map((type) => (
+                  <CommandInput
+                    placeholder="Search types..."
+                    value={typeSearch}
+                    onValueChange={setTypeSearch}
+                  />
+                  {typeFilterOpen && (
+                    <CommandList>
+                      <CommandEmpty>No type found.</CommandEmpty>
+                      <CommandGroup>
                         <CommandItem
-                          key={type.id}
-                          value={type.type_name}
-                          onSelect={() => setTypeFilter(String(type.id))}
+                          value="all"
+                          onSelect={() => { setTypeFilter("all"); setTypeFilterOpen(false); setTypeSearch(''); }}
                         >
                           <Check
                             className={cn(
                               "mr-2 size-4",
-                              typeFilter === String(type.id)
-                                ? "opacity-100"
-                                : "opacity-0",
+                              typeFilter === "all" ? "opacity-100" : "opacity-0",
                             )}
                           />
-                          {type.type_name}
+                          All Types
                         </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
+                        {productTypes
+                          .filter((t) => t.type_name.toLowerCase().includes(typeSearch.toLowerCase()))
+                          .map((type) => (
+                            <CommandItem
+                              key={type.id}
+                              value={String(type.id)}
+                              onSelect={() => { setTypeFilter(String(type.id)); setTypeFilterOpen(false); setTypeSearch(''); }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 size-4",
+                                  typeFilter === String(type.id) ? "opacity-100" : "opacity-0",
+                                )}
+                              />
+                              {type.type_name}
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  )}
                 </Command>
               </PopoverContent>
             </Popover>
@@ -877,7 +884,7 @@ function QuotationForm() {
           </div>
           <div className="flex items-center justify-between">
             <span className={`text-sm ${settings?.isvat === 1 ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}>
-              VAT ({settings?.isvat === 1 ? settings.vat_per : '0'}%)
+              VAT ({settings?.isvat === 1 ? toDecimal(settings.vat_per) : '0'}%)
             </span>
             <span className={`font-medium ${settings?.isvat !== 1 ? 'text-muted-foreground/50' : ''}`}>
               {formatMoney(calcResult.vat, currency)}
