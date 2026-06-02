@@ -696,10 +696,10 @@ function InvoiceForm() {
     const isSplit = 'invoice1_id' in result;
     if (isSplit) {
       toast.success(`Invoices ${result.invoice1_no} & ${result.invoice2_no} saved`);
-      navigate(`/reports/print/${result.invoice1_id}`);
+      navigate(`/reports/print/${result.invoice1_id}`, { state: { invoiceNo: result.invoice1_no } });
     } else {
       toast.success(`Invoice ${result.invoice_no} saved`);
-      navigate(`/reports/print/${result.id}`);
+      navigate(`/reports/print/${result.id}`, { state: { invoiceNo: result.invoice_no } });
     }
   }, [navigate, persistInvoice]);
 
