@@ -34,6 +34,7 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { ChevronsUpDown, Check } from 'lucide-react';
+import { DateSinglePicker } from '@/components/ui/date-range-picker'
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
@@ -701,7 +702,7 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Quotation Date</Label>
-            <Input type="date" value={quotationDate} onChange={(event) => setQuotationDate(event.target.value)} />
+            <DateSinglePicker value={quotationDate} onChange={setQuotationDate} />
           </div>
           <div className="space-y-1">
             <div className="flex items-center justify-between">

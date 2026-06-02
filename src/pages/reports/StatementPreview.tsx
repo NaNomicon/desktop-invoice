@@ -27,11 +27,10 @@ import {
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
-import { DayPicker } from 'react-day-picker';
-import type { DateRange } from 'react-day-picker';
-import { format } from 'date-fns';
-import 'react-day-picker/style.css';
-import { Download, FileText, Calendar, Search, Mail, ChevronsUpDown, Check } from 'lucide-react';
+import { DateRangePicker } from '@/components/ui/date-range-picker'
+import type { DateRange } from '@/components/ui/date-range-picker'
+import { format } from 'date-fns'
+import { Download, FileText, Search, Mail, ChevronsUpDown, Check } from 'lucide-react';
 import {
   Popover,
   PopoverContent,
@@ -174,7 +173,6 @@ function StatementPreview() {
     const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [sorting, setSorting] = useState<SortingState>([]);
-  const [pickerOpen, setPickerOpen] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
   const [showCustomerResults, setShowCustomerResults] = useState(false);
 
@@ -644,29 +642,10 @@ function StatementPreview() {
               </PopoverContent>
             </Popover>
 
-            <Popover open={pickerOpen} onOpenChange={setPickerOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="justify-start gap-2 text-left font-normal"
-                >
-                  <Calendar className="size-4" />
-                  <span>{rangeLabel}</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <DayPicker
-                  mode="range"
-                  selected={dateRange}
-                  onSelect={(range) => {
-                    setDateRange(range);
-                    if (range?.from && range?.to) {
-                      setPickerOpen(false);
-                    }
-                  }}
-                />
-              </PopoverContent>
-            </Popover>
+            <DateRangePicker
+              value={dateRange}
+              onChange={(range) => setDateRange(range)}
+            />
 
             {transactions.length > 0 && (
               <span className="text-sm text-muted-foreground">
