@@ -117,6 +117,7 @@ function InvoiceForm() {
   const [checklistNo, setChecklistNo] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
+  const [typeSearch, setTypeSearch] = useState('');
   const [per, setPer] = useState('');
   const [discountFlat, setDiscountFlat] = useState('');
   const [discountMode, setDiscountMode] = useState<'per' | 'flat'>('per');
@@ -988,21 +989,30 @@ function InvoiceForm() {
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
                 <Command shouldFilter={false}>
-                  <CommandList>
-                    <CommandEmpty>No type found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem value="all" onSelect={() => { setTypeFilter('all'); setTypeFilterOpen(false); }}>
-                        <Check className={cn('mr-2 size-4', typeFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
-                        All Types
-                      </CommandItem>
-                      {typeFilterOpen && productTypes.map((type) => (
-                        <CommandItem key={type.id} value={String(type.id)} onSelect={(v) => { setTypeFilter(v); setTypeFilterOpen(false); }}>
-                          <Check className={cn('mr-2 size-4', typeFilter === String(type.id) ? 'opacity-100' : 'opacity-0')} />
-                          {type.type_name}
+                  <CommandInput
+                    placeholder="Search types..."
+                    value={typeSearch}
+                    onValueChange={setTypeSearch}
+                  />
+                  {typeFilterOpen && (
+                    <CommandList>
+                      <CommandEmpty>No type found.</CommandEmpty>
+                      <CommandGroup>
+                        <CommandItem value="all" onSelect={() => { setTypeFilter('all'); setTypeFilterOpen(false); setTypeSearch(''); }}>
+                          <Check className={cn('mr-2 size-4', typeFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                          All Types
                         </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
+                        {productTypes
+                          .filter((t) => t.type_name.toLowerCase().includes(typeSearch.toLowerCase()))
+                          .map((type) => (
+                            <CommandItem key={type.id} value={String(type.id)} onSelect={(v) => { setTypeFilter(v); setTypeFilterOpen(false); setTypeSearch(''); }}>
+                              <Check className={cn('mr-2 size-4', typeFilter === String(type.id) ? 'opacity-100' : 'opacity-0')} />
+                              {type.type_name}
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  )}
                 </Command>
               </PopoverContent>
             </Popover>
