@@ -248,7 +248,7 @@ function QuotationForm() {
   }, [loadInitialData]);
 
   const loadQuotation = useCallback(
-    async (quotationId: number) => {
+    async (quotationId: number, companyIds: number[]) => {
       const [quotationRows, lineRows] = await Promise.all([
         query<QuotationMain>(
           'SELECT * FROM tbl_quotation_main WHERE id = ? LIMIT 1',
@@ -281,22 +281,23 @@ function QuotationForm() {
       setDiscountFlat(toDecimal(quotation.discount ?? 0));
       setDiscountMode(quotation.per > 0 ? 'per' : 'flat');
       setDeletedLineItemIds([]);
-      setLineItems(
-        lineRows.length > 0
-          ? lineRows.map((item, index) => ({
-              uid: nextUid(),
-              id: item.id,
-              qty: item.qty,
-              product_id: item.product_id,
-              product_name: item.product_name ?? '',
-              unit_price: item.unit_price,
-              row_total: item.row_total,
-              s_no: item.s_no || index + 1,
-              deleted: false,
-              company_id: item.company_id ?? null,
-            }))
-          : createBlankLineItems(companies.map((c) => c.id)),
-      );
+      const quoItems = lineRows.map((item, index) => ({
+        uid: nextUid(),
+        id: item.id,
+        qty: item.qty,
+        product_id: item.product_id,
+        product_name: item.product_name ?? '',
+        unit_price: item.unit_price,
+        row_total: item.row_total,
+        s_no: item.s_no || index + 1,
+        deleted: false,
+        company_id: item.company_id ?? null,
+      }));
+      const quoBlankItems = createBlankLineItems(companyIds).map((item, index) => ({
+        ...item,
+        s_no: quoItems.length + index + 1,
+      }));
+      setLineItems(quoItems.length > 0 ? [...quoItems, ...quoBlankItems] : quoBlankItems);
       setTypeFilter('all');
       setCustomerSearch('');
       navigate(location.pathname, { replace: true, state: null });
@@ -308,7 +309,7 @@ function QuotationForm() {
     if (!routeState?.quotationId || loading) {
       return;
     }
-    void loadQuotation(routeState.quotationId);
+    void loadQuotation(routeState.quotationId, companies.map((c) => c.id));
   }, [loadQuotation, loading, routeState?.quotationId]);
 
   const updateLineItem = useCallback(
@@ -838,7 +839,6 @@ function QuotationForm() {
                         idx={idx}
                         companyProducts={companyProducts}
                         currency={currency}
-                        priceEditable
                         onProductSelect={(product) => {
                           updateLineItem(li.uid, {
                             product_id: product.id,
@@ -852,7 +852,6 @@ function QuotationForm() {
                           }
                         }}
                         onQtyChange={(qty) => updateLineItem(li.uid, { qty })}
-                        onPriceChange={(price) => updateLineItem(li.uid, { unit_price: price })}
                         onDelete={() => toggleDeleteLineItem(li.uid)}
                       />
                     ))}
