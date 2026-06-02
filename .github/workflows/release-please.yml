@@ -1,9 +1,7 @@
 name: Release Please
 
 on:
-  push:
-    branches: [main]
-  workflow_dispatch:
+  workflow_dispatch:  # temporarily disabled — re-enable by restoring push trigger
 
 permissions:
   contents: write
