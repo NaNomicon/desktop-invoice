@@ -82,16 +82,6 @@ export const TABLES: Record<string, TableSpec> = {
     indexes: [],
   },
 
-  tbl_numbers: {
-    columns: [
-      { name: 'id', type: 'INTEGER', primaryKey: true },
-      { name: 'invoice_no', type: 'INTEGER', default: '1' },
-      { name: 'quo_no', type: 'INTEGER', default: '1' },
-      { name: 'receipt_no', type: 'INTEGER', default: '1' },
-    ],
-    indexes: [],
-  },
-
   tbl_product_type: {
     columns: [
       { name: 'id', type: 'INTEGER', primaryKey: true },

@@ -6,20 +6,6 @@ export async function run(db: Database): Promise<void> {
      VALUES (1, 'X-Press Ironing Ltd', 'XPI', 'XPI', 1)`
   );
   await db.execute(
-    `INSERT OR IGNORE INTO tbl_numbers (id, invoice_no, quo_no, receipt_no)
-     VALUES (1, 1, 1, 1)`
-  );
-  await db.execute(
-    `UPDATE tbl_numbers
-     SET invoice_no = 1,
-         quo_no = 1,
-         receipt_no = 1
-     WHERE id = 1
-       AND invoice_no = 0
-       AND quo_no = 0
-       AND receipt_no = 0`
-  );
-  await db.execute(
     `INSERT OR IGNORE INTO tbl_setting (id, isvat, vat_per, cash, cheque, other)
      VALUES (1, 1, 5, 'Cash', 'Cheque', 'Other')`
   );

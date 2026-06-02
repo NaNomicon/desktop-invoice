@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { query } from '@/lib/db';
+import { getNextReceiptNo } from '@/lib/db/nextNumber';
 import { cal } from '@/lib/receipt/cal';
 import { saved } from '@/lib/receipt/saved';
 import type { Customer, Company, Setting, Receipt as ReceiptRecord } from '@/lib/types';
@@ -109,16 +110,16 @@ function ReceiptForm() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [custRows, compRows, setRows, seqRows] = await Promise.all([
+    const [custRows, compRows, setRows, nextReceiptNo] = await Promise.all([
       query<Customer>('SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name'),
       query<Company>('SELECT id, company_name FROM tbl_company WHERE is_active = 1'),
       query<Setting>('SELECT * FROM tbl_setting WHERE id = 1'),
-      query<{ receipt_no: number }>('SELECT receipt_no FROM tbl_numbers WHERE id = (SELECT MAX(id) FROM tbl_numbers)'),
+      getNextReceiptNo(),
     ]);
     setCustomers(custRows);
     setCompanies(compRows);
     setSettings(setRows[0] ?? null);
-    setReceiptNo(String(seqRows[0]?.receipt_no ?? 1));
+    setReceiptNo(nextReceiptNo);
     setLoading(false);
   }, []);
 
