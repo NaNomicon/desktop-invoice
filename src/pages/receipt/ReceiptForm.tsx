@@ -18,12 +18,12 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
 import { Receipt, DollarSign, ChevronsUpDown, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { filterCustomers } from '@/lib/customer-search';
 import {
   flexRender,
   getCoreRowModel,
@@ -284,11 +284,7 @@ function ReceiptForm() {
 
   
   const { getDragHandlers } = useColumnOrder(transTable);
-  const filteredCustomers = customerSearch
-    ? customers.filter((c) =>
-        c.customer_name.toLowerCase().includes(customerSearch.toLowerCase()),
-      )
-    : customers;
+  const filteredCustomers = filterCustomers(customers, customerSearch);
 
   const paymentModes = settings
     ? [settings.cash, settings.cheque, settings.other].filter(Boolean)
@@ -426,12 +422,16 @@ function ReceiptForm() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0" align="start">
-                      <Command>
-                        <CommandInput
-                          placeholder="Search customers..."
-                          value={customerSearch}
-                          onValueChange={setCustomerSearch}
-                        />
+                      <Command shouldFilter={false}>
+                        <div className="flex items-center border-b px-3">
+                          <Input
+                            autoFocus
+                            placeholder="Search customers..."
+                            value={customerSearch}
+                            onChange={(e) => setCustomerSearch(e.target.value)}
+                            className="h-9 border-0 p-0 shadow-none focus-visible:ring-0"
+                          />
+                        </div>
                         <CommandList>
                           <CommandEmpty>No customer found.</CommandEmpty>
                           <CommandGroup>

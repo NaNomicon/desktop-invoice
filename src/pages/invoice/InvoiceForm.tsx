@@ -20,6 +20,7 @@ import { saved } from '@/lib/invoice/saved';
 import { splitInvoice } from '@/lib/invoice/splitInvoice';
 import { canEditInvoice } from '@/lib/invoice/editLock';
 import { formatMoney, parseCents, toDecimal } from '@/lib/currency';
+import { filterCustomers } from '@/lib/customer-search';
 import { useCurrencySymbol } from '@/services/company';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -37,7 +38,6 @@ import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
@@ -172,21 +172,10 @@ function InvoiceForm() {
     return `${prefix}${formatMoney(selectedCustomer.due_amount, currency)}`;
   }, [selectedCustomer, currency]);
 
-  const filteredCustomers = useMemo(() => {
-    const search = customerSearch.trim().toLowerCase();
-    if (!search) {
-      return customers;
-    }
-
-    return customers.filter((customer) => {
-      const name = customer.customer_name?.toLowerCase() ?? '';
-      const title = customer.title_name?.toLowerCase() ?? '';
-      const telephone = customer.telephone?.toLowerCase() ?? '';
-      const email = customer.email?.toLowerCase() ?? '';
-      const address = customer.address?.toLowerCase() ?? '';
-      return [name, title, telephone, email, address].some((value) => value.includes(search));
-    });
-  }, [customerSearch, customers]);
+  const filteredCustomers = useMemo(
+    () => filterCustomers(customers, customerSearch),
+    [customerSearch, customers],
+  );
 
 
   const isAdvance = selectedCustomer?.ad_due === 'Advance';
@@ -195,7 +184,7 @@ function InvoiceForm() {
     setLoading(true);
     const [custRows, prodRows, typeRows, compRows, setRows, seqRows] = await Promise.all([
       query<Customer>(
-        'SELECT id, customer_name, due_amount, ad_due, email, title_name FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
+        'SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name',
       ),
       query<Product>(
         'SELECT id, product_id, product_name, type_id, price, company_id FROM tbl_product WHERE is_deleted = 0 ORDER BY product_name',
@@ -891,19 +880,23 @@ function InvoiceForm() {
                 >
                   <span className="truncate">
                     {selectedCustomer
-                      ? [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name, selectedCustomer.telephone?.trim()].filter(Boolean).join(' - ')
+                      ? selectedCustomer.customer_name
                       : 'Select customer...'}
                   </span>
                   <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[400px] p-0" align="start">
-                <Command>
-                  <CommandInput
-                    placeholder="Search by name, phone, email..."
-                    value={customerSearch}
-                    onValueChange={setCustomerSearch}
-                  />
+                <Command shouldFilter={false}>
+                  <div className="flex items-center border-b px-3">
+                    <Input
+                      autoFocus
+                      placeholder="Search by name, phone, email..."
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      className="h-9 border-0 p-0 shadow-none focus-visible:ring-0"
+                    />
+                  </div>
                   <CommandList>
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup>
@@ -916,7 +909,7 @@ function InvoiceForm() {
                           <Check
                             className={cn('mr-2 size-4', customerId === c.id ? 'opacity-100' : 'opacity-0')}
                           />
-                          {[c.title_name?.trim(), c.customer_name, c.telephone?.trim()].filter(Boolean).join(' - ')}
+                          <span>{c.customer_name}</span>
                         </CommandItem>
                       ))}
                     </CommandGroup>

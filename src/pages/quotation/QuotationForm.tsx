@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { query } from '@/lib/db';
 import { formatMoney, parseCents, toDecimal } from '@/lib/currency';
+import { filterCustomers } from '@/lib/customer-search';
 import { useCurrencySymbol } from '@/services/company';
 import { sendEmail } from '@/lib/email/send';
 import { getQuotationPdfPath } from '@/lib/pdf/path';
@@ -104,25 +105,10 @@ function QuotationForm() {
     [customers, customerId],
   );
 
-  const filteredCustomers = useMemo(() => {
-    const search = customerSearch.trim().toLowerCase();
-    if (!search) {
-      return customers;
-    }
-
-    return customers.filter((customer) => {
-      const values = [
-        customer.customer_name,
-        customer.title_name,
-        customer.telephone,
-        customer.contact,
-        customer.address,
-        customer.email,
-      ];
-
-      return values.some((value) => (value ?? '').toLowerCase().includes(search));
-    });
-  }, [customerSearch, customers]);
+  const filteredCustomers = useMemo(
+    () => filterCustomers(customers, customerSearch),
+    [customerSearch, customers],
+  );
 
   const subTotal = useMemo(
     () =>
@@ -718,22 +704,30 @@ function QuotationForm() {
                 <Button variant="outline" role="combobox" aria-expanded={customerOpen} className="w-full justify-between font-normal">
                   <span className="truncate">
                     {selectedCustomer
-                      ? [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name, selectedCustomer.telephone?.trim()].filter(Boolean).join(' - ')
+                      ? selectedCustomer.customer_name
                       : 'Select customer...'}
                   </span>
                   <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[400px] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search customer by name, phone, email..." value={customerSearch} onValueChange={setCustomerSearch} />
+                <Command shouldFilter={false}>
+                  <div className="flex items-center border-b px-3">
+                    <Input
+                      autoFocus
+                      placeholder="Search by name, phone, email..."
+                      value={customerSearch}
+                      onChange={(e) => setCustomerSearch(e.target.value)}
+                      className="h-9 border-0 p-0 shadow-none focus-visible:ring-0"
+                    />
+                  </div>
                   <CommandList>
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup>
                       {filteredCustomers.slice(0, 100).map((customer) => (
                         <CommandItem key={customer.id} value={[customer.title_name, customer.customer_name, customer.telephone, customer.email].filter(Boolean).join(' ')} onSelect={() => selectCustomer(customer)}>
                           <Check className={cn('mr-2 size-4', customerId === customer.id ? 'opacity-100' : 'opacity-0')} />
-                          {[customer.title_name?.trim(), customer.customer_name, customer.telephone?.trim()].filter(Boolean).join(' - ')}
+                          <span>{customer.customer_name}</span>
                         </CommandItem>
                       ))}
                     </CommandGroup>
