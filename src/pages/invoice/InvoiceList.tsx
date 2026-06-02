@@ -338,7 +338,7 @@ function InvoiceList() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
                   <CommandList>
                     <CommandEmpty>No company found.</CommandEmpty>
@@ -347,7 +347,7 @@ function InvoiceList() {
                         <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
                         All Companies
                       </CommandItem>
-                      {companies.map((c) => (
+                      {companyOpen && companies.slice(0, 50).map((c) => (
                         <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
                           <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
                           {c.company_name ?? `Company ${c.id}`}

@@ -529,7 +529,7 @@ function InvoiceListReport() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[300px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput
                     placeholder="Search company..."
                     value={companySearch}
@@ -538,6 +538,7 @@ function InvoiceListReport() {
                   <CommandList>
                     <CommandEmpty>No company found.</CommandEmpty>
                     <CommandGroup>
+                      {companyOpen && <>
                       <CommandItem
                         value="ALL"
                         onSelect={() => {
@@ -553,7 +554,7 @@ function InvoiceListReport() {
                         />
                         All Companies
                       </CommandItem>
-                      {filteredCompanies.map((c) => (
+                      {filteredCompanies.slice(0, 50).map((c) => (
                         <CommandItem
                           key={c.id}
                           value={String(c.id)}
@@ -573,6 +574,7 @@ function InvoiceListReport() {
                           {c.company_name ?? `Company ${c.id}`}
                         </CommandItem>
                       ))}
+                      </>}
                     </CommandGroup>
                   </CommandList>
                 </Command>

@@ -98,11 +98,11 @@ function Login() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandList>
                     <CommandEmpty>No user found.</CommandEmpty>
                     <CommandGroup>
-                      {users.map((u) => (
+                      {userOpen && users.slice(0, 50).map((u) => (
                         <CommandItem
                           key={u.user_id}
                           value={u.user_id}

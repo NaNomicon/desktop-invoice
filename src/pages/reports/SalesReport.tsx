@@ -537,11 +537,12 @@ function SalesReport() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
                   <CommandList>
                     <CommandEmpty>No company found.</CommandEmpty>
                     <CommandGroup>
+                      {companyOpen && <>
                       <CommandItem value="ALL" onSelect={() => { setCompanyFilter('ALL'); setCompanyOpen(false); }}>
                         <Check className={cn('mr-2 size-4', companyFilter === 'ALL' ? 'opacity-100' : 'opacity-0')} />
                         All Companies
@@ -552,6 +553,7 @@ function SalesReport() {
                           {c.company_name ?? `Company ${c.id}`}
                         </CommandItem>
                       ))}
+                      </>}
                     </CommandGroup>
                   </CommandList>
                 </Command>
@@ -581,11 +583,11 @@ function SalesReport() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[180px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandList>
                     <CommandEmpty>No option found.</CommandEmpty>
                     <CommandGroup>
-                      {(['none', 'date', 'customer', 'company'] as const).map((val) => (
+                      {groupByOpen && (['none', 'date', 'customer', 'company'] as const).map((val) => (
                         <CommandItem key={val} value={val} onSelect={(v) => { setGroupBy(v as GroupBy); setGroupByOpen(false); }}>
                           <Check className={cn('mr-2 size-4', groupBy === val ? 'opacity-100' : 'opacity-0')} />
                           {val === 'none' ? 'No grouping' : val === 'date' ? 'By Date' : val === 'customer' ? 'By Customer' : 'By Company'}

@@ -287,8 +287,8 @@ function ReceiptForm() {
   const filteredCustomers = customerSearch
     ? customers.filter((c) =>
         c.customer_name.toLowerCase().includes(customerSearch.toLowerCase()),
-      )
-    : customers;
+      ).slice(0, 50)
+    : customers.slice(0, 50);
 
   const paymentModes = settings
     ? [settings.cash, settings.cheque, settings.other].filter(Boolean)
@@ -426,37 +426,41 @@ function ReceiptForm() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[400px] p-0" align="start">
-                      <Command>
+                      <Command shouldFilter={false}>
                         <CommandInput
                           placeholder="Search customers..."
                           value={customerSearch}
                           onValueChange={setCustomerSearch}
                         />
                         <CommandList>
-                          <CommandEmpty>No customer found.</CommandEmpty>
-                          <CommandGroup>
-                            {filteredCustomers.map((c) => (
-                              <CommandItem
-                                key={c.id}
-                                value={String(c.id)}
-                                onSelect={() => {
-                                  applyCustomerSelection(c);
-                                  setCustomerOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 size-4',
-                                    customerId === c.id ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                                <span>{c.customer_name}</span>
-                                <span className="ml-auto text-xs text-muted-foreground">
-                                  {c.ad_due === 'Advance' ? '-' : ''}{formatMoney(c.due_amount, currency)}
-                                </span>
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+                          {customerOpen && (
+                            <>
+                              <CommandEmpty>No customer found.</CommandEmpty>
+                              <CommandGroup>
+                                {filteredCustomers.map((c) => (
+                                  <CommandItem
+                                    key={c.id}
+                                    value={String(c.id)}
+                                    onSelect={() => {
+                                      applyCustomerSelection(c);
+                                      setCustomerOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        'mr-2 size-4',
+                                        customerId === c.id ? 'opacity-100' : 'opacity-0',
+                                      )}
+                                    />
+                                    <span>{c.customer_name}</span>
+                                    <span className="ml-auto text-xs text-muted-foreground">
+                                      {c.ad_due === 'Advance' ? '-' : ''}{formatMoney(c.due_amount, currency)}
+                                    </span>
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </>
+                          )}
                         </CommandList>
                       </Command>
                     </PopoverContent>
@@ -503,29 +507,33 @@ function ReceiptForm() {
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[200px] p-0" align="start">
-                      <Command>
+                      <Command shouldFilter={false}>
                         <CommandList>
-                          <CommandEmpty>No option found.</CommandEmpty>
-                          <CommandGroup>
-                            {paymentModes.map((m) => (
-                              <CommandItem
-                                key={m}
-                                value={m ?? ''}
-                                onSelect={(currentValue) => {
-                                  setPaymentMode(currentValue);
-                                  setPaymentModeOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    'mr-2 size-4',
-                                    paymentMode === m ? 'opacity-100' : 'opacity-0',
-                                  )}
-                                />
-                                {m}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
+                          {paymentModeOpen && (
+                            <>
+                              <CommandEmpty>No option found.</CommandEmpty>
+                              <CommandGroup>
+                                {paymentModes.map((m) => (
+                                  <CommandItem
+                                    key={m}
+                                    value={m ?? ''}
+                                    onSelect={(currentValue) => {
+                                      setPaymentMode(currentValue);
+                                      setPaymentModeOpen(false);
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        'mr-2 size-4',
+                                        paymentMode === m ? 'opacity-100' : 'opacity-0',
+                                      )}
+                                    />
+                                    {m}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </>
+                          )}
                         </CommandList>
                       </Command>
                     </PopoverContent>

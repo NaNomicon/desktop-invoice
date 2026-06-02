@@ -822,11 +822,12 @@ function ReceiptPreview() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
                     <CommandList>
                       <CommandEmpty>No company found.</CommandEmpty>
                       <CommandGroup>
+                        {companyOpen && <>
                         <CommandItem
                           value="ALL"
                           onSelect={() => {
@@ -840,7 +841,7 @@ function ReceiptPreview() {
                         {(companySearch
                           ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
                           : companies
-                        ).map((c) => (
+                        ).slice(0, 50).map((c) => (
                           <CommandItem
                             key={c.id}
                             value={String(c.id)}
@@ -853,6 +854,7 @@ function ReceiptPreview() {
                             {c.company_name ?? `Company ${c.id}`}
                           </CommandItem>
                         ))}
+                        </>}
                       </CommandGroup>
                     </CommandList>
                   </Command>
