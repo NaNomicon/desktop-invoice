@@ -906,10 +906,6 @@ function QuotationForm() {
             <span className="text-sm font-semibold">Total Amount</span>
             <span className="text-2xl font-bold">{formatMoney(total, currency)}</span>
           </div>
-          <div className="border-t pt-3 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Customer Due</span>
-            <span className="font-medium">{formatMoney(selectedCustomer?.due_amount ?? 0, currency)}</span>
-          </div>
         </CardContent>
       </Card>
 
