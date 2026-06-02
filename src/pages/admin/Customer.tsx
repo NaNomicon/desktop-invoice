@@ -1,7 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { formatMoney } from '@/lib/currency';
-import { useCurrencySymbol } from '@/services/company';
+
 import { query, execute } from '@/lib/db';
 import type { Customer, Company } from '@/lib/types';
 import { useAuthStore } from '@/store/authStore';
@@ -82,7 +81,6 @@ const emptyForm: CustomerFormData = {
 };
 
 function Customer() {
-  const currency = useCurrencySymbol();
   const authCompanyId = useAuthStore((s) => s.company_id);
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
@@ -92,9 +90,6 @@ function Customer() {
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
-  const [companyFilter, setCompanyFilter] = useState<string>('all');
-  const [companyFilterOpen, setCompanyFilterOpen] = useState(false);
-  const [companySearch, setCompanySearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -151,11 +146,8 @@ function Customer() {
           (c.email?.toLowerCase().includes(s)),
       );
     }
-    if (companyFilter !== 'all') {
-      rows = rows.filter((c) => c.company_id === parseInt(companyFilter));
-    }
     return rows;
-  }, [customers, search, companyFilter]);
+  }, [customers, search]);
 
   const columns = useMemo<ColumnDef<CustomerRow>[]>(
     () => [
@@ -191,19 +183,6 @@ function Customer() {
         accessorKey: 'email',
         header: 'E-Mail',
         cell: (info) => (info.getValue() as string) ?? '-',
-      },
-      {
-        accessorKey: 'due_amount',
-        header: 'Due',
-        cell: (info) => {
-          const cents = info.getValue<number>();
-          return formatMoney(cents, currency);
-        },
-      },
-      {
-        accessorKey: 'ad_due',
-        header: 'Adv/Due',
-        cell: (info) => info.getValue<string>(),
       },
       {
         accessorKey: 'reg_date',
@@ -580,57 +559,7 @@ function Customer() {
               onChange={(e) => setSearch(e.target.value)}
               className="max-w-xs"
             />
-            <Popover open={companyFilterOpen} onOpenChange={setCompanyFilterOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={companyFilterOpen}
-                  className="w-44 justify-between font-normal"
-                >
-                  {companyFilter === 'all'
-                    ? 'All Companies'
-                    : companies.find((c) => String(c.id) === companyFilter)?.company_name ?? 'All Companies'}
-                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
-                  <CommandList>
-                    <CommandEmpty>No company found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="all"
-                        onSelect={() => {
-                          setCompanyFilter('all');
-                          setCompanyFilterOpen(false);
-                        }}
-                      >
-                        <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
-                        All Companies
-                      </CommandItem>
-                      {(companySearch
-                        ? companies.filter((c) => c.company_name?.toLowerCase().includes(companySearch.toLowerCase()))
-                        : companies
-                      ).map((c) => (
-                        <CommandItem
-                          key={c.id}
-                          value={String(c.id)}
-                          onSelect={(currentValue) => {
-                            setCompanyFilter(currentValue);
-                            setCompanyFilterOpen(false);
-                          }}
-                        >
-                          <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
-                          {c.company_name ?? `Company ${c.id}`}
-                        </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+
           </div>
         </CardHeader>
         <CardContent>
