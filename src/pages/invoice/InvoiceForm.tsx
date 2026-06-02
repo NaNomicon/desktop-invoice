@@ -1100,7 +1100,7 @@ function InvoiceForm() {
                             company_id: product.company_id,
                           });
                           const activeItems = lineItems.filter((item) => !item.deleted);
-                          const hasBlank = activeItems.some((item) => item.uid !== li.uid && !item.product_id);
+                          const hasBlank = activeItems.some((item) => item.uid !== li.uid && !item.product_id && item.company_id === company.id);
                           if (!hasBlank) {
                             setLineItems((prev) => [
                               ...prev,
