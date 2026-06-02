@@ -1,4 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import { formatMoney } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { useSearchParams } from 'react-router-dom';
 import { query, execute } from '@/lib/db';
 import type { Company } from '@/lib/types';
@@ -59,6 +61,7 @@ interface TypeOption {
 }
 
 function ProductPage() {
+  const currency = useCurrencySymbol();
   const authCompanyId = useAuthStore((s) => s.company_id);
   const userId = useAuthStore((s) => s.user_id_log);
   const admin = isAdmin(userId);
@@ -72,7 +75,6 @@ function ProductPage() {
   const [companyOpen, setCompanyOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
   const [typeOpen, setTypeOpen] = useState(false);
-  const [typeSearch, setTypeSearch] = useState('');
   const [prodCompanyOpen, setProdCompanyOpen] = useState(false);
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -149,11 +151,8 @@ function ProductPage() {
       if (priceParam) {
         setForm((f) => ({ ...f, price: priceParam, product_name: nameParam || '' }));
       }
-      if (!productAutoFill) {
-        setProductAutoFill({ targetForm: target, productId: null, productName: '', unitPrice: 0 });
-      }
     }
-  }, [openNew, productAutoFill, searchParams, setProductAutoFill]);
+  }, [openNew, searchParams]);
 
   const filtered = useMemo(() => {
     let rows = products;
@@ -165,7 +164,7 @@ function ProductPage() {
           (p.product_id ?? '').toLowerCase().includes(s) ||
           (p.type_name ?? '').toLowerCase().includes(s) ||
           (p.price && String(p.price).includes(s)) ||
-          ((p.price ?? 0) > 0 && `Rs ${(p.price / 100).toFixed(2)}`.includes(s)),
+          ((p.price ?? 0) > 0 && formatMoney(p.price, currency).includes(s)),
       );
     }
     if (companyFilter !== 'all') {
@@ -196,7 +195,7 @@ function ProductPage() {
         header: 'Price',
         cell: (info) => {
           const cents = info.getValue<number>();
-          return `Rs ${(cents / 100).toFixed(2)}`;
+          return formatMoney(cents, currency);
         },
       },
       {
@@ -553,7 +552,7 @@ function ProductPage() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput placeholder="Search company..." value={companySearch} onValueChange={setCompanySearch} />
                   <CommandList>
                     <CommandEmpty>No company found.</CommandEmpty>
@@ -562,7 +561,7 @@ function ProductPage() {
                         <Check className={cn('mr-2 size-4', companyFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
                         All Companies
                       </CommandItem>
-                      {companies.map((c) => (
+                      {companyOpen && companies.slice(0, 50).map((c) => (
                         <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setCompanyFilter(v); setCompanyOpen(false); }}>
                           <Check className={cn('mr-2 size-4', companyFilter === String(c.id) ? 'opacity-100' : 'opacity-0')} />
                           {c.company_name ?? `Company ${c.id}`}
@@ -647,7 +646,7 @@ function ProductPage() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="prod-price">Price (Rs)</Label>
+              <Label htmlFor="prod-price">Price ({currency})</Label>
               <Input
                 id="prod-price"
                 type="number"
@@ -661,7 +660,7 @@ function ProductPage() {
             <div className="space-y-1">
               <Label htmlFor="prod-type">Product Type</Label>
               <div className="flex gap-2">
-                <Popover open={typeOpen} onOpenChange={(o) => { setTypeOpen(o); if (!o) setTypeSearch(''); }}>
+                <Popover open={typeOpen} onOpenChange={setTypeOpen}>
                   <PopoverTrigger asChild>
                     <Button
                       id="prod-type"
@@ -678,30 +677,21 @@ function ProductPage() {
                   </PopoverTrigger>
                   <PopoverContent className="w-[200px] p-0" align="start">
                     <Command shouldFilter={false}>
-                      <CommandInput
-                        placeholder="Search types..."
-                        value={typeSearch}
-                        onValueChange={setTypeSearch}
-                      />
-                      {typeOpen && (
-                        <CommandList>
-                          <CommandEmpty>No type found.</CommandEmpty>
-                          <CommandGroup>
-                            <CommandItem value="none" onSelect={() => { setForm({ ...form, type_id: 'none' }); setTypeOpen(false); setTypeSearch(''); }}>
-                              <Check className={cn('mr-2 size-4', (!form.type_id || form.type_id === 'none') ? 'opacity-100' : 'opacity-0')} />
-                              None
+                      <CommandList>
+                        <CommandEmpty>No type found.</CommandEmpty>
+                        <CommandGroup>
+                          <CommandItem value="none" onSelect={() => { setForm({ ...form, type_id: 'none' }); setTypeOpen(false); }}>
+                            <Check className={cn('mr-2 size-4', (!form.type_id || form.type_id === 'none') ? 'opacity-100' : 'opacity-0')} />
+                            None
+                          </CommandItem>
+                          {typeOpen && typeOptions.slice(0, 50).map((t) => (
+                            <CommandItem key={t.id} value={String(t.id)} onSelect={(v) => { setForm({ ...form, type_id: v }); setTypeOpen(false); }}>
+                              <Check className={cn('mr-2 size-4', form.type_id === String(t.id) ? 'opacity-100' : 'opacity-0')} />
+                              {t.type_name}
                             </CommandItem>
-                            {typeOptions
-                              .filter((t) => t.type_name.toLowerCase().includes(typeSearch.toLowerCase()))
-                              .map((t) => (
-                                <CommandItem key={t.id} value={String(t.id)} onSelect={(v) => { setForm({ ...form, type_id: v }); setTypeOpen(false); setTypeSearch(''); }}>
-                                  <Check className={cn('mr-2 size-4', form.type_id === String(t.id) ? 'opacity-100' : 'opacity-0')} />
-                                  {t.type_name}
-                                </CommandItem>
-                              ))}
-                          </CommandGroup>
-                        </CommandList>
-                      )}
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
                     </Command>
                   </PopoverContent>
                 </Popover>
@@ -731,11 +721,11 @@ function ProductPage() {
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-[200px] p-0" align="start">
-                  <Command>
+                  <Command shouldFilter={false}>
                     <CommandList>
                       <CommandEmpty>No company found.</CommandEmpty>
                       <CommandGroup>
-                        {companies.map((c) => (
+                        {prodCompanyOpen && companies.slice(0, 50).map((c) => (
                           <CommandItem key={c.id} value={String(c.id)} onSelect={(v) => { setForm({ ...form, company_id: parseInt(v) }); setProdCompanyOpen(false); }}>
                             <Check className={cn('mr-2 size-4', form.company_id === c.id ? 'opacity-100' : 'opacity-0')} />
                             {c.company_name ?? `Company ${c.id}`}

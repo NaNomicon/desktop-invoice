@@ -19,19 +19,14 @@ import { cal } from '@/lib/invoice/cal';
 import { saved } from '@/lib/invoice/saved';
 import { splitInvoice } from '@/lib/invoice/splitInvoice';
 import { canEditInvoice } from '@/lib/invoice/editLock';
+import { formatMoney, parseCents, toDecimal } from '@/lib/currency';
+import { useCurrencySymbol } from '@/services/company';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { DateSinglePicker } from '@/components/ui/date-range-picker'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { toast } from 'sonner';
 import {
   Popover,
@@ -47,30 +42,22 @@ import {
   CommandList,
 } from '@/components/ui/command';
 import { ChevronsUpDown, Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import {
   Mail,
   Plus,
   Printer,
   Receipt,
   Save,
-  Trash2,
   FileText,
   RotateCcw,
-  Search,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
-interface LineItem {
-  uid: string;
-  id: number;
-  qty: number;
-  product_id: number | null;
-  product_name: string;
-  unit_price: number;
-  row_total: number;
-  s_no: number;
-  deleted: boolean;
-  /** Company bucket: 1=XPI (Ironing), 2=XPW (Wash), or null for unassigned */
-  company_id: number | null;
+import { ProductRow } from '@/components/billing/ProductRow';
+import { createBlankLineItems, nextUid, type BillingLineItem } from '@/components/billing/lineItems';
+type LineItem = BillingLineItem;
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 interface InvoicePrefillState {
@@ -97,41 +84,9 @@ interface InvoiceLineRow extends InvoiceSub {
   product_company_id: number | null;
 }
 
-let _uid = 1;
-function nextUid(): string {
-  return `li-${_uid++}`;
-}
-
-function cents(s: string): number {
-  return Math.round(parseFloat(s || '0') * 100);
-}
-
-function dollars(c: number): string {
-  return (c / 100).toFixed(2);
-}
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function nextBlankLineItems(): LineItem[] {
-  return [
-    {
-      uid: nextUid(),
-      id: 0,
-      qty: 1,
-      product_id: null,
-      product_name: '',
-      unit_price: 0,
-      row_total: 0,
-      s_no: 1,
-      deleted: false,
-      company_id: null,
-    },
-  ];
-}
 
 function InvoiceForm() {
+  const currency = useCurrencySymbol();
   const navigate = useNavigate();
   const location = useLocation();
   const authCompanyId = useAuthStore((s) => s.company_id);
@@ -162,12 +117,11 @@ function InvoiceForm() {
   const [checklistNo, setChecklistNo] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [typeFilterOpen, setTypeFilterOpen] = useState(false);
-  const [typeSearch, setTypeSearch] = useState('');
-  const [productSearch, setProductSearch] = useState('');
-  const [productSearchIndex, setProductSearchIndex] = useState(0);
   const [per, setPer] = useState('');
+  const [discountFlat, setDiscountFlat] = useState('');
+  const [discountMode, setDiscountMode] = useState<'per' | 'flat'>('per');
   const [printDue, setPrintDue] = useState(false);
-  const [lineItems, setLineItems] = useState<LineItem[]>(nextBlankLineItems);
+  const [lineItems, setLineItems] = useState<LineItem[]>(createBlankLineItems);
   const [saving, setSaving] = useState(false);
 
   const selectedCustomer = useMemo(
@@ -190,12 +144,19 @@ function InvoiceForm() {
       amount_due: selectedCustomer?.due_amount ?? 0,
       isvat: settings?.isvat ?? 0,
       vat_per: settings?.vat_per ?? 0,
-      per: parseFloat(per || '0'),
+      per: discountMode === 'per' ? parseFloat(per || '0') : 0,
+      discount_flat: discountMode === 'flat' ? parseCents(discountFlat) : 0,
     });
-  }, [subTotal, selectedCustomer, settings, per]);
+  }, [subTotal, selectedCustomer, settings, per, discountFlat, discountMode]);
+
+  // Derived display values for the non-active discount field
+  const derivedDiscountFlat = discountMode === 'per' ? toDecimal(calResult.discount) : discountFlat;
+  const derivedPer = discountMode === 'flat'
+    ? (subTotal > 0 ? ((parseCents(discountFlat) / Math.abs(subTotal + calResult.vat)) * 100).toFixed(2) : '')
+    : per;
 
   const balance = useMemo(() => {
-    const paid = cents(paidAmount);
+    const paid = parseCents(paidAmount);
     if (paid > 0 && paid < calResult.total) {
       return calResult.total - paid;
     }
@@ -204,33 +165,17 @@ function InvoiceForm() {
 
   const signedBalanceLabel = useMemo(() => {
     if (!selectedCustomer) {
-      return 'Rs 0.00';
+      return formatMoney(0, currency);
     }
 
     const prefix = selectedCustomer.ad_due === 'Advance' ? '-' : '';
-    return `${prefix}Rs ${dollars(selectedCustomer.due_amount)}`;
-  }, [selectedCustomer]);
-
-  const filteredProducts = useMemo(() => {
-    const search = productSearch.trim().toLowerCase();
-    return products.filter((product) => {
-      if (typeFilter !== 'all' && product.type_id !== parseInt(typeFilter, 10)) {
-        return false;
-      }
-      if (!search) {
-        return true;
-      }
-      return (
-        (product.product_name ?? '').toLowerCase().includes(search) ||
-        (product.product_id ?? '').toLowerCase().includes(search)
-      );
-    });
-  }, [productSearch, products, typeFilter]);
+    return `${prefix}${formatMoney(selectedCustomer.due_amount, currency)}`;
+  }, [selectedCustomer, currency]);
 
   const filteredCustomers = useMemo(() => {
     const search = customerSearch.trim().toLowerCase();
     if (!search) {
-      return customers;
+      return customers.slice(0, 50);
     }
 
     return customers.filter((customer) => {
@@ -243,16 +188,6 @@ function InvoiceForm() {
     });
   }, [customerSearch, customers]);
 
-
-  useEffect(() => {
-    setProductSearchIndex(0);
-  }, [productSearch]);
-
-  useEffect(() => {
-    if (productSearchIndex >= filteredProducts.length) {
-      setProductSearchIndex(0);
-    }
-  }, [filteredProducts.length, productSearchIndex]);
 
   const isAdvance = selectedCustomer?.ad_due === 'Advance';
 
@@ -280,6 +215,17 @@ function InvoiceForm() {
     setCompanies(compRows);
     setSettings(setRows[0] ?? null);
     setInvoiceNumber(String(seqRows[0]?.invoice_no ?? 0));
+    // Seed one blank row per company
+    const companyIds = compRows.map((c) => c.id);
+    if (companyIds.length > 0) {
+      setLineItems((prev) => {
+        const first = prev[0];
+        if (prev.length === 1 && first && !first.product_id && first.company_id === null) {
+          return createBlankLineItems(companyIds);
+        }
+        return prev;
+      });
+    }
     setLoading(false);
   }, []);
 
@@ -332,83 +278,6 @@ function InvoiceForm() {
     ]);
   }, []);
 
-  const handleProductPick = useCallback(
-    (product: Product) => {
-      const emptyTarget = lineItems.find((item) => !item.deleted && !item.product_id) ?? null;
-      if (emptyTarget) {
-        updateLineItem(emptyTarget.uid, {
-          product_id: product.id,
-          product_name: product.product_name,
-          unit_price: product.price,
-          company_id: product.company_id,
-        });
-        setProductSearch('');
-        setProductSearchIndex(0);
-        return;
-      }
-
-      const fallbackItem = {
-        uid: nextUid(),
-        id: 0,
-        qty: 1,
-        product_id: product.id,
-        product_name: product.product_name,
-        unit_price: product.price,
-        row_total: product.price,
-        s_no: lineItems.length + 1,
-        deleted: false,
-        company_id: product.company_id,
-      };
-      setLineItems((prev) => [...prev, fallbackItem]);
-      setProductSearch('');
-      setProductSearchIndex(0);
-    },
-    [lineItems, updateLineItem],
-  );
-
-  const handleProductSearchKeyDown = useCallback(
-    (event: React.KeyboardEvent<HTMLInputElement>) => {
-      if (event.key === 'ArrowDown') {
-        if (filteredProducts.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        setProductSearchIndex((current) => Math.min(current + 1, filteredProducts.length - 1));
-        return;
-      }
-
-      if (event.key === 'ArrowUp') {
-        if (filteredProducts.length === 0) {
-          return;
-        }
-        event.preventDefault();
-        setProductSearchIndex((current) => Math.max(current - 1, 0));
-        return;
-      }
-
-      if (event.key === 'Enter') {
-        event.preventDefault();
-        const selectedMatch = filteredProducts[productSearchIndex] ?? filteredProducts[0];
-        if (selectedMatch) {
-          handleProductPick(selectedMatch);
-        }
-        return;
-      }
-
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setProductSearch('');
-        return;
-      }
-
-      if (event.key === 'Tab' && !event.shiftKey) {
-        event.preventDefault();
-        discountInputRef.current?.focus();
-      }
-    },
-    [filteredProducts, handleProductPick, productSearchIndex],
-  );
-
   const selectCustomer = useCallback((customer: Customer) => {
     setCustomerId(customer.id);
     setCustomerSearch('');
@@ -436,12 +305,13 @@ function InvoiceForm() {
         );
         const activeCount = next.filter((li) => !li.deleted).length;
         if (activeCount === 0) {
-          return nextBlankLineItems();
+          // Restore one blank row per company
+          return createBlankLineItems(companies.map((c) => c.id));
         }
         return next;
       });
     },
-    [],
+    [companies],
   );
 
   const resetForm = useCallback(
@@ -457,16 +327,17 @@ function InvoiceForm() {
       setRefNo('');
       setChecklistNo('');
       setTypeFilter('all');
-      setProductSearch('');
       setPer('');
+      setDiscountFlat('');
+      setDiscountMode('per');
       setPrintDue(false);
-      setLineItems(nextBlankLineItems());
+      setLineItems(createBlankLineItems(companies.map((c) => c.id)));
       if (nextInvoiceNumber) {
         setInvoiceNumber(nextInvoiceNumber);
       }
       navigate(location.pathname, { replace: true, state: null });
     },
-    [authCompanyId, location.pathname, navigate],
+    [authCompanyId, companies, location.pathname, navigate],
   );
 
   const loadInvoice = useCallback(
@@ -506,15 +377,14 @@ function InvoiceForm() {
         setCompanyId(invoice.company_id);
         setInvoiceNumber(String(nextRows[0]?.invoice_no ?? invoice.invoice_no));
         setInvoiceDate(today());
-        setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : dollars(invoice.paid_amount ?? 0));
+        setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : toDecimal(invoice.paid_amount ?? 0));
         setCaseDebit(invoice.case_debit ?? 'CREDIT');
         setRefNo(invoice.no ?? '');
         setChecklistNo(invoice.checklist_no ?? '');
         setPer(String(invoice.per ?? 0));
+        setDiscountFlat('');
         setTypeFilter('all');
-        setProductSearch('');
-        setPrintDue(invoice.print_due === 'YES');
-        setLineItems(
+        setPrintDue(invoice.print_due === 'YES');        setLineItems(
           lineRows.length > 0
             ? lineRows.map((item, index) => ({
                 uid: nextUid(),
@@ -528,7 +398,7 @@ function InvoiceForm() {
                 deleted: false,
                 company_id: item.company_id ?? item.product_company_id ?? null,
               }))
-            : nextBlankLineItems(),
+            : createBlankLineItems(),
         );
         toast.info(lockState.message ?? 'Loaded as a new invoice');
         navigate(location.pathname, { replace: true, state: null });
@@ -542,13 +412,13 @@ function InvoiceForm() {
       setCompanyId(invoice.company_id);
       setInvoiceNumber(invoice.invoice_no);
       setInvoiceDate(invoice.invoice_date || today());
-      setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : dollars(invoice.paid_amount ?? 0));
+        setPaidAmount(invoice.case_debit === 'CREDIT' ? '' : toDecimal(invoice.paid_amount ?? 0));
       setCaseDebit(invoice.case_debit ?? 'CREDIT');
       setRefNo(invoice.no ?? '');
       setChecklistNo(invoice.checklist_no ?? '');
       setPer(String(invoice.per ?? 0));
+      setDiscountFlat('');
       setTypeFilter('all');
-      setProductSearch('');
       setPrintDue(invoice.print_due === 'YES');
       setLineItems(
         lineRows.length > 0
@@ -564,7 +434,7 @@ function InvoiceForm() {
               deleted: false,
               company_id: item.company_id ?? item.product_company_id ?? null,
             }))
-          : nextBlankLineItems(),
+          : createBlankLineItems(),
       );
       navigate(location.pathname, { replace: true, state: null });
     },
@@ -585,8 +455,6 @@ function InvoiceForm() {
     setDeletedLineItemIds([]);
     setCustomerSearch('');
     setTypeFilter('all');
-    setProductSearch('');
-    setProductSearchIndex(0);
 
     if (invoicePrefill.customerId) {
       setCustomerId(invoicePrefill.customerId);
@@ -601,6 +469,7 @@ function InvoiceForm() {
         ? String(invoicePrefill.per)
         : '',
     );
+    setDiscountFlat('');
 
     if (invoicePrefill.lineItems?.length) {
       setLineItems(
@@ -690,14 +559,14 @@ function InvoiceForm() {
           invoice_date: invoiceDate,
           checklist_no: checklistNo || null,
           case_debit: caseDebit || 'CREDIT',
-          paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+          paid_amount: caseDebit === 'CREDIT' ? 0 : parseCents(paidAmount),
           per: parseFloat(per || '0'),
           sub_total: subTotal,
           vat: calResult.vat,
           discount: calResult.discount,
           total: calResult.total,
           amount_due: selectedCustomer?.due_amount ?? 0,
-          cr_dr: calResult.total > cents(paidAmount) ? 'Cr.' : 'Dr.',
+          cr_dr: calResult.total > parseCents(paidAmount) ? 'Cr.' : 'Dr.',
           line_items: splitLineItems,
         });
         const nextRows = await query<NumberSequence>('SELECT * FROM tbl_numbers WHERE id = 1 LIMIT 1');
@@ -718,7 +587,7 @@ function InvoiceForm() {
           discount: calResult.discount,
           total: calResult.total,
           per: parseFloat(per || '0'),
-          paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+          paid_amount: caseDebit === 'CREDIT' ? 0 : parseCents(paidAmount),
           balance: caseDebit === 'CREDIT' ? calResult.total : balance,
           case_debit: caseDebit || null,
           no: refNo || null,
@@ -827,10 +696,10 @@ function InvoiceForm() {
     const isSplit = 'invoice1_id' in result;
     if (isSplit) {
       toast.success(`Invoices ${result.invoice1_no} & ${result.invoice2_no} saved`);
-      navigate(`/reports/print/${result.invoice1_id}`);
+      navigate(`/reports/print/${result.invoice1_id}`, { state: { invoiceNo: result.invoice1_no } });
     } else {
       toast.success(`Invoice ${result.invoice_no} saved`);
-      navigate(`/reports/print/${result.id}`);
+      navigate(`/reports/print/${result.id}`, { state: { invoiceNo: result.invoice_no } });
     }
   }, [navigate, persistInvoice]);
 
@@ -901,7 +770,7 @@ function InvoiceForm() {
         per: parseFloat(per || '0'),
         invoice_date: invoice.invoice_date,
         case_debit: caseDebit || null,
-        paid_amount: caseDebit === 'CREDIT' ? 0 : cents(paidAmount),
+        paid_amount: caseDebit === 'CREDIT' ? 0 : parseCents(paidAmount),
         balance: caseDebit === 'CREDIT' ? calResult.total : balance,
         no: refNo || null,
         cr_dr: null,
@@ -985,18 +854,6 @@ function InvoiceForm() {
             <Receipt className="size-4" />
             Create Receipt
           </Button>
-          <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
-            <Mail className="size-4" />
-            Send
-          </Button>
-          <Button variant="outline" onClick={() => void handlePrint()} disabled={saving}>
-            <Printer className="size-4" />
-            Print
-          </Button>
-          <Button onClick={() => void handleSave()} disabled={saving}>
-            <Save className="size-4" />
-            {saving ? 'Saving...' : 'Save'}
-          </Button>
         </div>
       </div>
 
@@ -1011,7 +868,19 @@ function InvoiceForm() {
           </div>
 
           <div className="space-y-1">
-            <Label>Customer *</Label>
+            <div className="flex items-center justify-between">
+              <Label>Customer *</Label>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-5 px-1 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => navigate('/customers')}
+              >
+                <Plus className="size-3" />
+                New Customer
+              </Button>
+            </div>
             <Popover open={customerOpen} onOpenChange={setCustomerOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -1029,7 +898,7 @@ function InvoiceForm() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[400px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandInput
                     placeholder="Search by name, phone, email..."
                     value={customerSearch}
@@ -1038,7 +907,7 @@ function InvoiceForm() {
                   <CommandList>
                     <CommandEmpty>No customer found.</CommandEmpty>
                     <CommandGroup>
-                      {filteredCustomers.slice(0, 100).map((c) => (
+                      {customerOpen && filteredCustomers.slice(0, 100).map((c) => (
                         <CommandItem
                           key={c.id}
                           value={[c.title_name, c.customer_name, c.telephone, c.email, c.address].filter(Boolean).join(' ')}
@@ -1075,11 +944,11 @@ function InvoiceForm() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[160px] p-0" align="start">
-                <Command>
+                <Command shouldFilter={false}>
                   <CommandList>
                     <CommandEmpty>No option found.</CommandEmpty>
                     <CommandGroup>
-                      {(['CASH', 'CREDIT'] as const).map((val) => (
+                      {caseDebitOpen && (['CASH', 'CREDIT'] as const).map((val) => (
                         <CommandItem key={val} value={val} onSelect={(v) => { setCaseDebit(v); setCaseDebitOpen(false); }}>
                           <Check className={cn('mr-2 size-4', caseDebit === val ? 'opacity-100' : 'opacity-0')} />
                           {val}
@@ -1119,143 +988,29 @@ function InvoiceForm() {
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
                 <Command shouldFilter={false}>
-                  <CommandInput
-                    placeholder="Search types..."
-                    value={typeSearch}
-                    onValueChange={setTypeSearch}
-                  />
-                  {typeFilterOpen && (
-                    <CommandList>
-                      <CommandEmpty>No type found.</CommandEmpty>
-                      <CommandGroup>
-                        <CommandItem value="all" onSelect={() => { setTypeFilter('all'); setTypeFilterOpen(false); setTypeSearch(''); }}>
-                          <Check className={cn('mr-2 size-4', typeFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
-                          All Types
+                  <CommandList>
+                    <CommandEmpty>No type found.</CommandEmpty>
+                    <CommandGroup>
+                      <CommandItem value="all" onSelect={() => { setTypeFilter('all'); setTypeFilterOpen(false); }}>
+                        <Check className={cn('mr-2 size-4', typeFilter === 'all' ? 'opacity-100' : 'opacity-0')} />
+                        All Types
+                      </CommandItem>
+                      {typeFilterOpen && productTypes.map((type) => (
+                        <CommandItem key={type.id} value={String(type.id)} onSelect={(v) => { setTypeFilter(v); setTypeFilterOpen(false); }}>
+                          <Check className={cn('mr-2 size-4', typeFilter === String(type.id) ? 'opacity-100' : 'opacity-0')} />
+                          {type.type_name}
                         </CommandItem>
-                        {productTypes
-                          .filter((t) => t.type_name.toLowerCase().includes(typeSearch.toLowerCase()))
-                          .map((type) => (
-                            <CommandItem key={type.id} value={String(type.id)} onSelect={(v) => { setTypeFilter(v); setTypeFilterOpen(false); setTypeSearch(''); }}>
-                              <Check className={cn('mr-2 size-4', typeFilter === String(type.id) ? 'opacity-100' : 'opacity-0')} />
-                              {type.type_name}
-                            </CommandItem>
-                          ))}
-                      </CommandGroup>
-                    </CommandList>
-                  )}
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
                 </Command>
               </PopoverContent>
             </Popover>
           </div>
 
-          <div className="flex items-end">
-            <label className="flex items-center gap-2 text-sm font-medium">
-              <Checkbox checked={printDue} onCheckedChange={(checked) => setPrintDue(checked === true)} />
-              Print due amount on invoice
-            </label>
-          </div>
-
-          {selectedCustomer && (
-            <>
-              <div className="space-y-1">
-                <Label>Advance/Due</Label>
-                <Input
-                  value={selectedCustomer.ad_due || 'None'}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Customer Balance</Label>
-                <Input
-                  value={`Rs ${dollars(selectedCustomer.due_amount)}`}
-                  disabled
-                  className="bg-muted"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label>Signed Balance</Label>
-                <Input value={signedBalanceLabel} disabled className="bg-muted" />
-              </div>
-            </>
-          )}
-
-          <div className="space-y-1">
-            <Label>Paid Amount</Label>
-            <Input
-              type="number"
-              min="0"
-              step="0.01"
-              value={paidAmount}
-              onChange={(e) => setPaidAmount(e.target.value)}
-              placeholder="0.00"
-              disabled={caseDebit === 'CREDIT'}
-            />
-          </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Search className="size-4" />
-            Product Search
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Input
-            placeholder="Search by product code or name"
-            value={productSearch}
-            onChange={(event) => setProductSearch(event.target.value)}
-            onKeyDown={handleProductSearchKeyDown}
-            className="max-w-md"
-          />
-          <div className="max-h-52 overflow-auto rounded-md border">
-            <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-muted/60">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Code</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">Price</th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">Company</th>
-                  <th className="px-3 py-2" />
-                </tr>
-              </thead>
-              <tbody>
-                {filteredProducts.slice(0, 12).map((product, index) => (
-                  <tr
-                    key={product.id}
-                    className={index === productSearchIndex ? 'border-t bg-muted/50' : 'border-t hover:bg-muted/30'}
-                  >
-                    <td className="px-3 py-2">{product.product_id ?? '-'}</td>
-                    <td className="px-3 py-2">{product.product_name}</td>
-                    <td className="px-3 py-2 text-right">Rs {dollars(product.price)}</td>
-                    <td className="px-3 py-2 text-right">
-                      {companies.find((c) => c.id === product.company_id)?.company_name ?? '-'}
-                    </td>
-                    <td className="px-3 py-2 text-right">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleProductPick(product)}
-                      >
-                        Use
-                      </Button>
-                    </td>
-                  </tr>
-                ))}
-                {filteredProducts.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-3 py-6 text-center text-muted-foreground">
-                      No products match this search
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Vertical Company Sections - one per active company */}
       {companies.map((company) => {
@@ -1264,154 +1019,77 @@ function InvoiceForm() {
         const companySubtotal = companyItems.filter((li) => !li.deleted).reduce((sum, li) => sum + li.row_total, 0);
         const companyName = company.company_name ?? company.company_code ?? `Company ${company.id}`;
 
-        const addItemToCompany = () => {
-          setLineItems((prev) => [
-            ...prev,
-            {
-              uid: nextUid(),
-              id: 0,
-              qty: 1,
-              product_id: null,
-              product_name: '',
-              unit_price: 0,
-              row_total: 0,
-              s_no: prev.length + 1,
-              deleted: false,
-              company_id: company.id,
-            },
-          ]);
-        };
-
         return (
           <Card key={company.id}>
             <CardHeader className="pb-3">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-semibold">{companyName}</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Select
-                    onValueChange={(v: string) => {
-                      const product = companyProducts.find((p) => p.id === parseInt(v, 10));
-                      if (product) {
-                        setLineItems((prev) => [
-                          ...prev,
-                          {
-                            uid: nextUid(),
-                            id: 0,
-                            qty: 1,
+              <CardTitle className="text-base font-semibold">{companyName}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto rounded-md border">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/50">
+                      <th className="w-12 px-3 py-2 text-left font-medium text-muted-foreground">#</th>
+                      <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
+                      <th className="w-20 px-3 py-2 text-left font-medium text-muted-foreground">Qty</th>
+                      <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Price</th>
+                      <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Total</th>
+                      <th className="w-10 px-3 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {companyItems.map((li, idx) => (
+                      <ProductRow
+                        key={li.uid}
+                        li={li}
+                        idx={idx}
+                        companyProducts={companyProducts}
+                        currency={currency}
+                        onProductSelect={(product) => {
+                          updateLineItem(li.uid, {
                             product_id: product.id,
                             product_name: product.product_name,
                             unit_price: product.price,
-                            row_total: product.price,
-                            s_no: prev.length + 1,
-                            deleted: false,
-                            company_id: company.id,
-                          },
-                        ]);
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-48">
-                      <SelectValue placeholder="Add product..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {companyProducts.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)}>
-                          {p.product_name} - Rs {dollars(p.price)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button variant="outline" size="sm" onClick={addItemToCompany}>
-                    <Plus className="size-3.5" />
-                    Add Row
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              {companyItems.length === 0 ? (
-                <p className="py-4 text-center text-sm text-muted-foreground">No items for {companyName}</p>
-              ) : (
-                <div className="overflow-x-auto rounded-md border">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="w-12 px-3 py-2 text-left font-medium text-muted-foreground">#</th>
-                        <th className="px-3 py-2 text-left font-medium text-muted-foreground">Product</th>
-                        <th className="w-20 px-3 py-2 text-left font-medium text-muted-foreground">Qty</th>
-                        <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Price</th>
-                        <th className="w-28 px-3 py-2 text-left font-medium text-muted-foreground">Total</th>
-                        <th className="w-10 px-3 py-2"></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {companyItems.map((li, idx) => (
-                        <tr
-                          key={li.uid}
-                          className={`border-t hover:bg-muted/30 ${li.deleted ? 'bg-muted/20 opacity-50' : ''}`}
-                        >
-                          <td className="px-3 py-1.5 text-muted-foreground">{idx + 1}</td>
-                          <td className="px-3 py-1.5">{li.product_name || '-'}</td>
-                          <td className="px-3 py-1.5">
-                            {li.deleted ? (
-                              <span className="text-muted-foreground">{li.qty}</span>
-                            ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                step="1"
-                                className="h-8 w-20"
-                                value={li.qty}
-                                onChange={(e) =>
-                                  updateLineItem(li.uid, { qty: parseInt(e.target.value) || 0 })
-                                }
-                              />
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5">
-                            {li.deleted ? (
-                              <span className="text-muted-foreground">Rs {dollars(li.unit_price)}</span>
-                            ) : (
-                              <Input
-                                type="number"
-                                min="0"
-                                step="0.01"
-                                className="h-8 w-28"
-                                value={(li.unit_price / 100).toFixed(2)}
-                                onChange={(e) =>
-                                  updateLineItem(li.uid, { unit_price: cents(e.target.value) })
-                                }
-                              />
-                            )}
-                          </td>
-                          <td className="px-3 py-1.5 font-medium">
-                            Rs {dollars(li.row_total)}
-                          </td>
-                          <td className="px-3 py-1.5">
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              className={li.deleted ? 'text-destructive' : 'text-muted-foreground hover:text-destructive'}
-                              onClick={() => toggleDeleteLineItem(li.uid)}
-                            >
-                              <Trash2 className="size-3.5" />
-                            </Button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
+                            company_id: product.company_id,
+                          });
+                          const activeItems = lineItems.filter((item) => !item.deleted);
+                          const hasBlank = activeItems.some((item) => item.uid !== li.uid && !item.product_id);
+                          if (!hasBlank) {
+                            setLineItems((prev) => [
+                              ...prev,
+                              {
+                                uid: nextUid(),
+                                id: 0,
+                                qty: 1,
+                                product_id: null,
+                                product_name: '',
+                                unit_price: 0,
+                                row_total: 0,
+                                s_no: prev.length + 1,
+                                deleted: false,
+                                company_id: company.id,
+                              },
+                            ]);
+                          }
+                        }}
+                        onQtyChange={(qty) => updateLineItem(li.uid, { qty })}
+                        onDelete={() => toggleDeleteLineItem(li.uid)}
+                      />
+                    ))}
+                  </tbody>
+                  {companySubtotal > 0 && (
                     <tfoot>
                       <tr className="bg-muted/30">
                         <td colSpan={4} className="px-3 py-2 text-right font-medium">
                           Subtotal
                         </td>
-                        <td className="px-3 py-2 font-semibold">Rs {dollars(companySubtotal)}</td>
+                        <td className="px-3 py-2 font-semibold">{formatMoney(companySubtotal, currency)}</td>
                         <td></td>
                       </tr>
                     </tfoot>
-                  </table>
-                </div>
-              )}
+                  )}
+                </table>
+              </div>
             </CardContent>
           </Card>
         );
@@ -1421,70 +1099,113 @@ function InvoiceForm() {
         <CardHeader>
           <CardTitle>Totals</CardTitle>
         </CardHeader>
-        <CardContent className="grid grid-cols-2 gap-4 md:grid-cols-5">
-          {companies.map((company) => {
-            const companySubtotal = lineItems
-              .filter((li) => li.company_id === company.id && !li.deleted)
-              .reduce((sum, li) => sum + li.row_total, 0);
-            if (companySubtotal === 0) return null;
-            return (
-              <div key={company.id} className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
-                  {company.company_name ?? company.company_code ?? `Company ${company.id}`}
-                </Label>
-                <p className="text-lg font-medium">Rs {dollars(companySubtotal)}</p>
-              </div>
-            );
-          })}
-          {settings?.isvat === 1 && calResult.vat > 0 && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">VAT</Label>
-              <p className="text-lg font-medium">Rs {dollars(calResult.vat)}</p>
-            </div>
-          )}
-          {calResult.discount > 0 && (
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Discount</Label>
-              <p className="text-lg font-medium text-destructive">
-                -Rs {dollars(calResult.discount)}
-              </p>
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">
-              {selectedCustomer?.ad_due === 'Advance'
-                ? 'Less Advance'
-                : selectedCustomer?.ad_due === 'Due'
-                  ? 'Add Due'
-                  : 'New Total'}
-            </Label>
-            <p className="text-lg font-medium">Rs {dollars(calResult.new_tot)}</p>
+        <CardContent className="space-y-3">
+          {/* Sub Total */}
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Sub Total</span>
+            <span className="font-medium">{formatMoney(subTotal, currency)}</span>
           </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Discount %</Label>
+          {/* Due Amount with checkbox - always visible */}
+          <div className="flex items-center justify-between">
+            <label className={`flex items-center gap-2 text-sm ${selectedCustomer ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}>
+              <Checkbox
+                checked={printDue}
+                onCheckedChange={(checked) => setPrintDue(checked === true)}
+                disabled={!selectedCustomer}
+              />
+              {selectedCustomer?.ad_due === 'Advance' ? 'Advance Amount' : 'Due Amount'}
+            </label>
+            <span className={`font-medium ${!selectedCustomer ? 'text-muted-foreground/50' : ''}`}>
+              {formatMoney(selectedCustomer?.due_amount ?? 0, currency)}
+            </span>
+          </div>
+
+          {/* VAT - always visible */}
+          <div className="flex items-center justify-between">
+            <span className={`text-sm ${settings?.isvat === 1 ? 'text-muted-foreground' : 'text-muted-foreground/50'}`}>
+              VAT ({settings?.isvat === 1 ? toDecimal(settings.vat_per) : '0'}%)
+            </span>
+            <span className={`font-medium ${settings?.isvat !== 1 ? 'text-muted-foreground/50' : ''}`}>
+              {formatMoney(calResult.vat, currency)}
+            </span>
+          </div>
+
+          {/* Discount */}
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-sm text-muted-foreground">Discount</span>
+            <div className="flex items-center gap-2">
+              <Input
+                ref={discountInputRef}
+                type="number"
+                min="0"
+                max="100"
+                className="h-8 w-20"
+                value={derivedPer}
+                onChange={(e) => { const v = Math.min(parseFloat(e.target.value) || 0, 100); setPer(v > 0 ? String(v) : e.target.value); setDiscountMode('per'); }}
+                placeholder="0%"
+              />
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                className="h-8 w-24"
+                value={derivedDiscountFlat}
+                onChange={(e) => { const maxFlat = toDecimal(Math.abs(subTotal + calResult.vat)); const v = Math.min(parseFloat(e.target.value) || 0, parseFloat(maxFlat)); setDiscountFlat(v > 0 ? String(v) : e.target.value); setDiscountMode('flat'); }}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div className="border-t pt-3 flex items-center justify-between">
+            <span className="text-sm font-semibold">Total Amount</span>
+            <span className="text-2xl font-bold">{formatMoney(calResult.total, currency)}</span>
+          </div>
+
+          {/* Paid Amount */}
+          <div className="flex items-center justify-between gap-4">
+            <span className="text-sm text-muted-foreground">Paid Amount</span>
             <Input
-              ref={discountInputRef}
               type="number"
               min="0"
-              max="100"
-              className="h-8 w-24"
-              value={per}
-              onChange={(e) => setPer(e.target.value)}
-              placeholder="0"
+              step="0.01"
+              className="h-8 w-32"
+              value={paidAmount}
+              onChange={(e) => setPaidAmount(e.target.value)}
+              placeholder="0.00"
+              disabled={caseDebit === 'CREDIT'}
             />
           </div>
-          <div className="space-y-1 md:col-span-2">
-            <Label className="text-xs text-muted-foreground">Grand Total</Label>
-            <p className="text-2xl font-bold">
-              Rs {dollars(calResult.total)}
-            </p>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs text-muted-foreground">Balance</Label>
-            <p className="text-lg font-medium">Rs {dollars(caseDebit === 'CREDIT' ? calResult.total : balance)}</p>
-          </div>
+
+          {/* Customer info */}
+          {selectedCustomer && (
+            <div className="border-t pt-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Customer Balance</span>
+                <span className="font-medium">{formatMoney(selectedCustomer.due_amount, currency)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Signed Balance</span>
+                <span className="font-medium">{signedBalanceLabel}</span>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <Button variant="outline" onClick={() => void handleSend()} disabled={saving}>
+          <Mail className="size-4" />
+          Send
+        </Button>
+        <Button variant="outline" onClick={() => void handlePrint()} disabled={saving}>
+          <Printer className="size-4" />
+          Print
+        </Button>
+        <Button onClick={() => void handleSave()} disabled={saving}>
+          <Save className="size-4" />
+          {saving ? 'Saving...' : 'Save'}
+        </Button>
+      </div>
     </div>
   );
 }
