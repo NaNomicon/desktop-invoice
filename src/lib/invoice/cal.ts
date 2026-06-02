@@ -25,7 +25,7 @@ export function cal(input: CalInput): CalResult {
 
   let vat = 0;
   if (input.isvat === 1) {
-    vat = Math.round(Math.abs(input.sub_total) * input.vat_per / 10000);
+    vat = Math.round(Math.abs(input.sub_total) * input.vat_per / 100);
   }
 
   let discount = 0;

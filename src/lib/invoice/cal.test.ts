@@ -11,7 +11,7 @@ describe('cal()', () => {
   });
 
   it('VAT only: 5% VAT on sub_total', () => {
-    const result = cal({ sub_total: 100000, ad_due: '', amount_due: 0, isvat: 1, vat_per: 500, per: 0 });
+    const result = cal({ sub_total: 100000, ad_due: '', amount_due: 0, isvat: 1, vat_per: 5, per: 0 });
     expect(result.new_tot).toBe(100000);
     expect(result.vat).toBe(5000);
     expect(result.discount).toBe(0);
@@ -35,7 +35,7 @@ describe('cal()', () => {
   });
 
   it('Discount: 10% on (sub_total + vat)', () => {
-    const result = cal({ sub_total: 100000, ad_due: '', amount_due: 0, isvat: 1, vat_per: 500, per: 10 });
+    const result = cal({ sub_total: 100000, ad_due: '', amount_due: 0, isvat: 1, vat_per: 5, per: 10 });
     expect(result.new_tot).toBe(100000);
     expect(result.vat).toBe(5000);
     expect(result.discount).toBe(10500);
@@ -43,7 +43,7 @@ describe('cal()', () => {
   });
 
   it('Advance keeps VAT and discount based on sub_total per legacy spec', () => {
-    const result = cal({ sub_total: 100000, ad_due: 'Advance', amount_due: 10000, isvat: 1, vat_per: 500, per: 5 });
+    const result = cal({ sub_total: 100000, ad_due: 'Advance', amount_due: 10000, isvat: 1, vat_per: 5, per: 5 });
     expect(result.new_tot).toBe(90000);
     expect(result.vat).toBe(5000);
     expect(result.discount).toBe(5250);
