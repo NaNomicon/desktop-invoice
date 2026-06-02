@@ -41,11 +41,36 @@ const ROUTE_TABS: Record<string, RouteTabDefinition> = {
   '/home/restore': { title: 'Restore Database' },
 }
 
-function getRouteTabDefinition(pathname: string): RouteTabDefinition | null {
+function getRouteTabDefinition(
+  pathname: string,
+  state?: Record<string, unknown> | null,
+): RouteTabDefinition | null {
+  // State-aware overrides for static preview routes
+  if (pathname === '/reports/receipts' && state?.receiptNo) {
+    return { title: `Receipt ${state.receiptNo as string}` }
+  }
+  if (pathname === '/reports/quotations' && state?.quotationNo) {
+    return { title: `Quotation ${state.quotationNo as string}`, closable: false }
+  }
+
   if (ROUTE_TABS[pathname]) return ROUTE_TABS[pathname]
 
-  if (pathname.startsWith('/reports/print/')) return { title: 'Invoice Report' }
-  if (pathname.startsWith('/reports/quotations/')) return { title: 'Quotation Report' }
+  if (pathname.startsWith('/reports/print/')) {
+    const no = state?.invoiceNo as string | undefined
+    return { title: no ? `Invoice ${no}` : 'Invoice Report' }
+  }
+  if (pathname.startsWith('/reports/invoices/')) {
+    const no = state?.invoiceNo as string | undefined
+    return { title: no ? `Invoice ${no}` : 'Invoice Preview' }
+  }
+  if (pathname.startsWith('/reports/quotations/')) {
+    const no = state?.quotationNo as string | undefined
+    return { title: no ? `Quotation ${no}` : 'Quotation Report' }
+  }
+  if (pathname.startsWith('/reports/receipts/')) {
+    const no = state?.receiptNo as string | undefined
+    return { title: no ? `Receipt ${no}` : 'Receipt Report' }
+  }
 
   return null
 }
@@ -81,7 +106,8 @@ export function TabBar() {
   }, [activeTab])
 
   useEffect(() => {
-    const definition = getRouteTabDefinition(location.pathname)
+    const state = location.state as Record<string, unknown> | null
+    const definition = getRouteTabDefinition(location.pathname, state)
     if (!definition) return
 
     registerHomeTab({
@@ -90,7 +116,7 @@ export function TabBar() {
       path: location.pathname,
       closable: definition.closable ?? true,
     })
-  }, [location.pathname, registerHomeTab])
+  }, [location.pathname, location.state, registerHomeTab])
 
   const handleActivate = useCallback(
     (tab: HomeTabItem) => {
