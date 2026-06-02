@@ -29,6 +29,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Select,
   SelectContent,
@@ -36,7 +37,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Command,
   CommandEmpty,
@@ -148,6 +148,8 @@ function QuotationForm() {
   const [checklistNo, setChecklistNo] = useState('');
   const [refNo, setRefNo] = useState('');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [typeFilterOpen, setTypeFilterOpen] = useState(false);
+  const [typeSearch, setTypeSearch] = useState('');
   const [per, setPer] = useState('0');
   const [manualDiscount, setManualDiscount] = useState('0.00');
   const [productSearch, setProductSearch] = useState('');
@@ -168,6 +170,8 @@ function QuotationForm() {
   const [newProductName, setNewProductName] = useState('');
   const [newProductPrice, setNewProductPrice] = useState('');
   const [newProductTypeId, setNewProductTypeId] = useState<string>('');
+  const [newProductTypeOpen, setNewProductTypeOpen] = useState(false);
+  const [newProductTypeSearch, setNewProductTypeSearch] = useState('');
   const [productSaving, setProductSaving] = useState(false);
 
   const selectedCustomer = useMemo(
@@ -988,11 +992,12 @@ function QuotationForm() {
           </div>
           <div className="space-y-1">
             <Label>Product Type</Label>
-            <Popover>
+            <Popover open={typeFilterOpen} onOpenChange={(o) => { setTypeFilterOpen(o); if (!o) setTypeSearch(''); }}>
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
                   role="combobox"
+                  aria-expanded={typeFilterOpen}
                   className="w-full justify-between font-normal"
                 >
                   {typeFilter === "all"
@@ -1002,42 +1007,50 @@ function QuotationForm() {
                 </Button>
               </PopoverTrigger>
               <PopoverContent className="w-[200px] p-0" align="start">
-                <Command>
-                  <CommandInput placeholder="Search types..." />
-                  <CommandList>
-                    <CommandEmpty>No type found.</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="all"
-                        onSelect={() => setTypeFilter("all")}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 size-4",
-                            typeFilter === "all" ? "opacity-100" : "opacity-0",
-                          )}
-                        />
-                        All Types
-                      </CommandItem>
-                      {productTypes.map((type) => (
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Search types..."
+                    value={typeSearch}
+                    onValueChange={setTypeSearch}
+                  />
+                  {typeFilterOpen && (
+                    <CommandList>
+                      <CommandEmpty>No type found.</CommandEmpty>
+                      <CommandGroup>
                         <CommandItem
-                          key={type.id}
-                          value={type.type_name}
-                          onSelect={() => setTypeFilter(String(type.id))}
+                          value="all"
+                          onSelect={() => { setTypeFilter("all"); setTypeFilterOpen(false); setTypeSearch(''); }}
                         >
                           <Check
                             className={cn(
                               "mr-2 size-4",
-                              typeFilter === String(type.id)
-                                ? "opacity-100"
-                                : "opacity-0",
+                              typeFilter === "all" ? "opacity-100" : "opacity-0",
                             )}
                           />
-                          {type.type_name}
+                          All Types
                         </CommandItem>
-                      ))}
-                    </CommandGroup>
-                  </CommandList>
+                        {productTypes
+                          .filter((t) => t.type_name.toLowerCase().includes(typeSearch.toLowerCase()))
+                          .map((type) => (
+                            <CommandItem
+                              key={type.id}
+                              value={String(type.id)}
+                              onSelect={() => { setTypeFilter(String(type.id)); setTypeFilterOpen(false); setTypeSearch(''); }}
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 size-4",
+                                  typeFilter === String(type.id)
+                                    ? "opacity-100"
+                                    : "opacity-0",
+                                )}
+                              />
+                              {type.type_name}
+                            </CommandItem>
+                          ))}
+                      </CommandGroup>
+                    </CommandList>
+                  )}
                 </Command>
               </PopoverContent>
             </Popover>
@@ -1423,21 +1436,50 @@ function QuotationForm() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="new-prod-type">Product Type</Label>
-              <Select
-                value={newProductTypeId}
-                onValueChange={setNewProductTypeId}
-              >
-                <SelectTrigger id="new-prod-type">
-                  <SelectValue placeholder="Select type..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {productTypes.map((pt) => (
-                    <SelectItem key={pt.id} value={String(pt.id)}>
-                      {pt.type_name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Popover open={newProductTypeOpen} onOpenChange={(o) => { setNewProductTypeOpen(o); if (!o) setNewProductTypeSearch(''); }}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="new-prod-type"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={newProductTypeOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {newProductTypeId
+                      ? productTypes.find((pt) => String(pt.id) === newProductTypeId)?.type_name ?? 'Select type...'
+                      : 'Select type...'}
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[200px] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
+                      placeholder="Search types..."
+                      value={newProductTypeSearch}
+                      onValueChange={setNewProductTypeSearch}
+                    />
+                    {newProductTypeOpen && (
+                      <CommandList>
+                        <CommandEmpty>No type found.</CommandEmpty>
+                        <CommandGroup>
+                          {productTypes
+                            .filter((pt) => pt.type_name.toLowerCase().includes(newProductTypeSearch.toLowerCase()))
+                            .map((pt) => (
+                              <CommandItem
+                                key={pt.id}
+                                value={String(pt.id)}
+                                onSelect={(v) => { setNewProductTypeId(v); setNewProductTypeOpen(false); setNewProductTypeSearch(''); }}
+                              >
+                                <Check className={cn('mr-2 size-4', newProductTypeId === String(pt.id) ? 'opacity-100' : 'opacity-0')} />
+                                {pt.type_name}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    )}
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-1">
               <Label htmlFor="new-prod-price">Price (Rs)</Label>
