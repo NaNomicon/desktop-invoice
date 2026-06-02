@@ -203,10 +203,12 @@ function UserPage() {
           <UserRound className="size-5" />
           <h1 className="text-2xl font-semibold">Users</h1>
         </div>
-        <Button onClick={openNew}>
-          <Plus className="size-4" />
-          Add User
-        </Button>
+        {admin && (
+          <Button onClick={openNew}>
+            <Plus className="size-4" />
+            Add User
+          </Button>
+        )}
       </div>
 
       <Card>
