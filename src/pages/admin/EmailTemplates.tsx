@@ -28,6 +28,7 @@ import {
   getPaginationRowModel,
   useReactTable,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -63,6 +64,7 @@ function EmailTemplatesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [subjectRef, setSubjectRef] = useState<HTMLTextAreaElement | HTMLInputElement | null>(null);
   const [bodyRef, setBodyRef] = useState<HTMLTextAreaElement | null>(null);
 
@@ -175,6 +177,8 @@ function EmailTemplatesPage() {
   const table = useReactTable({
     data: templates,
     columns,
+    state: { pagination },
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
@@ -331,7 +335,7 @@ function EmailTemplatesPage() {
                   )}
                 </tbody>
               </table>
-              <DataTablePagination table={table} totalLabel="templates" />
+              <DataTablePagination table={table} pagination={pagination} totalLabel="templates" />
             </div>
           )}
         </CardContent>

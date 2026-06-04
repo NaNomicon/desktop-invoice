@@ -21,6 +21,7 @@ import {
   useReactTable,
   type SortingState,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -191,6 +192,7 @@ function SalesReport() {
   const [groupByOpen, setGroupByOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const closeHomeTab = useUIStore(state => state.closeHomeTab);
 
   useEffect(() => {
@@ -445,8 +447,9 @@ function SalesReport() {
   const table = useReactTable({
     data: salesData,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -719,7 +722,7 @@ function SalesReport() {
                   )}
                 </tbody>
               </table>
-              <DataTablePagination table={table} totalLabel="sales" />
+              <DataTablePagination table={table} pagination={pagination} totalLabel="sales" />
             </div>
           )}
         </CardContent>

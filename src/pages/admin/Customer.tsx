@@ -33,6 +33,7 @@ import {
   useReactTable,
   type SortingState,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -91,6 +92,7 @@ function Customer() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<CustomerFormData>(emptyForm);
@@ -230,8 +232,9 @@ function Customer() {
   const table = useReactTable({
     data: filtered,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -929,7 +932,7 @@ function Customer() {
                 ))}
               </tbody>
             </table>
-            <DataTablePagination table={table} totalLabel="customers" />
+            <DataTablePagination table={table} pagination={pagination} totalLabel="customers" />
             {(importPreview?.data.length ?? 0) > 10 && (
               <p className="p-2 text-center text-sm text-muted-foreground">
                 ...and {(importPreview?.data.length ?? 0) - 10} more rows

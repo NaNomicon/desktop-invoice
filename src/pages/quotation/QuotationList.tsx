@@ -18,6 +18,7 @@ import {
   useReactTable,
   type SortingState,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -88,6 +89,7 @@ function QuotationList() {
   const [companySearch, setCompanySearch] = useState('');
     const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [openingPreviewId, setOpeningPreviewId] = useState<number | null>(null);
@@ -357,8 +359,9 @@ function QuotationList() {
   const table = useReactTable({
     data: filtered,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -489,7 +492,7 @@ function QuotationList() {
                     )}
                   </tbody>
                 </table>
-                <DataTablePagination table={table} totalLabel="quotations" />
+                <DataTablePagination table={table} pagination={pagination} totalLabel="quotations" />
               </div>
             )}
           </CardContent>

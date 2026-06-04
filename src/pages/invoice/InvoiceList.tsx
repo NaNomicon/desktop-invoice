@@ -18,6 +18,7 @@ import {
   useReactTable,
   type SortingState,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -61,6 +62,7 @@ function InvoiceList() {
   const [companySearch, setCompanySearch] = useState('');
   const [companyFilter, setCompanyFilter] = useState<string>('all');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
   const [deleting, setDeleting] = useState(false);
 
@@ -270,8 +272,13 @@ function InvoiceList() {
   const table = useReactTable({
     data: filtered,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: (updater) => {
+      const newPagination = typeof updater === 'function' ? updater(pagination) : updater;
+      setPagination(newPagination);
+      console.debug('[InvoiceList] pagination changed:', newPagination);
+    },
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -427,7 +434,7 @@ function InvoiceList() {
                   )}
                 </tbody>
               </table>
-              <DataTablePagination table={table} totalLabel="invoices" />
+              <DataTablePagination table={table} pagination={pagination} totalLabel="invoices" />
             </div>
           )}
         </CardContent>

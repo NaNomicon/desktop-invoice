@@ -33,6 +33,7 @@ import {
   useReactTable,
   type SortingState,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -367,6 +368,7 @@ function ReceiptPreview() {
   const [companyFilter, setCompanyFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [companyOpen, setCompanyOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
   const closeHomeTab = useUIStore((state) => state.closeHomeTab);
@@ -719,8 +721,9 @@ function ReceiptPreview() {
   const table = useReactTable({
     data: receiptData,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -917,7 +920,7 @@ function ReceiptPreview() {
                   )}
                 </tbody>
               </table>
-              <DataTablePagination table={table} totalLabel="receipts" />
+              <DataTablePagination table={table} pagination={pagination} totalLabel="receipts" />
             </div>
           )}
         </CardContent>
