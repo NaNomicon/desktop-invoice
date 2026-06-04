@@ -288,9 +288,15 @@ function ReceiptForm() {
   
   const { getDragHandlers } = useColumnOrder(transTable);
   const filteredCustomers = customerSearch
-    ? customers.filter((c) =>
-        c.customer_name.toLowerCase().includes(customerSearch.toLowerCase()),
-      ).slice(0, 50)
+    ? customers.filter((c) => {
+        const search = customerSearch.trim().toLowerCase();
+        const name = c.customer_name?.toLowerCase() ?? '';
+        const title = c.title_name?.toLowerCase() ?? '';
+        const telephone = c.telephone?.toLowerCase() ?? '';
+        const email = c.email?.toLowerCase() ?? '';
+        const address = c.address?.toLowerCase() ?? '';
+        return [name, title, telephone, email, address].some((value) => value.includes(search));
+      }).slice(0, 50)
     : customers.slice(0, 50);
 
   const resetForm = useCallback(() => {
