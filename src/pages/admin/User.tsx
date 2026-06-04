@@ -26,6 +26,7 @@ import {
   getPaginationRowModel,
   useReactTable,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -48,6 +49,7 @@ function UserPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
@@ -114,6 +116,8 @@ function UserPage() {
   const table = useReactTable({
     data: users,
     columns,
+    state: { pagination },
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
@@ -253,7 +257,7 @@ function UserPage() {
                   )}
                 </tbody>
               </table>
-              <DataTablePagination table={table} totalLabel="users" />
+              <DataTablePagination table={table} pagination={pagination} totalLabel="users" />
             </div>
           )}
         </CardContent>

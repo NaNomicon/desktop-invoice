@@ -24,6 +24,7 @@ import {
   useReactTable,
   type SortingState,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -64,6 +65,7 @@ function ListOutStanding() {
   const [companyOpen, setCompanyOpen] = useState(false);
   const [companySearch, setCompanySearch] = useState('');
     const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const customers = useMemo(() => data?.customers ?? [], [data?.customers]);
   const companies = useMemo(() => data?.companies ?? [], [data?.companies]);
   const settings = data?.settings ?? null;
@@ -197,8 +199,9 @@ function ListOutStanding() {
   const table = useReactTable({
     data: filtered,
     columns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -371,7 +374,7 @@ function ListOutStanding() {
                   )}
                 </tbody>
               </table>
-              <DataTablePagination table={table} totalLabel="outstanding invoices" />
+              <DataTablePagination table={table} pagination={pagination} totalLabel="outstanding invoices" />
             </div>
           )}
         </CardContent>

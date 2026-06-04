@@ -12,20 +12,43 @@ import {
 
 interface DataTablePaginationProps<TData> {
   table: Table<TData>;
+  pagination: { pageIndex: number; pageSize: number };
   totalLabel?: string;
   pageSizeOptions?: number[];
 }
 
 export function DataTablePagination<TData>({
   table,
+  pagination,
   totalLabel = 'rows',
   pageSizeOptions = [10, 25, 50, 100],
 }: DataTablePaginationProps<TData>) {
-  const pageIndex = table.getState().pagination.pageIndex;
-  const pageSize = table.getState().pagination.pageSize;
+  const pageIndex = pagination.pageIndex;
+  const pageSize = pagination.pageSize;
   const totalRows = table.getPrePaginationRowModel().rows.length;
   const pageCount = table.getPageCount();
   const currentPage = pageCount === 0 ? 0 : pageIndex + 1;
+  const canPrev = pageIndex > 0;
+  const canNext = pageIndex < pageCount - 1;
+
+  const handleFirst = () => {
+    console.debug('[Pagination] First clicked, pageIndex:', pageIndex);
+    table.setPageIndex(0);
+  };
+
+  const handlePrev = () => {
+    console.debug('[Pagination] Prev clicked, pageIndex:', pageIndex);
+    table.previousPage();
+  };
+
+  const handleNext = () => {
+    table.nextPage();
+  };
+
+  const handleLast = () => {
+    console.debug('[Pagination] Last clicked, pageIndex:', pageIndex);
+    table.setPageIndex(pageCount - 1);
+  };
 
   return (
     <div className="flex flex-col gap-3 py-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
@@ -59,8 +82,8 @@ export function DataTablePagination<TData>({
             type="button"
             variant="outline"
             size="icon-sm"
-            onClick={() => table.firstPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={handleFirst}
+            disabled={!canPrev}
             aria-label="Go to first page"
           >
             <ChevronsLeft className="size-3.5" />
@@ -69,8 +92,8 @@ export function DataTablePagination<TData>({
             type="button"
             variant="outline"
             size="icon-sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
+            onClick={handlePrev}
+            disabled={!canPrev}
             aria-label="Go to previous page"
           >
             <ChevronLeft className="size-3.5" />
@@ -79,8 +102,8 @@ export function DataTablePagination<TData>({
             type="button"
             variant="outline"
             size="icon-sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={handleNext}
+            disabled={!canNext}
             aria-label="Go to next page"
           >
             <ChevronRight className="size-3.5" />
@@ -89,8 +112,8 @@ export function DataTablePagination<TData>({
             type="button"
             variant="outline"
             size="icon-sm"
-            onClick={() => table.lastPage()}
-            disabled={!table.getCanNextPage()}
+            onClick={handleLast}
+            disabled={!canNext}
             aria-label="Go to last page"
           >
             <ChevronsRight className="size-3.5" />

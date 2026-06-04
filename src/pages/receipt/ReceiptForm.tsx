@@ -34,6 +34,7 @@ import {
   useReactTable,
   type SortingState,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -88,6 +89,7 @@ function ReceiptForm() {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [transLoading, setTransLoading] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([{ id: 'extra', desc: true }]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [preLoadStatus, setPreLoadStatus] = useState<string | null>(null);
 
   const calResult = cal({
@@ -278,8 +280,9 @@ function ReceiptForm() {
   const transTable = useReactTable({
     data: transactions,
     columns: transColumns,
-    state: { sorting },
+    state: { sorting, pagination },
     onSortingChange: setSorting,
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
     getSortedRowModel: getSortedRowModel(),
@@ -606,7 +609,7 @@ function ReceiptForm() {
                       ))}
                     </tbody>
                   </table>
-                  <DataTablePagination table={transTable} totalLabel="transactions" />
+                  <DataTablePagination table={transTable} pagination={pagination} totalLabel="transactions" />
                 </div>
               )}
             </CardContent>

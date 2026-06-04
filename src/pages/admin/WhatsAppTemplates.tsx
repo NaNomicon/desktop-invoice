@@ -28,6 +28,7 @@ import {
   getPaginationRowModel,
   useReactTable,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -61,6 +62,7 @@ function WhatsAppTemplatesPage() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 
   const [form, setForm] = useState<{
     template_name: string;
@@ -151,6 +153,8 @@ function WhatsAppTemplatesPage() {
   const table = useReactTable({
     data: templates,
     columns,
+    state: { pagination },
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
@@ -297,7 +301,7 @@ function WhatsAppTemplatesPage() {
                   )}
                 </tbody>
               </table>
-              <DataTablePagination table={table} totalLabel="templates" />
+              <DataTablePagination table={table} pagination={pagination} totalLabel="templates" />
             </div>
           )}
         </CardContent>

@@ -20,6 +20,7 @@ import {
   getPaginationRowModel,
   useReactTable,
   type ColumnDef,
+  type PaginationState,
 } from '@tanstack/react-table';
 import { useColumnOrder } from '@/hooks/useColumnOrder';
 import { DataTablePagination } from '@/components/DataTablePagination';
@@ -34,6 +35,7 @@ function ProductTypePage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
   const [editingId, setEditingId] = useState<number | null>(null);
   const [typeName, setTypeName] = useState('');
   const [saving, setSaving] = useState(false);
@@ -107,6 +109,8 @@ function ProductTypePage() {
   const table = useReactTable({
     data: types,
     columns,
+    state: { pagination },
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
   });
@@ -240,7 +244,7 @@ function ProductTypePage() {
                   )}
                 </tbody>
               </table>
-              <DataTablePagination table={table} totalLabel="product types" />
+              <DataTablePagination table={table} pagination={pagination} totalLabel="product types" />
             </div>
           )}
           <p className="mt-2 text-right text-lg font-semibold tracking-tight text-muted-foreground">
