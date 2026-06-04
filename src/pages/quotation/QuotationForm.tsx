@@ -721,7 +721,7 @@ function QuotationForm() {
                 <Button variant="outline" role="combobox" aria-expanded={customerOpen} className="w-full justify-between font-normal">
                   <span className="truncate">
                     {selectedCustomer
-                      ? [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name, selectedCustomer.telephone?.trim()].filter(Boolean).join(' - ')
+                      ? (selectedCustomer.customer_name ?? '-')
                       : 'Select customer...'}
                   </span>
                   <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
@@ -736,7 +736,7 @@ function QuotationForm() {
                       {customerOpen && filteredCustomers.map((customer) => (
                         <CommandItem key={customer.id} value={[customer.title_name, customer.customer_name, customer.telephone, customer.email].filter(Boolean).join(' ')} onSelect={() => selectCustomer(customer)}>
                           <Check className={cn('mr-2 size-4', customerId === customer.id ? 'opacity-100' : 'opacity-0')} />
-                          {[customer.title_name?.trim(), customer.customer_name, customer.telephone?.trim()].filter(Boolean).join(' - ')}
+                          {customer.customer_name ?? '-'}
                         </CommandItem>
                       ))}
                     </CommandGroup>

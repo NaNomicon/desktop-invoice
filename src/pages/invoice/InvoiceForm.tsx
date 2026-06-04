@@ -901,7 +901,7 @@ function InvoiceForm() {
                 >
                   <span className="truncate">
                     {selectedCustomer
-                      ? [selectedCustomer.title_name?.trim(), selectedCustomer.customer_name, selectedCustomer.telephone?.trim()].filter(Boolean).join(' - ')
+                      ? (selectedCustomer.customer_name ?? '-')
                       : 'Select customer...'}
                   </span>
                   <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
@@ -926,7 +926,7 @@ function InvoiceForm() {
                           <Check
                             className={cn('mr-2 size-4', customerId === c.id ? 'opacity-100' : 'opacity-0')}
                           />
-                          {[c.title_name?.trim(), c.customer_name, c.telephone?.trim()].filter(Boolean).join(' - ')}
+                          {c.customer_name ?? '-'}
                         </CommandItem>
                       ))}
                     </CommandGroup>
