@@ -4,7 +4,7 @@ import { query } from '@/lib/db';
 import { getNextReceiptNo } from '@/lib/db/nextNumber';
 import { cal } from '@/lib/receipt/cal';
 import { saved } from '@/lib/receipt/saved';
-import type { Customer, Company, Setting, Receipt as ReceiptRecord } from '@/lib/types';
+import type { Customer, Company, Receipt as ReceiptRecord } from '@/lib/types';
 import { formatMoney } from '@/lib/currency';
 import { useCurrencySymbol } from '@/services/company';
 import { useAuthStore } from '@/store/authStore';
@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
@@ -67,7 +68,6 @@ function ReceiptForm() {
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [, setCompanies] = useState<Company[]>([]);
-  const [settings, setSettings] = useState<Setting | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -80,8 +80,9 @@ function ReceiptForm() {
   const [adDueStatus, setAdDueStatus] = useState('');
   const [loadDuaAmount, setLoadDuaAmount] = useState(0);
   const [amountReceived, setAmountReceived] = useState('');
-  const [paymentMode, setPaymentMode] = useState('');
-  const [paymentModeOpen, setPaymentModeOpen] = useState(false);
+  const [cashChecked, setCashChecked] = useState(false);
+  const [chequeChecked, setChequeChecked] = useState(false);
+  const [otherChecked, setOtherChecked] = useState(false);
   const [chequeNo, setChequeNo] = useState('');
   const [notes, setNotes] = useState('');
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
@@ -110,15 +111,13 @@ function ReceiptForm() {
 
   const loadData = useCallback(async () => {
     setLoading(true);
-    const [custRows, compRows, setRows, nextReceiptNo] = await Promise.all([
+    const [custRows, compRows, nextReceiptNo] = await Promise.all([
       query<Customer>('SELECT * FROM tbl_customer WHERE is_deleted = 0 ORDER BY customer_name'),
       query<Company>('SELECT id, company_name FROM tbl_company WHERE is_active = 1'),
-      query<Setting>('SELECT * FROM tbl_setting WHERE id = 1'),
       getNextReceiptNo(),
     ]);
     setCustomers(custRows);
     setCompanies(compRows);
-    setSettings(setRows[0] ?? null);
     setReceiptNo(nextReceiptNo);
     setLoading(false);
   }, []);
@@ -148,11 +147,13 @@ function ReceiptForm() {
 
           setReceiptNo(receipt.receipt_no);
           setReceiptDate(receipt.receipt_date || new Date().toISOString().slice(0, 10));
-          setPaymentMode(receipt.payment_mode ?? '');
           setChequeNo(receipt.cheque_no ?? '');
           setNotes(receipt.notes ?? '');
           setAmountReceived(String(receipt.amount_received ?? 0));
           setPreLoadStatus(receipt.pre_load ?? null);
+          setCashChecked(receipt.cash === '1');
+          setChequeChecked(receipt.cheque === '1');
+          setOtherChecked(receipt.other === '1');
 
           const matchedCustomer = customers.find((customer) => customer.id === receipt.customer_id) ?? null;
           if (matchedCustomer) {
@@ -292,10 +293,6 @@ function ReceiptForm() {
       ).slice(0, 50)
     : customers.slice(0, 50);
 
-  const paymentModes = settings
-    ? [settings.cash, settings.cheque, settings.other].filter(Boolean)
-    : ['Cash', 'Cheque', 'Other'];
-
   const resetForm = useCallback(() => {
     setCustomerId(0);
     setCustomerSearch('');
@@ -303,7 +300,9 @@ function ReceiptForm() {
     setAdDueStatus('');
     setLoadDuaAmount(0);
     setAmountReceived('');
-    setPaymentMode('');
+    setCashChecked(false);
+    setChequeChecked(false);
+    setOtherChecked(false);
     setChequeNo('');
     setNotes('');
     setTransactions([]);
@@ -332,13 +331,15 @@ function ReceiptForm() {
         receipt_date: receiptDate,
         customer_id: customerId,
         amount_received: amount,
-        payment_mode: paymentMode || null,
         cheque_no: chequeNo || null,
         notes: notes || null,
         cr_dr: calResult.cr_dr,
         ad_due: calResult.ad_due,
         load_dua_amount: loadDuaAmount,
         pre_load_status: preLoadStatus,
+        cash: cashChecked ? '1' : '0',
+        cheque: chequeChecked ? '1' : '0',
+        other: otherChecked ? '1' : '0',
       });
       toast.success(isEditing ? 'Receipt updated' : 'Receipt saved');
       await loadData();
@@ -361,6 +362,9 @@ function ReceiptForm() {
     applyCustomerSelection,
     calResult.ad_due,
     calResult.cr_dr,
+    cashChecked,
+    chequeChecked,
+    otherChecked,
     chequeNo,
     customerId,
     customers,
@@ -370,7 +374,7 @@ function ReceiptForm() {
     loadDuaAmount,
     loadTransactions,
     notes,
-    paymentMode,
+    preLoadStatus,
     receiptDate,
     receiptNo,
     resetForm,
@@ -490,51 +494,21 @@ function ReceiptForm() {
                 </div>
 
                 <div className="space-y-1">
-                  <Label htmlFor="payment-mode">Payment Mode</Label>
-                  <Popover open={paymentModeOpen} onOpenChange={setPaymentModeOpen}>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        role="combobox"
-                        aria-expanded={paymentModeOpen}
-                        className="w-full justify-between font-normal"
-                      >
-                        {paymentMode || 'Select...'}
-                        <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-[200px] p-0" align="start">
-                      <Command shouldFilter={false}>
-                        <CommandList>
-                          {paymentModeOpen && (
-                            <>
-                              <CommandEmpty>No option found.</CommandEmpty>
-                              <CommandGroup>
-                                {paymentModes.map((m) => (
-                                  <CommandItem
-                                    key={m}
-                                    value={m ?? ''}
-                                    onSelect={(currentValue) => {
-                                      setPaymentMode(currentValue);
-                                      setPaymentModeOpen(false);
-                                    }}
-                                  >
-                                    <Check
-                                      className={cn(
-                                        'mr-2 size-4',
-                                        paymentMode === m ? 'opacity-100' : 'opacity-0',
-                                      )}
-                                    />
-                                    {m}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  <Label>Payment Mode</Label>
+                  <div className="flex gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="cash" checked={cashChecked} onCheckedChange={(checked) => setCashChecked(checked === true)} />
+                      <Label htmlFor="cash" className="text-sm font-normal">Cash</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="cheque" checked={chequeChecked} onCheckedChange={(checked) => setChequeChecked(checked === true)} />
+                      <Label htmlFor="cheque" className="text-sm font-normal">Cheque</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox id="other" checked={otherChecked} onCheckedChange={(checked) => setOtherChecked(checked === true)} />
+                      <Label htmlFor="other" className="text-sm font-normal">Other</Label>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-1">
@@ -544,11 +518,6 @@ function ReceiptForm() {
                     value={chequeNo}
                     onChange={(e) => setChequeNo(e.target.value)}
                   />
-                </div>
-
-                <div className="space-y-1">
-                  <Label>Cr/Dr</Label>
-                  <Input value={calResult.cr_dr || '-'} readOnly className="bg-muted" />
                 </div>
 
                 <div className="space-y-1">

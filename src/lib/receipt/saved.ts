@@ -11,13 +11,15 @@ export interface ReceiptSaveInput {
   receipt_date: string;
   customer_id: number;
   amount_received: number;
-  payment_mode: string | null;
   cheque_no: string | null;
   notes: string | null;
   cr_dr: string;
   ad_due: string;
   load_dua_amount: number;
   pre_load_status?: string | null;
+  cash: string;
+  cheque: string;
+  other: string;
 }
 
 export async function saved(input: ReceiptSaveInput): Promise<void> {
@@ -28,23 +30,21 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
     receipt_date,
     customer_id,
     amount_received,
-    payment_mode,
     cheque_no,
     notes,
     cr_dr,
     ad_due,
     load_dua_amount,
     pre_load_status,
+    cash,
+    cheque,
+    other,
   } = input;
 
   const result = cal({ load_dua_amount, amount_received });
   const new_due_abs = Math.abs(result.new_due);
   const previous_balance_abs = Math.abs(load_dua_amount);
   const timestamp = String(Date.now());
-  const paymentLabel = (payment_mode ?? '').trim().toLowerCase();
-  const isCash = paymentLabel === 'cash' ? '1' : '0';
-  const isCheque = paymentLabel === 'cheque' ? '1' : '0';
-  const isOther = paymentLabel !== '' && paymentLabel !== 'cash' && paymentLabel !== 'cheque' ? '1' : '0';
 
   await db.execute('BEGIN TRANSACTION');
 
@@ -67,8 +67,8 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
         `INSERT INTO tbl_receipt (
           receipt_no, receipt_date, customer_id, company_id, due_amount,
           amount_received, cheque_no, no, balance, cr_dr, pre_load,
-          cash, cheque, other, payment_mode, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          cash, cheque, other, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           receipt_no,
           receipt_date,
@@ -81,10 +81,9 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
           previous_balance_abs,
           cr_dr,
           preLoadValue,
-          isCash,
-          isCheque,
-          isOther,
-          payment_mode,
+          cash,
+          cheque,
+          other,
           notes ?? null,
         ],
       );
@@ -114,7 +113,7 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
         `UPDATE tbl_receipt SET
          receipt_date = ?, due_amount = ?, amount_received = ?, cheque_no = ?,
          balance = ?, cr_dr = ?, pre_load = ?, cash = ?, cheque = ?, other = ?,
-         payment_mode = ?, notes = ?
+         notes = ?
          WHERE id = ?`,
         [
           receipt_date,
@@ -124,10 +123,9 @@ export async function saved(input: ReceiptSaveInput): Promise<void> {
           Math.abs(revertedLoadAmount),
           cr_dr,
           preLoadValue,
-          isCash,
-          isCheque,
-          isOther,
-          payment_mode,
+          cash,
+          cheque,
+          other,
           notes ?? null,
           receipt_id,
         ],
