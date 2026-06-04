@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { ChevronsUpDown, Check, Trash2, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -10,7 +11,6 @@ import {
   CommandItem,
   CommandList,
 } from '@/components/ui/command';
-import { ChevronsUpDown, Check, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatMoney, parseCents, toDecimal } from '@/lib/currency';
 import type { Product } from '@/lib/types';
@@ -26,6 +26,7 @@ export interface ProductRowProps {
   onQtyChange: (qty: number) => void;
   onPriceChange?: (price: number) => void;
   onDelete: () => void;
+  onCreateProduct?: () => void;
 }
 
 export function ProductRow({
@@ -38,6 +39,7 @@ export function ProductRow({
   onQtyChange,
   onPriceChange,
   onDelete,
+  onCreateProduct,
 }: ProductRowProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -74,35 +76,51 @@ export function ProductRow({
               </Button>
             </PopoverTrigger>
             <PopoverContent className="w-64 p-0" align="start">
-              <Command shouldFilter={false}>
-                <CommandInput
-                  placeholder="Search product..."
-                  value={search}
-                  onValueChange={setSearch}
-                />
-                <CommandList>
-                  <CommandEmpty>No product found.</CommandEmpty>
-                  <CommandGroup>
-                    {filtered.map((p) => (
-                      <CommandItem
-                        key={p.id}
-                        value={`${p.product_id ?? ''} ${p.product_name}`}
-                        onSelect={() => {
-                          onProductSelect(p);
-                          setSearch('');
+                <Command shouldFilter={false}>
+                  <CommandInput
+                    placeholder="Search product..."
+                    value={search}
+                    onValueChange={setSearch}
+                  />
+                  <CommandList className="max-h-[300px]">
+                    <CommandEmpty>No product found.</CommandEmpty>
+                    <CommandGroup>
+                      {filtered.map((p) => (
+                        <CommandItem
+                          key={p.id}
+                          value={`${p.product_id ?? ''} ${p.product_name}`}
+                          onSelect={() => {
+                            onProductSelect(p);
+                            setSearch('');
+                            setOpen(false);
+                          }}
+                        >
+                          <Check
+                            className={cn('me-2 size-4', li.product_id === p.id ? 'opacity-100' : 'opacity-0')}
+                          />
+                          <span className="flex-1 truncate">{p.product_name}</span>
+                          <span className="ms-2 text-xs text-muted-foreground">{formatMoney(p.price, currency)}</span>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  </CommandList>
+                  {onCreateProduct && (
+                    <div className="border-t">
+                      <button
+                        type="button"
+                        className="flex w-full items-center gap-2 px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
+                        onClick={() => {
                           setOpen(false);
+                          setSearch('');
+                          onCreateProduct();
                         }}
                       >
-                        <Check
-                          className={cn('me-2 size-4', li.product_id === p.id ? 'opacity-100' : 'opacity-0')}
-                        />
-                        <span className="flex-1 truncate">{p.product_name}</span>
-                        <span className="ms-2 text-xs text-muted-foreground">{formatMoney(p.price, currency)}</span>
-                      </CommandItem>
-                    ))}
-                  </CommandGroup>
-                </CommandList>
-              </Command>
+                        <Plus className="size-4" />
+                        Create new product
+                      </button>
+                    </div>
+                  )}
+                </Command>
             </PopoverContent>
           </Popover>
         )}
