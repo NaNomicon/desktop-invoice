@@ -122,7 +122,7 @@ export async function splitInvoice(
     const endingSignedBalance = startingSignedBalance + due1 + due2;
     const nextCustomerBalance = fromSignedBalance(endingSignedBalance);
 
-    await db.execute(
+    const res1 = await db.execute(
       `INSERT INTO tbl_invoice_main (
         customer_id, invoice_no, checklist_no, company_id,
         sub_total, amount_due, vat, discount, total, per,
@@ -149,12 +149,7 @@ export async function splitInvoice(
         null,
       ],
     );
-
-    const idRows1 = await db.select<{ id: number }[]>(
-      'SELECT last_insert_rowid() as id',
-      [],
-    );
-    const invId1 = idRows1[0]?.id ?? 0;
+    const invId1 = res1.lastInsertId ?? 0;
 
     for (let i = 0; i < items1.length; i++) {
       const item = items1[i];
@@ -176,7 +171,7 @@ export async function splitInvoice(
       );
     }
 
-    await db.execute(
+    const res2 = await db.execute(
       `INSERT INTO tbl_invoice_main (
         customer_id, invoice_no, checklist_no, company_id,
         sub_total, amount_due, vat, discount, total, per,
@@ -203,12 +198,7 @@ export async function splitInvoice(
         null,
       ],
     );
-
-    const idRows2 = await db.select<{ id: number }[]>(
-      'SELECT last_insert_rowid() as id',
-      [],
-    );
-    const invId2 = idRows2[0]?.id ?? 0;
+    const invId2 = res2.lastInsertId ?? 0;
 
     for (let i = 0; i < items2.length; i++) {
       const item = items2[i];

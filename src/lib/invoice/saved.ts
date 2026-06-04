@@ -151,7 +151,7 @@ export async function saved(
         ],
       );
     } else {
-      await db.execute(
+      const result = await db.execute(
         `INSERT INTO tbl_invoice_main (
           customer_id, invoice_no, checklist_no, company_id,
           sub_total, amount_due, vat, discount, total, per,
@@ -178,12 +178,7 @@ export async function saved(
           params.print_due ?? null,
         ],
       );
-
-      const idRows = await db.select<{ id: number }[]>(
-        'SELECT last_insert_rowid() as id',
-        [],
-      );
-      invoiceId = idRows[0]?.id ?? 0;
+      invoiceId = result.lastInsertId ?? 0;
     }
 
     for (const item of params.line_items) {
