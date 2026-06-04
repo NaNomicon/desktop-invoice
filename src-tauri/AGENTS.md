@@ -20,7 +20,7 @@ src/
 │   ├── quick_pane.rs    # show/dismiss/toggle_quick_pane, shortcut management
 │   ├── notifications.rs # send_native_notification
 │   ├── email.rs         # send_email (SMTP via lettre)
-│   ├── reports.rs       # validate_bundled_pdf_renderer, save_report_pdf (headless Chromium)
+│   ├── reports.rs       # save_report_pdf (Typst PDF renderer)
 │   └── migration.rs     # migrate_from_sqlserver (SQL Server → SQLite, 16 tables)
 └── utils/
     ├── mod.rs
@@ -46,7 +46,7 @@ src/
 | `get_default_quick_pane_shortcut` / `update_quick_pane_shortcut` | quick_pane.rs | Global shortcut management |
 | `send_email` | email.rs | SMTP with HTML body + attachments |
 | `get_db_path` / `backup_database` / `restore_database` | database.rs | SQLite file operations |
-| `validate_bundled_pdf_renderer` / `save_report_pdf` | reports.rs | Headless Chromium PDF |
+| `save_report_pdf` | reports.rs | Typst PDF generation |
 | `migrate_from_sqlserver` | migration.rs | SQL Server → SQLite (emits `migration-progress` events) |
 
 ## Database

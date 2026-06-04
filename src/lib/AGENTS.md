@@ -26,7 +26,7 @@ Core utilities, Tauri bindings, database layer, and domain logic. No React hooks
 | `notifications.ts` | Toast wrapper (sonner) |
 | `platform-strings.ts` | Platform-specific UI strings ("Reveal in Finder" vs "Show in Explorer") |
 | `theme-context.ts` | `useTheme()` hook context — reads/writes theme preference |
-| `report-output.ts` | `saveReportPdf()` — orchestrates Chromium PDF generation |
+| `report-output.ts` | `saveReportPdf()` — orchestrates Typst PDF generation |
 | `email/` | Email sending helpers |
 | `invoice/` | `cal.ts` (calculations), `delete.ts`, `editLock.ts`, `saved.ts`, `splitInvoice.ts` |
 | `quotation/` | `cal.ts`, `delete.ts`, `saved.ts`, `splitQuotation.ts` |

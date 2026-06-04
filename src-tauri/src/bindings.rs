@@ -22,7 +22,6 @@ pub fn generate_bindings() -> Builder<tauri::Wry> {
         database::get_db_path,
         database::backup_database,
         database::restore_database,
-        reports::validate_bundled_pdf_renderer,
         reports::save_report_pdf,
         migration::migrate_from_sqlserver,
     ])

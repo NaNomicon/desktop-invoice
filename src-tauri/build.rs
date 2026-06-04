@@ -2,9 +2,9 @@ use std::{env, path::PathBuf};
 
 fn bundled_renderer_path(manifest_dir: &str, target_os: &str) -> PathBuf {
     let relative = match target_os {
-        "windows" => "binaries/chromium/windows/chrome.exe",
-        "macos" => "binaries/chromium/macos/Chromium.app/Contents/MacOS/Chromium",
-        _ => "binaries/chromium/linux/chrome",
+        "windows" => "binaries/typst/windows/typst.exe",
+        "macos" => "binaries/typst/macos/typst",
+        _ => "binaries/typst/linux/typst",
     };
 
     PathBuf::from(manifest_dir).join(relative)
@@ -20,14 +20,14 @@ fn enforce_bundled_renderer() {
     println!("cargo:rerun-if-changed=binaries");
 
     let enforce_for_profile = matches!(profile.as_str(), "release")
-        || env::var_os("TAURI_FORCE_BUNDLED_CHROMIUM_CHECK").is_some();
+        || env::var_os("TAURI_FORCE_BUNDLED_TYPST_CHECK").is_some();
     if !enforce_for_profile {
         return;
     }
 
     if !renderer_path.exists() {
         panic!(
-            "Missing standalone bundled Chromium for target OS `{target_os}`. Expected renderer at `{}`. Add the platform binary under src-tauri/binaries before building.",
+            "Missing bundled Typst PDF renderer for target OS `{target_os}`. Expected renderer at `{}`. Add the platform Typst binary under src-tauri/binaries before building.",
             renderer_path.display()
         );
     }

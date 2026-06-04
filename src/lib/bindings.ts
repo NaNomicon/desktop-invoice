@@ -187,14 +187,6 @@ async restoreDatabase(fromPath: string) : Promise<Result<null, string>> {
     else return { status: "error", error: e  as any };
 }
 },
-async validateBundledPdfRenderer() : Promise<Result<string, string>> {
-    try {
-    return { status: "ok", data: await TAURI_INVOKE("validate_bundled_pdf_renderer") };
-} catch (e) {
-    if(e instanceof Error) throw e;
-    else return { status: "error", error: e  as any };
-}
-},
 async saveReportPdf(request: SaveReportPdfRequest) : Promise<Result<string, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("save_report_pdf", { request }) };
