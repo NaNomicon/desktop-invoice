@@ -85,7 +85,7 @@ export async function saveQuotation(
         ],
       );
     } else {
-      await db.execute(
+      const res = await db.execute(
         `INSERT INTO tbl_quotation_main (
           customer_id, quo_no, checklist_no, company_id,
           sub_total, amount_due, vat, discount, total, per,
@@ -107,12 +107,7 @@ export async function saveQuotation(
           params.identify,
         ],
       );
-
-      const idRows = await db.select<{ id: number }[]>(
-        'SELECT last_insert_rowid() AS id',
-        [],
-      );
-      quotationId = idRows[0]?.id ?? 0;
+      quotationId = res.lastInsertId ?? 0;
     }
 
     for (const item of params.line_items) {

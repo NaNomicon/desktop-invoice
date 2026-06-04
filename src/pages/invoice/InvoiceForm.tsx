@@ -344,7 +344,7 @@ function InvoiceForm() {
   );
 
   const loadInvoice = useCallback(
-    async (invoiceId: number) => {
+    async (invoiceId: number, companyIds: number[]) => {
       const lockState = await canEditInvoice(invoiceId);
       if (!lockState.canEdit) {
         toast.error(lockState.message ?? 'Invoice cannot be edited');
@@ -389,22 +389,26 @@ function InvoiceForm() {
         setTypeFilterByCompany({});
         setTypeFilterOpenByCompany({});
         setTypeSearchByCompany({});
-        setPrintDue(invoice.print_due === 'YES');        setLineItems(
-          lineRows.length > 0
-            ? lineRows.map((item, index) => ({
-                uid: nextUid(),
-                id: 0,
-                qty: item.qty,
-                product_id: item.product_id,
-                product_name: item.product_name ?? '',
-                unit_price: item.unit_price,
-                row_total: item.row_total,
-                s_no: item.s_no || index + 1,
-                deleted: false,
-                company_id: item.company_id ?? item.product_company_id ?? null,
-              }))
-            : createBlankLineItems(),
-        );
+        setPrintDue(invoice.print_due === 'YES');
+        const copiedItems = lineRows.length > 0
+          ? lineRows.map((item, index) => ({
+              uid: nextUid(),
+              id: 0,
+              qty: item.qty,
+              product_id: item.product_id,
+              product_name: item.product_name ?? '',
+              unit_price: item.unit_price,
+              row_total: item.row_total,
+              s_no: item.s_no || index + 1,
+              deleted: false,
+              company_id: item.company_id ?? item.product_company_id ?? null,
+            }))
+          : [];
+        const copiedBlankItems = createBlankLineItems(companyIds).map((item, index) => ({
+          ...item,
+          s_no: copiedItems.length + index + 1,
+        }));
+        setLineItems(copiedItems.length > 0 ? [...copiedItems, ...copiedBlankItems] : copiedBlankItems);
         toast.info(lockState.message ?? 'Loaded as a new invoice');
         navigate(location.pathname, { replace: true, state: null });
         return;
@@ -427,22 +431,23 @@ function InvoiceForm() {
       setTypeFilterOpenByCompany({});
       setTypeSearchByCompany({});
       setPrintDue(invoice.print_due === 'YES');
-      setLineItems(
-        lineRows.length > 0
-          ? lineRows.map((item, index) => ({
-              uid: nextUid(),
-              id: item.id,
-              qty: item.qty,
-              product_id: item.product_id,
-              product_name: item.product_name ?? '',
-              unit_price: item.unit_price,
-              row_total: item.row_total,
-              s_no: item.s_no || index + 1,
-              deleted: false,
-              company_id: item.company_id ?? item.product_company_id ?? null,
-            }))
-          : createBlankLineItems(),
-      );
+      const editedItems = lineRows.map((item, index) => ({
+        uid: nextUid(),
+        id: item.id,
+        qty: item.qty,
+        product_id: item.product_id,
+        product_name: item.product_name ?? '',
+        unit_price: item.unit_price,
+        row_total: item.row_total,
+        s_no: item.s_no || index + 1,
+        deleted: false,
+        company_id: item.company_id ?? item.product_company_id ?? null,
+      }));
+      const editedBlankItems = createBlankLineItems(companyIds).map((item, index) => ({
+        ...item,
+        s_no: editedItems.length + index + 1,
+      }));
+      setLineItems(editedItems.length > 0 ? [...editedItems, ...editedBlankItems] : editedBlankItems);
       navigate(location.pathname, { replace: true, state: null });
     },
     [location.pathname, navigate],
@@ -454,7 +459,7 @@ function InvoiceForm() {
     }
 
     if (invoicePrefill.invoiceId) {
-      void loadInvoice(invoicePrefill.invoiceId);
+      void loadInvoice(invoicePrefill.invoiceId, companies.map((company) => company.id));
       return;
     }
 

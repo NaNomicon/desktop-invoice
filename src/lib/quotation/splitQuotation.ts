@@ -92,7 +92,7 @@ export async function splitQuotation(
 
   try {
 
-    await db.execute(
+    const res1 = await db.execute(
       `INSERT INTO tbl_quotation_main (
         customer_id, quo_no, checklist_no, company_id,
         sub_total, amount_due, vat, discount, total, per,
@@ -114,12 +114,7 @@ export async function splitQuotation(
         params.identify,
       ],
     );
-
-    const idRows1 = await db.select<{ id: number }[]>(
-      'SELECT last_insert_rowid() as id',
-      [],
-    );
-    const quotId1 = idRows1[0]?.id ?? 0;
+    const quotId1 = res1.lastInsertId ?? 0;
 
     for (let i = 0; i < items1.length; i++) {
       const item = items1[i];
@@ -141,7 +136,7 @@ export async function splitQuotation(
       );
     }
 
-    await db.execute(
+    const res2 = await db.execute(
       `INSERT INTO tbl_quotation_main (
         customer_id, quo_no, checklist_no, company_id,
         sub_total, amount_due, vat, discount, total, per,
@@ -163,12 +158,7 @@ export async function splitQuotation(
         params.identify,
       ],
     );
-
-    const idRows2 = await db.select<{ id: number }[]>(
-      'SELECT last_insert_rowid() as id',
-      [],
-    );
-    const quotId2 = idRows2[0]?.id ?? 0;
+    const quotId2 = res2.lastInsertId ?? 0;
 
     for (let i = 0; i < items2.length; i++) {
       const item = items2[i];
