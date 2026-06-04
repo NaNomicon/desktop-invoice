@@ -396,7 +396,11 @@ function QuotationForm() {
     if (!products.length) return;
     const product = products.find((p) => p.id === productAutoFill.productId);
     if (product) {
-      const target = lineItems.find((item) => !item.deleted && !item.product_id) ??
+      const target =
+        (productAutoFill.lineItemUid
+          ? lineItems.find((item) => item.uid === productAutoFill.lineItemUid && !item.deleted)
+          : null) ??
+        lineItems.find((item) => !item.deleted && !item.product_id) ??
         lineItems.find((item) => !item.deleted) ??
         null;
       if (!target) {
@@ -866,6 +870,17 @@ function QuotationForm() {
                         }}
                         onQtyChange={(qty) => updateLineItem(li.uid, { qty })}
                         onDelete={() => toggleDeleteLineItem(li.uid)}
+                        onCreateProduct={() => {
+                          setProductAutoFill({
+                            targetForm: 'quotation',
+                            productId: null,
+                            productName: '',
+                            unitPrice: 0,
+                            lineItemUid: li.uid,
+                            companyId: company.id,
+                          });
+                          navigate(`/products?newFor=quotation&companyId=${company.id}`);
+                        }}
                       />
                     ))}
                   </tbody>

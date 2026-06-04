@@ -659,9 +659,15 @@ function InvoiceForm() {
     if (!products.length) return;
     const product = products.find((p) => p.id === productAutoFill.productId);
     if (product) {
-      const emptyTarget = lineItems.find((item) => !item.deleted && !item.product_id) ?? null;
-      if (emptyTarget) {
-        updateLineItem(emptyTarget.uid, {
+      // Prefer the exact row that triggered creation, else fall back to first blank
+      const target =
+        (productAutoFill.lineItemUid
+          ? lineItems.find((item) => item.uid === productAutoFill.lineItemUid && !item.deleted)
+          : null) ??
+        lineItems.find((item) => !item.deleted && !item.product_id) ??
+        null;
+      if (target) {
+        updateLineItem(target.uid, {
           product_id: product.id,
           product_name: product.product_name,
           unit_price: product.price,
@@ -1126,6 +1132,17 @@ function InvoiceForm() {
                         }}
                         onQtyChange={(qty) => updateLineItem(li.uid, { qty })}
                         onDelete={() => toggleDeleteLineItem(li.uid)}
+                        onCreateProduct={() => {
+                          setProductAutoFill({
+                            targetForm: 'invoice',
+                            productId: null,
+                            productName: '',
+                            unitPrice: 0,
+                            lineItemUid: li.uid,
+                            companyId: company.id,
+                          });
+                          navigate(`/products?newFor=invoice&companyId=${company.id}`);
+                        }}
                       />
                     ))}
                   </tbody>
