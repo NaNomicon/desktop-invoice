@@ -13,6 +13,8 @@ export interface ProductAutoFill {
   productId: number | null
   productName: string
   unitPrice: number
+  lineItemUid: string | null
+  companyId: number | null
 }
 
 interface UIState {

@@ -122,16 +122,24 @@ function ProductPage() {
   }, []);
 
   const openNew = useCallback(
-    (targetForm?: 'invoice' | 'quotation') => {
+    (targetForm?: 'invoice' | 'quotation', companyIdOverride?: number) => {
+      const currentAutoFill = useUIStore.getState().productAutoFill;
       if (targetForm) {
-        setProductAutoFill({ targetForm, productId: null, productName: '', unitPrice: 0 });
+        setProductAutoFill({
+          targetForm,
+          productId: null,
+          productName: '',
+          unitPrice: 0,
+          lineItemUid: currentAutoFill?.lineItemUid ?? null,
+          companyId: companyIdOverride ?? currentAutoFill?.companyId ?? null,
+        });
       }
       setEditingId(null);
       setForm({
         product_name: '',
         product_id: '',
         type_id: 'none',
-        company_id: authCompanyId,
+        company_id: companyIdOverride ?? currentAutoFill?.companyId ?? authCompanyId,
         price: '',
       });
       setDialogOpen(true);
@@ -148,7 +156,9 @@ function ProductPage() {
     if (target === 'invoice' || target === 'quotation') {
       const priceParam = searchParams.get('price');
       const nameParam = searchParams.get('name');
-      openNew(target);
+      const companyIdParam = searchParams.get('companyId');
+      const companyIdOverride = companyIdParam ? parseInt(companyIdParam) : undefined;
+      openNew(target, companyIdOverride);
       if (priceParam) {
         setForm((f) => ({ ...f, price: priceParam, product_name: nameParam || '' }));
       }
