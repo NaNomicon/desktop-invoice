@@ -74,12 +74,12 @@ export async function saved(
     const customer = custRows[0];
 
     let invoiceId = params.invoice_id ?? 0;
-    let previousNetDelta = 0;
+    let oldSubTotal = 0;
 
     if (isEditing) {
       const existingRows = await db.select<
-        { invoice_no: string; total: number; paid_amount: number }[]
-      >('SELECT invoice_no, total, paid_amount FROM tbl_invoice_main WHERE id = ?', [
+        { invoice_no: string; total: number; paid_amount: number; sub_total: number }[]
+      >('SELECT invoice_no, total, paid_amount, sub_total FROM tbl_invoice_main WHERE id = ?', [
         invoiceId,
       ]);
       const existing = existingRows[0];
@@ -87,7 +87,7 @@ export async function saved(
         throw new Error(`Invoice ${invoiceId} not found`);
       }
       invoice_no = invoice_no || existing.invoice_no;
-      previousNetDelta = existing.total - existing.paid_amount;
+      oldSubTotal = existing.sub_total;
     } else if (!invoice_no) {
       invoice_no = await getNextInvoiceNo();
     }
@@ -95,15 +95,24 @@ export async function saved(
     const startingSignedBalance = customer
       ? toSignedBalance(customer.ad_due, customer.due_amount)
       : 0;
-    const netInvoiceDelta = params.total - params.paid_amount;
-    const endingSignedBalance = startingSignedBalance - previousNetDelta + netInvoiceDelta;
-    const nextCustomerBalance = fromSignedBalance(endingSignedBalance);
+
+    let endingSignedBalance: number;
+    if (isEditing) {
+      // Edit: adjust current balance by sub_total delta
+      // Matches original VB: newDue = currentDue - dueAtLoad + newSubTotal
+      endingSignedBalance = startingSignedBalance - oldSubTotal + params.sub_total;
+    } else {
+      // New invoice: replace balance with (total - paid_amount), signed by advance/due
+      // Matches original VB: CREDIT → due = total_amt; CASH → due = total_amt - paid_amount
+      const rawBalance = Math.abs(params.total) - params.paid_amount;
+      endingSignedBalance = params.isAdvance ? -Math.abs(rawBalance) : Math.abs(rawBalance);
+    }
 
     let cr_dr: string | null = null;
-    if (netInvoiceDelta > 0) {
-      cr_dr = 'Cr.';
-    } else if (netInvoiceDelta < 0) {
+    if (endingSignedBalance > 0) {
       cr_dr = 'Dr.';
+    } else if (endingSignedBalance < 0) {
+      cr_dr = 'Cr.';
     }
 
     if (isEditing) {
@@ -219,6 +228,8 @@ export async function saved(
         );
       }
     }
+
+    const nextCustomerBalance = fromSignedBalance(endingSignedBalance);
 
     for (const lineId of params.deleted_line_item_ids ?? []) {
       if (lineId > 0) {
