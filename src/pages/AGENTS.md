@@ -13,7 +13,7 @@ Route-level page components. Each page maps to one or more routes defined in `Ma
 | `quotation/` | `QuotationList.tsx`, `QuotationForm.tsx` | QuotationForm is 1243 lines |
 | `receipt/` | `ReceiptForm.tsx`, `TransactionHistory.tsx` | |
 | `outstanding/` | `ListOutStanding.tsx`, `outstanding-report-helpers.ts` | Uses `useOutstandingStore` for filters |
-| `reports/` | 10 files — previews + list reports | Preview pages render HTML for Chromium PDF |
+| `reports/` | 10 files — previews + list reports | Preview pages render HTML consumed by the PDF export bridge |
 | `admin/` | 15 files — settings, customers, products, users, email, WhatsApp, backup/restore/migrate | |
 
 ## Patterns

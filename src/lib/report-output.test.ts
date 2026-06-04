@@ -66,7 +66,7 @@ describe('openPrintableReport pdf flow', () => {
   it('shows a friendly error when standalone export fails', async () => {
     saveReportPdfMock.mockResolvedValue({
       status: 'error',
-      error: 'Bundled Chromium is missing',
+      error: 'Bundled Typst is missing',
     });
 
     await openPrintableReport({
@@ -79,7 +79,7 @@ describe('openPrintableReport pdf flow', () => {
 
     expect(openPathMock).not.toHaveBeenCalled();
     expect(toastErrorMock).toHaveBeenCalledWith(
-      'Failed to generate PDF: Bundled Chromium is missing',
+      'Failed to generate PDF: Bundled Typst is missing',
     );
   });
 

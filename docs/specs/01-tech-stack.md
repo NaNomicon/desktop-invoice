@@ -48,22 +48,7 @@
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-fs = "2"
 tauri-plugin-dialog = "2"
-tauri-plugin-shell = "2"
-tauri-plugin-notification = "2"
-tauri-plugin-window-state = "2"
-
-// tauri.conf.json capabilities
-{
-  "plugins": {
-    "sql": {},
-    "shell": {
-      "scope": [
-        { "name": "chromium", "cmd": "chrome", "args": true },
-        { "name": "chromium-path", "cmd": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe", "args": true }
-      ]
-    }
-  }
-}
+typst CLI bundled under src-tauri/binaries/typst/ for standalone PDF export
 ```
 
 ---
@@ -251,52 +236,29 @@ src-tauri/
 
 ```rust
 #[tauri::command]
-async fn generate_invoice_pdf(
-    invoice_id: i64,
-    app: AppHandle,
-) -> Result<String, String> {
-    let db = app.state::<Db>();
-
-    // 1. Load invoice data from SQLite
-    let invoice = db.select_one(
-        "SELECT * FROM tbl_invoice_main WHERE id = $1",
-        [invoice_id]
-    ).await.map_err(|e| e.to_string())?;
-
-    // 2. Render HTML with Tera
-    let tera = app.state::<Tera>();
-    let html = tera.render("invoice.html", &invoice)
-        .map_err(|e| e.to_string())?;
-
-    // 3. Write temp HTML
+async fn generate_invoice_pdf(request: SaveReportPdfRequest, app: AppHandle) -> Result<String, String> {
     let temp_dir = app.path().temp_dir().map_err(|e| e.to_string())?;
-    let html_path = temp_dir.join("invoice.html");
-    let pdf_path = temp_dir.join("invoice.pdf");
-    fs::write(&html_path, html).map_err(|e| e.to_string())?;
+    let typst_path = temp_dir.join("invoice.typ");
+    let pdf_path = PathBuf::from(request.output_path);
 
-    // 4. Headless Chrome → PDF
-    let output = Command::new("chrome")
-        .args([
-            "--headless", "--disable-gpu",
-            &format!("--print-to-pdf={}", pdf_path.display()),
-            &format!("{}", html_path.display()),
-        ])
+    fs::write(&typst_path, render_typst_report(&request.html)).map_err(|e| e.to_string())?;
+
+    let output = Command::new("src-tauri/binaries/typst/<platform>/typst")
+        .args(["compile", typst_path.to_string_lossy().as_ref(), pdf_path.to_string_lossy().as_ref()])
         .output()
         .map_err(|e| e.to_string())?;
 
-    // 5. Copy to user documents
-    let docs = app.path().document_dir().map_err(|e| e.to_string())?;
-    let dest = docs.join(format!("invoices/{}.pdf", invoice.invoice_no));
-    fs::create_dir_all(dest.parent().unwrap()).map_err(|e| e.to_string())?;
-    fs::copy(&pdf_path, &dest).map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).to_string());
+    }
 
-    Ok(dest.to_string_lossy().into())
+    Ok(pdf_path.to_string_lossy().into())
 }
 ```
 
 ### PDF Libraries (Rust fallback)
 
-If Chrome is unavailable:
+If Typst is unavailable:
 
 | Crate | Status | Layout | Tables |
 |-------|--------|--------|--------|

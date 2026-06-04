@@ -295,7 +295,7 @@ Track testing progress with ✅ (pass) / ❌ (fail) / ⚠️ (partial) per app.
 | 17.1 | Invoice PDF path | {Invoice_path}/{MonthName}/INV{no}-{name}.pdf | Configured invoice path | - [ ] | - [ ] |
 | 17.2 | Quotation PDF path | {quo_path}/{MonthName}/{customer}/QUO{no}-{name}.pdf | Configured quotation path | - [ ] | - [ ] |
 | 17.3 | Receipt PDF path | {report_path}/Receipt/{MonthName}/{customer}/PAY{no}-{name}.pdf | Configured report path | - [ ] | - [ ] |
-| 17.4 | PDF engine | Microsoft ReportViewer (RDLC) — requires .NET runtime | Headless Chromium (bundled) | - [ ] | - [ ] |
+| 17.4 | PDF engine | Microsoft ReportViewer (RDLC) — requires .NET runtime | Typst CLI (bundled) | - [ ] | - [ ] |
 | 17.5 | PDF auto-generated on save | Every save triggers PDF generation automatically | PDF generated on explicit print/preview action | - [ ] | - [ ] |
 | 17.6 | Month subfolder creation | PDFs organized into {MonthName}/ subfolders automatically | Verify if month subfolders are created | - [ ] | - [ ] |
 | 17.7 | Excel export | Excel Interop (requires Microsoft Excel installed) | XML-based .xls (no Excel required) | - [ ] | - [ ] |

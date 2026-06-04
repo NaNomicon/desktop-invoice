@@ -174,17 +174,16 @@ Treat this checklist as a release blocker before publishing the draft release.
 
 ## Standalone PDF Renderer Validation
 
-The app bundles Chromium payloads under `src-tauri/binaries/` for standalone PDF export.
+The app bundles the Typst CLI under `src-tauri/binaries/` for standalone PDF export.
 
 Before shipping a release for Windows or Linux:
 
 1. Run `npm run tauri:check`.
-2. Run `TAURI_FORCE_BUNDLED_CHROMIUM_CHECK=1 cargo check` in `src-tauri` when validating the local target payload.
+2. Run `TAURI_FORCE_BUNDLED_TYPST_CHECK=1 cargo check` in `src-tauri` when validating the local target payload.
 3. Build with `npm run tauri:build` on the target OS or target-specific CI runner.
-4. Install the packaged app on a clean machine that does not need a system Chrome installation.
-5. Launch the app and confirm no bundled-renderer warning toast appears.
-6. Exercise PDF export from the main report flows and confirm the saved PDF opens automatically.
-7. Treat Windows `.msi` and Linux AppImage verification as release blockers until they pass on clean machines.
+4. Install the packaged app on a clean machine that does not need a system Typst installation.
+5. Exercise PDF export from the main report flows and confirm the saved PDF opens automatically.
+6. Treat Windows `.msi` and Linux AppImage verification as release blockers until they pass on clean machines.
 
 ## Release Artifacts
 
