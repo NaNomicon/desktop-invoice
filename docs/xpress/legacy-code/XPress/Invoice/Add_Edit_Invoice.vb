@@ -1427,18 +1427,24 @@ kkk:
             Else
                 Dim oldDueAmt As String
                 oldDueAmt = get_single_value("due_amount", "tbl_customer", "id", customer_id)
-                'Dim newDueAmt As String = Val(oldDueAmt) + Val(sub_total.Text)
-                Dim m1 As String = ""
-                m1 = "update tbl_customer set due_amount='" & Math.Abs(Val(total_amt.Text)) & "' where id='" & customer_id & "'"
-                'm1 = "update tbl_customer set due_amount='" & Math.Abs(Val(newDueAmt)) & "' where id='" & customer_id & "'"
+                Dim signedOldDueAmt As Double = Val(oldDueAmt)
+                If ad_de = "Advance" Then
+                    signedOldDueAmt = signedOldDueAmt * -1
+                End If
+
+                Dim invoiceAmount As Double = Val(sub_total.Text) + Val(vat.Text) - Val(discount.Text)
+                Dim signedNewDueAmt As Double = signedOldDueAmt + invoiceAmount
+                Dim m1 As String = "update tbl_customer set due_amount='" & Math.Abs(signedNewDueAmt) & "' where id='" & customer_id & "'"
                 cmd = New SqlCommand(m1, con)
                 cmd.ExecuteNonQuery()
-                'Else
-                '    Dim get_due As Double = get_single_value("due_amount", "tbl_customer", "id", customer_id)
-                '    Dim tot_amt As Double = Math.Abs(Val(total_amt.Text))
-                '    Dim m1 As String = "update tbl_customer set due_amount='" & Math.Abs(Val(tot_amt) - Val(paid_amount.Text)) & "' where id='" & customer_id & "'"
-                '    cmd = New SqlCommand(m1, con)
-                '    cmd.ExecuteNonQuery()
+
+                If signedNewDueAmt < 0 Then
+                    variable("ad_due") = "'Advance'"
+                    str1 = "Cr."
+                Else
+                    variable("ad_due") = "'Due'"
+                    str1 = "Dr."
+                End If
             End If
             'variable.Add("due_amount", "'" & Math.Abs(Val(total_amt.Text)) & "'")
             Call SQL_Update("tbl_customer", variable, " id='" & customer_id & "'")

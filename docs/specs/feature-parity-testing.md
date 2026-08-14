@@ -22,31 +22,31 @@ Track testing progress with ✅ (pass) / ❌ (fail) / ⚠️ (partial) per app.
 
 | # | Test | Original (VB.NET) | New (Tauri/React) | Original | New |
 |---|------|-------------------|-------------------|----------|-----|
-| 2.1 | Open invoice form | BILLING > INVOICE → View_Invoice → click New | Sidebar > Invoices → click New Invoice | - [ ] | - [ ] |
-| 2.2 | Invoice number auto-generated | Form opens with next invoice number pre-filled from tbl_numbers | Form opens with next invoice number pre-filled | - [ ] | - [ ] |
-| 2.3 | Customer search | Type in Customer Name field → dropdown appears → search by name/phone/contact/address | Type in Customer field → dropdown appears → search by name/phone/email/address | - [ ] | - [ ] |
-| 2.4 | Customer due/advance loads | Select customer → "Due Amount" or "Advance Amount" label appears with value; total adjusts | Select customer → due/advance amount shown; verify total adjusts accordingly | - [ ] | - [ ] |
-| 2.5 | Add line item | Click in Product Name cell → type product name → arrow keys to navigate → Enter to select | Click in Product Name cell → type → arrow keys → Enter to select | - [ ] | - [ ] |
+| 2.1 | Open invoice form | BILLING > INVOICE → View_Invoice → click New | Sidebar > Invoices → click New Invoice | - [x] | - [x] |
+| 2.2 | Invoice number auto-generated | Form opens with next invoice number pre-filled from tbl_numbers | Form opens with next invoice number pre-filled | - [ ] | - [x] |
+| 2.3 | Customer search | Type in Customer Name field → dropdown appears → search by name/phone/contact/address | Type in Customer field → dropdown appears → search by name/phone/email/address | - [x] | - [x] |
+| 2.4 | Customer due/advance loads | Select customer → "Due Amount" or "Advance Amount" label appears with value; total adjusts | Select customer → due/advance amount shown; verify total adjusts accordingly | - [ ] | - [ x |
+| 2.5 | Add line item | Click in Product Name cell → type product name → arrow keys to navigate → Enter to select | Click in Product Name cell → type → arrow keys → Enter to select | - [x] | - [x] |
 | 2.6 | Product type filter | load_type ComboBox filters products by type; all_type checkbox shows all | Product type filter available in product search | - [ ] | - [ ] |
-| 2.7 | Keyboard shortcuts | Ctrl+I adds row, Ctrl+D deletes row | Ctrl+I adds row, Ctrl+D deletes row | - [ ] | - [ ] |
-| 2.8 | Qty/price calculation | Edit Qty → Total = Qty × UnitPrice; sub_total updates | Edit Qty → row total updates; sub_total updates | - [ ] | - [ ] |
-| 2.9 | VAT calculation | If VAT enabled in settings: VAT = sub_total × vat_per%; grand total updates | VAT toggle on form; VAT = sub_total × vat_per%; grand total updates | - [ ] | - [ ] |
-| 2.10 | Discount % | Enter % in per field → discount = (sub_total + vat) × per%; total updates | Enter discount % → discount amount calculated; total updates | - [ ] | - [ ] |
-| 2.11 | Manual discount | Leave per = 0 → type directly in discount field | Enter discount amount directly when % is 0 | - [ ] | - [ ] |
-| 2.12 | CASH mode | Set case_debit = CASH → paid_amount field becomes enabled | Set case to CASH → paid amount field enabled | - [ ] | - [ ] |
-| 2.13 | CREDIT mode | Set case_debit = CREDIT → paid_amount field disabled | Set case to CREDIT → paid amount field disabled | - [ ] | - [ ] |
+| 2.7 | Keyboard shortcuts | Ctrl+I adds row, Ctrl+D deletes row | Ctrl+I adds row, Ctrl+D deletes row | - [-] | - [x] |
+| 2.8 | Qty/price calculation | Edit Qty → Total = Qty × UnitPrice; sub_total updates | Edit Qty → row total updates; sub_total updates | - [x] | - [x] |
+| 2.9 | VAT calculation | If VAT enabled in settings: VAT = sub_total × vat_per%; grand total updates | VAT toggle on form; VAT = sub_total × vat_per%; grand total updates | - [x] | - [x] |
+| 2.10 | Discount % | Enter % in per field → discount = (sub_total + vat) × per%; total updates | Enter discount % → discount amount calculated; total updates | - [x] | - [x] |
+| 2.11 | Manual discount | Leave per = 0 → type directly in discount field | Enter discount amount directly when % is 0 | - [x] | - [x] |
+| 2.12 | CASH mode | Set case_debit = CASH → paid_amount field becomes enabled | Set case to CASH → paid amount field enabled | - [x] | - [x] |
+| 2.13 | CREDIT mode | Set case_debit = CREDIT → paid_amount field disabled | Set case to CREDIT → paid amount field disabled | - [x] | - [x] |
 | 2.14 | Print Due Amount toggle | chk1 checkbox → controls whether due amount prints on invoice PDF | Verify "Print Due Amount" toggle exists and affects PDF output | - [ ] | - [ ] |
 | 2.15 | Checklist# and Ref# | Fill checklist_no → saved and visible in list | Fill checklist# and ref# → saved and visible in list | - [ ] | - [ ] |
 | 2.16 | Save & Print | Button1 → saves → generates PDF → saves to {Invoice_path}/{Month}/INV{no}-{name}.pdf → opens | Save & Print → saves → PDF generated → opens print preview | - [ ] | - [ ] |
 | 2.17 | Save & Preview | Button4 → saves → opens preview window | Save & Preview → saves → navigates to invoice preview | - [ ] | - [ ] |
 | 2.18 | Save & Email | Button6 → saves → PDF generated → direct_email form opens pre-filled with customer email, template body, PDF attached | Send button → saves → email sent with PDF attachment using INVOICE template | - [ ] | - [ ] |
 | 2.19 | Add Receipt from invoice | Button8 → opens Add_Edit_Receipt with customer pre-loaded | "Create Receipt" button → receipt form pre-filled with customer | - [ ] | - [ ] |
-| 2.20 | New Customer inline | Button3 → opens Add_Edit_Customer → after save, customer auto-selected in invoice | "New Customer" button → opens customer form → after save, customer selected | - [ ] | - [ ] |
-| 2.21 | New Product inline | Button7 → opens Add_Edit_Product → after save, product auto-inserted as line item | "New Product" button → opens product form → after save, product added to line | - [ ] | - [ ] |
-| 2.22 | Edit invoice | View_Invoice → select row → Edit button or double-click → form opens with data | Invoice list → click row → edit → form opens with data | - [ ] | - [ ] |
-| 2.23 | Edit-lock (late edit) | If editing invoice older than invoice_days setting → new invoice number assigned | If invoice has receipts → duplicate created with new number | - [ ] | - [ ] |
-| 2.24 | Delete invoice | View_Invoice → select → Delete → confirm → customer balance reversed → record removed | Invoice list → delete (admin) → confirm → customer balance reversed → removed | - [ ] | - [ ] |
-| 2.25 | Split invoice (multi-company) | Not present in original — single company only | Add line items from 2 companies → save → 2 separate invoices created | N/A | - [ ] |
+| 2.20 | New Customer inline | Button3 → opens Add_Edit_Customer → after save, customer auto-selected in invoice | "New Customer" button → opens customer form → after save, customer selected | - [x] | - [x] |
+| 2.21 | New Product inline | Button7 → opens Add_Edit_Product → after save, product auto-inserted as line item | "New Product" button → opens product form → after save, product added to line | - [x] | - [x] |
+| 2.22 | Edit invoice | View_Invoice → select row → Edit button or double-click → form opens with data | Invoice list → click row → edit → form opens with data | - [x] | - [ ] |
+| 2.23 | Edit-lock (late edit) | If editing invoice older than invoice_days setting → new invoice number assigned | If invoice has receipts → duplicate created with new number | - [x] | - [ ] |
+| 2.24 | Delete invoice | View_Invoice → select → Delete → confirm → customer balance reversed → record removed | Invoice list → delete (admin) → confirm → customer balance reversed → removed | - [x] | - [x] |
+| 2.25 | Split invoice (multi-company) | Not present in original — single company only | Add line items from 2 companies → save → 2 separate invoices created | N/A | - [x] |
 
 
 ---
@@ -55,19 +55,19 @@ Track testing progress with ✅ (pass) / ❌ (fail) / ⚠️ (partial) per app.
 
 | # | Test | Original (VB.NET) | New (Tauri/React) | Original | New |
 |---|------|-------------------|-------------------|----------|-----|
-| 3.1 | Open quotation form | BILLING > QUOTATION → View_Quotation → New | Sidebar > Quotations → New Quotation | - [ ] | - [ ] |
-| 3.2 | Quotation number auto-generated | Next quo_no from tbl_numbers pre-filled | Next quotation number pre-filled | - [ ] | - [ ] |
-| 3.3 | Customer search | Same type-ahead as invoice | Same type-ahead as invoice | - [ ] | - [ ] |
-| 3.4 | Customer due shown | amount_due field shows customer balance (read-only, no total adjustment) | Customer due displayed (quotations don't adjust total based on balance) | - [ ] | - [ ] |
-| 3.5 | Line items, calc, VAT, discount | Same as invoice | Same as invoice | - [ ] | - [ ] |
+| 3.1 | Open quotation form | BILLING > QUOTATION → View_Quotation → New | Sidebar > Quotations → New Quotation | - [ ] | - [x] |
+| 3.2 | Quotation number auto-generated | Next quo_no from tbl_numbers pre-filled | Next quotation number pre-filled | - [ ] | - [x] |
+| 3.3 | Customer search | Same type-ahead as invoice | Same type-ahead as invoice | - [x] | - [x] |
+| 3.4 | Customer due shown | amount_due field shows customer balance (read-only, no total adjustment) | Customer due displayed (quotations don't adjust total based on balance) | - [-] | - [-] |
+| 3.5 | Line items, calc, VAT, discount | Same as invoice | Same as invoice | - [-] | - [-] |
 | 3.6 | Save & PDF | Button1 → saves → PDF to {quo_path}/{Month}/{customer}/QUO{no}-{name}.pdf | Save → PDF generated to configured quotation path | - [ ] | - [ ] |
 | 3.7 | Save & Preview | Button4 → saves → opens quotation preview | Save & Preview → navigates to quotation preview | - [ ] | - [ ] |
 | 3.8 | Save & Email | Button6 → saves → PDF → direct_email opens with QUOTATION template (replaces date, contact person) | Send → saves → email with QUOTATION template, PDF attached | - [ ] | - [ ] |
-| 3.9 | Edit quotation | View_Quotation → select → Edit or double-click | Quotation list → click → edit | - [ ] | - [ ] |
-| 3.10 | Delete quotation | Select → Delete → confirm → removed (no balance adjustment) | Delete (admin) → confirm → removed | - [ ] | - [ ] |
-| 3.11 | Convert to invoice | View_Quotation → double-click row → opens Add_Edit_Invoice pre-filled with all quotation data | Quotation list → double-click or Convert button → invoice form pre-filled | - [ ] | - [ ] |
-| 3.12 | Checklist# | Fill checklist_no → saved and visible in list | Fill checklist# → saved and visible | - [ ] | - [ ] |
-| 3.13 | Split quotation | Not present in original | Multi-company lines → save → separate quotations | N/A | - [ ] |
+| 3.9 | Edit quotation | View_Quotation → select → Edit or double-click | Quotation list → click → edit | - [x] | - [x] |
+| 3.10 | Delete quotation | Select → Delete → confirm → removed (no balance adjustment) | Delete (admin) → confirm → removed | - [x] | - [x] |
+| 3.11 | Convert to invoice | View_Quotation → double-click row → opens Add_Edit_Invoice pre-filled with all quotation data | Quotation list → double-click or Convert button → invoice form pre-filled | - [ ] | - [x] |
+| 3.12 | Checklist# | Fill checklist_no → saved and visible in list | Fill checklist# → saved and visible | - [x] | - [x] |
+| 3.13 | Split quotation | Not present in original | Multi-company lines → save → separate quotations | N/A | - [x] |
 
 ---
 
@@ -75,16 +75,16 @@ Track testing progress with ✅ (pass) / ❌ (fail) / ⚠️ (partial) per app.
 
 | # | Test | Original (VB.NET) | New (Tauri/React) | Original | New |
 |---|------|-------------------|-------------------|----------|-----|
-| 4.1 | Open receipt form | BILLING > RECEIPT → View_List_of_Receipt → New; or from Outstanding → Receipt Voucher | Sidebar > History → New; or from Outstanding → Receipt Voucher | - [ ] | - [ ] |
-| 4.2 | Customer search | Type-ahead in customer_name field | Type-ahead in customer field | - [ ] | - [ ] |
-| 4.3 | Due amount loads | Select customer → amount_received pre-filled with customer's due amount | Select customer → amount pre-filled with due amount | - [ ] | - [ ] |
-| 4.4 | Transaction history grid | DataGridView2 shows all invoices + receipts for customer with running balance (UNION query) | Side panel shows all invoices + receipts for customer with running balance | - [ ] | - [ ] |
+| 4.1 | Open receipt form | BILLING > RECEIPT → View_List_of_Receipt → New; or from Outstanding → Receipt Voucher | Sidebar > History → New; or from Outstanding → Receipt Voucher | - [x] | - [x] |
+| 4.2 | Customer search | Type-ahead in customer_name field | Type-ahead in customer field | - [x] | - [x] |
+| 4.3 | Due amount loads | Select customer → amount_received pre-filled with customer's due amount | Select customer → amount pre-filled with due amount | - [x] | - [x] |
+| 4.4 | Transaction history grid | DataGridView2 shows all invoices + receipts for customer with running balance (UNION query) | Side panel shows all invoices + receipts for customer with running balance | - [x] | - [x] |
 | 4.5 | Payment method | cash, cheque, other checkboxes — multi-select allowed (can check all three) | Cash/Cheque/Other selector — verify if multi-select is supported | - [ ] | - [ ] |
-| 4.6 | Cheque number | Enter cheque_no when cheque is checked | Cheque# field appears when Cheque selected | - [ ] | - [ ] |
-| 4.7 | Balance calculation | due_amount = customer balance - amount_received; shows new balance | New balance = old balance - amount received | - [ ] | - [ ] |
-| 4.8 | Save receipt | Button1 → saves → PDF auto-generated to {report_path}/Receipt/{Month}/{customer}/PAY{no}-{name}.pdf → refreshes Outstanding/Receipt lists | Save → receipt saved → customer balance updated | - [ ] | - [ ] |
-| 4.9 | Edit receipt | View_List_of_Receipt → select → Edit or double-click | Receipt list → select → edit | - [ ] | - [ ] |
-| 4.10 | Delete receipt | Select → Delete → customer balance NOT adjusted (original bug) | Delete → verify if customer balance is restored (new app may fix this) | - [ ] | - [ ] |
+| 4.6 | Cheque number | Enter cheque_no when cheque is checked | Cheque# field appears when Cheque selected | - [x] | - [x] |
+| 4.7 | Balance calculation | due_amount = customer balance - amount_received; shows new balance | New balance = old balance - amount received | - [x] | - [x] |
+| 4.8 | Save receipt | Button1 → saves → PDF auto-generated to {report_path}/Receipt/{Month}/{customer}/PAY{no}-{name}.pdf → refreshes Outstanding/Receipt lists | Save → receipt saved → customer balance updated | - [x] | - [x] |
+| 4.9 | Edit receipt | View_List_of_Receipt → select → Edit or double-click | Receipt list → select → edit | - [x] | - [ ] |
+| 4.10 | Delete receipt | Select → Delete → customer balance NOT adjusted (original bug) | Delete → verify if customer balance is restored (new app may fix this) | - [x] | - [x] |
 | 4.11 | Preview receipt | Button5 → PDF preview | Preview button → receipt report opens | - [ ] | - [ ] |
 | 4.12 | Email receipt | Button6 → PDF → direct_email with RECEIPT template | Email button → receipt PDF sent with RECEIPT template | - [ ] | - [ ] |
 | 4.13 | Print PDF | Button7 → PDF saved to path → message shown with path | Save PDF button → PDF saved to configured path | - [ ] | - [ ] |
@@ -96,7 +96,7 @@ Track testing progress with ✅ (pass) / ❌ (fail) / ⚠️ (partial) per app.
 
 | # | Test | Original (VB.NET) | New (Tauri/React) | Original | New |
 |---|------|-------------------|-------------------|----------|-----|
-| 5.1 | View outstanding | BILLING > OUTSTANDING → ListOutStanding | Sidebar > Outstanding | - [ ] | - [ ] |
+| 5.1 | View outstanding | BILLING > OUTSTANDING → ListOutStanding | Sidebar > Outstanding | - [x] | - [x] |
 | 5.2 | Due amounts shown | Customers with due_amount > 0; Due = positive (red), Advance = negative (green) | Customers with due/advance; Due in red, Advance in green | - [ ] | - [ ] |
 | 5.3 | Total due / advance | No totals row in original list | Totals shown at bottom (new app feature) | N/A | - [ ] |
 | 5.4 | Search | Type in find → filters by customer name | Search field → filters by customer name | - [ ] | - [ ] |
